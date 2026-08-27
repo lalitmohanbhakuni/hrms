@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+
+{% block title %}Employees - HRMS{% endblock %}
+
+{% block content %}
+<div class="page-header flex justify-between items-center flex-wrap">
+    <div>
+        <h1 class="text-3xl font-bold text-gray-800"><i class="fas fa-users text-purple-500 mr-2"></i> Employee Management</h1>
+        <p class="text-gray-500">Manage all employees and their accounts.</p>
+    </div>
+    <a href="{% url 'employee_create' %}" class="btn-premium"><i class="fas fa-user-plus mr-2"></i> Add Employee</a>
+</div>
+
+<div class="glass-card p-6 mt-6">
+    <div class="overflow-x-auto">
+        {% if employees %}
+            <table class="min-w-full divide-y divide-gray-200 table-premium">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th><i class="fas fa-user mr-1"></i> Username</th>
+                        <th><i class="fas fa-envelope mr-1"></i> Email</th>
+                        <th><i class="fas fa-user-tag mr-1"></i> Role</th>
+                        <th><i class="fas fa-cog mr-1"></i> Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for emp in employees %}
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap">{{ forloop.counter }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
+                                {{ emp.username }}
+                                {% if emp == request.user %}
+                                    <span class="badge-premium bg-blue-100 text-blue-800 ml-2">You</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">{{ emp.email|default:"<span class='text-gray-400'>Not set</span>" }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                {% if emp.is_superuser %}
+                                    <span class="badge-premium bg-red-100 text-red-800"><i class="fas fa-crown mr-1"></i> Admin</span>
+                                {% elif emp.is_staff %}
+                                    <span class="badge-premium bg-blue-100 text-blue-800"><i class="fas fa-user-tie mr-1"></i> Staff</span>
+                                {% else %}
+                                    <span class="badge-premium bg-gray-100 text-gray-800"><i class="fas fa-user mr-1"></i> Employee</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                {% if emp != request.user %}
+                                    <form method="post" action="{% url 'employee_delete' emp.id %}" class="inline" onsubmit="return confirm('Are you sure you want to delete {{ emp.username }}?');">
+                                        {% csrf_token %}
+                                        <button type="submit" class="text-red-500 hover:text-red-700"><i class="fas fa-trash-alt"></i></button>
+                                    </form>
+                                {% else %}
+                                    <span class="badge-premium bg-gray-100 text-gray-500">Protected</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="text-center py-8">
+                <i class="fas fa-users text-gray-300 text-5xl mb-4 block"></i>
+                <h5 class="text-gray-500">No employees found</h5>
+                <p class="text-gray-400">Click "Add Employee" to create your first account.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
