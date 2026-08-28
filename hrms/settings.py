@@ -9,6 +9,8 @@ DEBUG = False
 
 ALLOWED_HOSTS = ['hrmx-ludd.onrender.com', 'localhost', '127.0.0.1']
 
+ROOT_URLCONF = 'hrms.urls'   # <-- THIS IS MISSING – ADD THIS LINE
+
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
