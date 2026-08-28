@@ -1,3 +1,4 @@
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -7,6 +8,7 @@ from django.contrib import messages
 from django.utils import timezone
 from datetime import date
 from .models import Attendance
+from django.http import HttpResponse
 
 # ---------- Login & Logout ----------
 
@@ -150,3 +152,6 @@ def attendance_report(request):
         'month_name': today.strftime('%B %Y'),
     }
     return render(request, 'attendance_report.html', context)
+
+    def test_view(request):
+    return HttpResponse("Django is working!")
