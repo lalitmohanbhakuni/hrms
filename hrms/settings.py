@@ -1,9 +1,10 @@
+import dj_database_url
 import os
 from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-&o5^5vz6j@tr^o4q=1_mx6t!x3m9g0b@kz8*$3l7f2d4c1e9y6'
 DEBUG = True
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['hrms.onrender.com', 'localhost', '127.0.0.1']
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
