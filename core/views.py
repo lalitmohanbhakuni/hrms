@@ -1,4 +1,3 @@
-
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -127,13 +126,11 @@ def attendance_report(request):
     today = date.today()
     employees = User.objects.all().order_by('username')
     
-    # Get all attendance records for current month
     attendances = Attendance.objects.filter(
         date__year=today.year,
         date__month=today.month
     ).select_related('user')
     
-    # Build a list of employee data with their records
     employee_data = []
     for emp in employees:
         emp_records = [att for att in attendances if att.user == emp]
@@ -153,5 +150,7 @@ def attendance_report(request):
     }
     return render(request, 'attendance_report.html', context)
 
-    def test_view(request):
+# ---------- Test View (Debugging) ----------
+
+def test_view(request):
     return HttpResponse("Django is working!")
