@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+
+{% block title %}Approve Leave - HRMS{% endblock %}
+{% block page_icon %}check{% endblock %}
+{% block page_title %}Approve Leave Request{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <h5 class="mb-3">Approve Leave for {{ leave.user.username }}</h5>
+                <p><strong>Leave Type:</strong> {{ leave.leave_type.name }}</p>
+                <p><strong>Date:</strong> {{ leave.start_date|date:"d M Y" }} - {{ leave.end_date|date:"d M Y" }}</p>
+                <p><strong>Duration:</strong> {{ leave.get_duration }} day{{ leave.get_duration|pluralize }}</p>
+                <p><strong>Reason:</strong> {{ leave.reason }}</p>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="admin_comment" class="form-label">Admin Comment (optional)</label>
+                        <textarea name="admin_comment" id="admin_comment" rows="2" class="form-control" placeholder="Add a comment..."></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-success rounded-pill px-4">
+                        <i class="fas fa-check me-2"></i> Confirm Approval
+                    </button>
+                    <a href="{% url 'admin_leaves' %}" class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+
+{% block title %}Leave Types - HRMS{% endblock %}
+{% block page_icon %}tags{% endblock %}
+{% block page_title %}Leave Types{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between mb-3">
+    <h5>Manage Leave Types</h5>
+    <a href="{% url 'leave_type_create' %}" class="btn btn-primary rounded-pill">
+        <i class="fas fa-plus me-1"></i> Add Leave Type
+    </a>
+</div>
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Days Allowed</th>
+                        <th>Active</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for lt in leave_types %}
+                        <tr>
+                            <td><strong>{{ lt.name }}</strong></td>
+                            <td>{{ lt.days_allowed }}</td>
+                            <td>{% if lt.is_active %}<span class="badge bg-success">Active</span>{% else %}<span class="badge bg-secondary">Inactive</span>{% endif %}</td>
+                            <td>
+                                <a href="{% url 'leave_type_edit' lt.id %}" class="btn btn-sm btn-outline-primary"><i class="fas fa-edit"></i></a>
+                                <a href="{% url 'leave_type_delete' lt.id %}" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></a>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted">No leave types configured.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+
+{% block title %}Notifications - HRMS{% endblock %}
+{% block page_icon %}bell{% endblock %}
+{% block page_title %}Notifications{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent border-0 pt-3 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-bell text-primary me-2"></i> All Notifications
+                </h5>
+                <span class="badge bg-secondary">{{ notifications|length }} total</span>
+            </div>
+            <div class="card-body p-0">
+                {% if notifications %}
+                    <div class="list-group list-group-flush">
+                        {% for notif in notifications %}
+                            <div class="list-group-item d-flex align-items-start gap-3 py-3 {% if not notif.is_read %}bg-light{% endif %}">
+                                <div class="icon mt-1">
+                                    {% if notif.notification_type == 'action' %}
+                                        <i class="fas fa-clock text-warning"></i>
+                                    {% else %}
+                                        <i class="fas fa-info-circle text-primary"></i>
+                                    {% endif %}
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="message">{{ notif.message }}</div>
+                                    <div class="small text-muted mt-1">
+                                        <i class="far fa-clock me-1"></i> {{ notif.created_at|date:"d M Y, H:i" }}
+                                        {% if not notif.is_read %}
+                                            <span class="badge bg-primary ms-2">New</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div>
+                                    {% if notif.notification_type == 'action' and user.is_superuser %}
+                                        {% if notif.related_object_type == 'leaverequest' %}
+                                            <div class="btn-group btn-group-sm">
+                                                <form method="post" action="{% url 'leave_approve' notif.related_object_id %}" style="display:inline;">
+                                                    {% csrf_token %}
+                                                    <button type="submit" class="btn btn-success">Approve</button>
+                                                </form>
+                                                <form method="post" action="{% url 'leave_reject' notif.related_object_id %}" style="display:inline;">
+                                                    {% csrf_token %}
+                                                    <button type="submit" class="btn btn-danger">Reject</button>
+                                                </form>
+                                            </div>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-inbox fa-3x text-secondary mb-3 d-block"></i>
+                        <p class="text-muted">No notifications yet.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

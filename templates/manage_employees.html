@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4">
+    <h3><i class="fas fa-users me-2"></i> Employee Management</h3>
+    <div class="card shadow-sm">
+        <div class="card-header bg-white">All Employees</div>
+        <div class="table-responsive">
+            <table class="table mb-0">
+                <thead><tr><th>Username</th><th>Email</th><th>Department</th><th>Designation</th><th>Action</th></tr></thead>
+                <tbody>
+                    {% for emp in employees %}
+                    <tr>
+                        <td>{{ emp.user.username }}</td>
+                        <td>{{ emp.user.email }}</td>
+                        <td>{{ emp.department }}</td>
+                        <td>{{ emp.designation }}</td>
+                        <td>
+                            {% if emp.id %}
+                            <a href="{% url 'delete_employee' emp.id %}" class="btn btn-sm btn-danger">Delete</a>
+                            {% else %}
+                            <span class="text-muted">No ID</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" class="text-center text-muted">No employees found.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+
+{% block title %}Leave Approvals - HRMS{% endblock %}
+{% block page_icon %}check-double{% endblock %}
+{% block page_title %}Leave Approvals{% endblock %}
+
+{% block content %}
+<div class="row mb-3">
+    <div class="col">
+        <ul class="nav nav-tabs" id="approvalTabs">
+            <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#pending">Pending ({{ pending_leaves|length }})</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#approved">Approved ({{ approved_leaves|length }})</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#rejected">Rejected ({{ rejected_leaves|length }})</a></li>
+        </ul>
+    </div>
+</div>
+
+<div class="tab-content">
+    <!-- Pending -->
+    <div class="tab-pane fade show active" id="pending">
+        {% if pending_leaves %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead><tr><th>Employee</th><th>Leave Type</th><th>Date</th><th>Duration</th><th>Reason</th><th>Applied</th><th>Actions</th></tr></thead>
+                    <tbody>
+                        {% for req in pending_leaves %}
+                            <tr>
+                                <td>{{ req.user.username }}</td>
+                                <td>{{ req.leave_type.name }}</td>
+                                <td>{{ req.start_date|date:"d M" }} - {{ req.end_date|date:"d M" }}</td>
+                                <td>{{ req.get_duration }} day{{ req.get_duration|pluralize }}</td>
+                                <td>{{ req.reason|truncatechars:30 }}</td>
+                                <td>{{ req.applied_on|date:"d M Y" }}</td>
+                                <td>
+                                    <a href="{% url 'leave_approve' req.id %}" class="btn btn-sm btn-success rounded-pill me-1"><i class="fas fa-check me-1"></i>Approve</a>
+                                    <a href="{% url 'leave_reject' req.id %}" class="btn btn-sm btn-danger rounded-pill"><i class="fas fa-times me-1"></i>Reject</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="text-muted text-center py-4">🎉 No pending leave requests.</p>
+        {% endif %}
+    </div>
+
+    <!-- Approved -->
+    <div class="tab-pane fade" id="approved">
+        {% if approved_leaves %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead><tr><th>Employee</th><th>Leave Type</th><th>Date</th><th>Duration</th><th>Admin Comment</th><th>Applied</th></tr></thead>
+                    <tbody>
+                        {% for req in approved_leaves %}
+                            <tr>
+                                <td>{{ req.user.username }}</td>
+                                <td>{{ req.leave_type.name }}</td>
+                                <td>{{ req.start_date|date:"d M" }} - {{ req.end_date|date:"d M" }}</td>
+                                <td>{{ req.get_duration }} day{{ req.get_duration|pluralize }}</td>
+                                <td>{{ req.admin_comment|default:"-" }}</td>
+                                <td>{{ req.applied_on|date:"d M Y" }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="text-muted text-center py-4">No approved leaves.</p>
+        {% endif %}
+    </div>
+
+    <!-- Rejected -->
+    <div class="tab-pane fade" id="rejected">
+        {% if rejected_leaves %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead><tr><th>Employee</th><th>Leave Type</th><th>Date</th><th>Rejection Reason</th><th>Applied</th></tr></thead>
+                    <tbody>
+                        {% for req in rejected_leaves %}
+                            <tr>
+                                <td>{{ req.user.username }}</td>
+                                <td>{{ req.leave_type.name }}</td>
+                                <td>{{ req.start_date|date:"d M" }} - {{ req.end_date|date:"d M" }}</td>
+                                <td>{{ req.rejection_reason|default:"No reason provided" }}</td>
+                                <td>{{ req.applied_on|date:"d M Y" }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="text-muted text-center py-4">No rejected leaves.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

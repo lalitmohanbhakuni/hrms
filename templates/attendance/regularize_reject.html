@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+
+{% block title %}Reject Regularization - HRMS{% endblock %}
+{% block page_icon %}times{% endblock %}
+{% block page_title %}Reject Regularization{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <h5 class="card-title mb-3 text-danger">Reject Regularization for {{ reg_req.user.username }}</h5>
+                <p><strong>Date:</strong> {{ reg_req.date|date:"d M Y" }}</p>
+                <p><strong>Reason:</strong> {{ reg_req.reason }}</p>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="rejection_reason" class="form-label fw-semibold">Rejection Reason <span class="text-danger">*</span></label>
+                        <textarea name="rejection_reason" id="rejection_reason" rows="3" class="form-control" required placeholder="Please explain why this request is rejected..."></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-danger rounded-pill px-4">
+                        <i class="fas fa-times me-2"></i> Confirm Rejection
+                    </button>
+                    <a href="{% url 'regularize_request_list' %}" class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

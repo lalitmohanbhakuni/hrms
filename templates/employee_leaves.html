@@ -1,0 +1,167 @@
+{% extends 'base.html' %}
+
+{% block title %}My Leaves - HRMS{% endblock %}
+{% block page_icon %}calendar-check{% endblock %}
+{% block page_title %}My Leaves{% endblock %}
+
+{% block content %}
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-4" id="leaveTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <a class="nav-link {% if tab == 'status' %}active{% endif %}" href="?tab=status">Status</a>
+    </li>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link {% if tab == 'requests' %}active{% endif %}" href="?tab=requests">Requests</a>
+    </li>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link {% if tab == 'holidays' %}active{% endif %}" href="?tab=holidays">Holidays</a>
+    </li>
+</ul>
+
+<div class="tab-content">
+    <!-- Tab 1: Status -->
+    <div class="tab-pane fade {% if tab == 'status' %}show active{% endif %}" id="status" role="tabpanel">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">Leave Balance</h5>
+            <a href="{% url 'leave_apply' %}" class="btn btn-sm btn-primary rounded-pill">
+                <i class="fas fa-plus me-1"></i> Apply for Leave
+            </a>
+        </div>
+        <div class="row g-3">
+            {% for item in leave_balance %}
+                <div class="col-md-4">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-body">
+                            <h6 class="card-title fw-bold">{{ item.leave_type.name }}</h6>
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="text-muted">Total</span>
+                                <span>{{ item.total }}</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="text-muted">Used</span>
+                                <span>{{ item.used }}</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="text-muted">Pending</span>
+                                <span>{{ item.pending }}</span>
+                            </div>
+                            <div class="d-flex justify-content-between fw-bold">
+                                <span>Available</span>
+                                <span class="text-success">{{ item.available }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% empty %}
+                <div class="col-12">
+                    <p class="text-muted">No leave types configured yet.</p>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Tab 2: Requests -->
+    <div class="tab-pane fade {% if tab == 'requests' %}show active{% endif %}" id="requests" role="tabpanel">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">My Leave Requests</h5>
+            <div>
+                <a href="?tab=requests&filter=all" class="btn btn-sm btn-outline-secondary {% if filter_status == 'all' %}active{% endif %}">All</a>
+                <a href="?tab=requests&filter=Pending" class="btn btn-sm btn-outline-secondary {% if filter_status == 'Pending' %}active{% endif %}">Pending</a>
+                <a href="?tab=requests&filter=Approved" class="btn btn-sm btn-outline-secondary {% if filter_status == 'Approved' %}active{% endif %}">Approved</a>
+                <a href="?tab=requests&filter=Rejected" class="btn btn-sm btn-outline-secondary {% if filter_status == 'Rejected' %}active{% endif %}">Rejected</a>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Leave Type</th>
+                        <th>Date</th>
+                        <th>Duration</th>
+                        <th>Reason</th>
+                        <th>Status</th>
+                        <th>Applied</th>
+                        <th>View</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for req in requests %}
+                        <tr>
+                            <td>{{ req.leave_type.name }}</td>
+                            <td>{{ req.start_date|date:"d M Y" }} - {{ req.end_date|date:"d M Y" }}</td>
+                            <td>{{ req.get_duration }} day{{ req.get_duration|pluralize }}</td>
+                            <td>{{ req.reason|truncatechars:30 }}</td>
+                            <td>
+                                <span class="badge {% if req.status == 'Pending' %}bg-warning text-dark{% elif req.status == 'Approved' %}bg-success{% else %}bg-danger{% endif %}">
+                                    {{ req.status }}
+                                </span>
+                            </td>
+                            <td>{{ req.applied_on|date:"d M Y" }}</td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#requestModal{{ req.id }}">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        <!-- Modal for request details -->
+                        <div class="modal fade" id="requestModal{{ req.id }}" tabindex="-1">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">Leave Request Details</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p><strong>Leave Type:</strong> {{ req.leave_type.name }}</p>
+                                        <p><strong>Date:</strong> {{ req.start_date|date:"d M Y" }} - {{ req.end_date|date:"d M Y" }}</p>
+                                        <p><strong>Duration:</strong> {{ req.get_duration }} day{{ req.get_duration|pluralize }}</p>
+                                        <p><strong>Reason:</strong> {{ req.reason }}</p>
+                                        <p><strong>Status:</strong> <span class="badge {% if req.status == 'Pending' %}bg-warning{% elif req.status == 'Approved' %}bg-success{% else %}bg-danger{% endif %}">{{ req.status }}</span></p>
+                                        {% if req.admin_comment %}
+                                            <p><strong>Admin Comment:</strong> {{ req.admin_comment }}</p>
+                                        {% endif %}
+                                        {% if req.rejection_reason %}
+                                            <p><strong>Rejection Reason:</strong> {{ req.rejection_reason }}</p>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% empty %}
+                        <tr><td colspan="7" class="text-center text-muted">No requests found.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Tab 3: Holidays -->
+    <div class="tab-pane fade {% if tab == 'holidays' %}show active{% endif %}" id="holidays" role="tabpanel">
+        <h5 class="mb-3">Company Holidays</h5>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Holiday Name</th>
+                        <th>Date</th>
+                        <th>Day</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for holiday in holidays %}
+                        <tr>
+                            <td>{{ holiday.name }}</td>
+                            <td>{{ holiday.date|date:"d M Y" }}</td>
+                            <td>{{ holiday.day }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="3" class="text-center text-muted">No holidays added yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

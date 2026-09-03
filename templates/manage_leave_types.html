@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4">
+    <h3><i class="fas fa-calendar-alt me-2"></i> Manage Leave Types</h3>
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">Add New Type</div>
+                <div class="card-body">
+                    <form method="POST">
+                        {% csrf_token %}
+                        <div class="mb-3"><label>Leave Name</label><input type="text" name="name" class="form-control" required></div>
+                        <div class="mb-3"><label>Days Allowed</label><input type="number" name="days" class="form-control" required></div>
+                        <button type="submit" class="btn btn-primary">Add Leave Type</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">All Leave Types</div>
+                <table class="table mb-0">
+                    <thead><tr><th>Name</th><th>Days</th><th>Action</th></tr></thead>
+                    <tbody>
+                        {% for type in leave_types %}
+                        <tr>
+                            <td>{{ type.name }}</td>
+                            <td>{{ type.days_allowed }}</td>
+                            <td>
+                                {% if type.id %}
+                                <a href="{% url 'delete_leave_type' type.id %}" class="btn btn-sm btn-danger">Delete</a>
+                                {% else %}
+                                <span class="text-muted">No ID</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="3" class="text-center text-muted">No leave types added yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}  

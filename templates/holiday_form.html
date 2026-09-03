@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ action }} Holiday - HRMS{% endblock %}
+{% block page_icon %}calendar-plus{% endblock %}
+{% block page_title %}{{ action }} Holiday{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="name" class="form-label fw-semibold">Holiday Name</label>
+                        <input type="text" name="name" id="name" class="form-control" value="{{ holiday.name|default:'' }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="date" class="form-label fw-semibold">Date</label>
+                        <input type="date" name="date" id="date" class="form-control" value="{{ holiday.date|date:'Y-m-d'|default:'' }}" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4">
+                        <i class="fas fa-save me-2"></i> {% if action == 'Add' %}Add{% else %}Update{% endif %}
+                    </button>
+                    <a href="{% url 'holiday_list' %}" class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
