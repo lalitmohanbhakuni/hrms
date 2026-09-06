@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+
+{% block title %}Employee Details - HRMS{% endblock %}
+{% block page_icon %}user{% endblock %}
+{% block page_title %}Employee Profile{% endblock %}
+
+{% block content %}
+
+<div class="row">
+    <div class="col-lg-4">
+        <!-- Profile Card -->
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center p-4">
+                <div class="avatar-circle mx-auto mb-3" style="width:80px; height:80px; border-radius:50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:2rem;">
+                    {{ profile.full_name|slice:":1"|upper }}
+                </div>
+                <h5 class="fw-bold">{{ profile.full_name }}</h5>
+                <p class="text-muted">{{ profile.designation|default:"No designation" }}</p>
+                <p class="text-muted small">{{ profile.department|default:"No department" }}</p>
+                <hr>
+                <p><strong>Employee ID:</strong> {{ profile.employee_id }}</p>
+                <p><strong>Email:</strong> {{ employee_user.email }}</p>
+                <p><strong>Phone:</strong> {{ profile.phone|default:"Not provided" }}</p>
+                <p><strong>Date of Birth:</strong> {{ profile.date_of_birth|date:"d M Y"|default:"Not set" }}</p>
+                <p><strong>Date of Joining:</strong> {{ profile.date_of_joining|date:"d M Y"|default:"Not set" }}</p>
+                <p><strong>Address:</strong> {{ profile.address|default:"Not provided"|linebreaks }}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <!-- Attendance Summary -->
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-transparent border-0 pt-3">
+                <h5 class="mb-0"><i class="fas fa-clock text-primary me-2"></i> Attendance Summary – {{ month_name }}</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-6 col-md-3">
+                        <div class="p-3 bg-light rounded text-center">
+                            <div class="h4 fw-bold">{{ total_days }}</div>
+                            <div class="text-muted small">Total Days</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="p-3 bg-success bg-opacity-10 rounded text-center">
+                            <div class="h4 fw-bold text-success">{{ present }}</div>
+                            <div class="text-muted small">Present</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="p-3 bg-danger bg-opacity-10 rounded text-center">
+                            <div class="h4 fw-bold text-danger">{{ absent }}</div>
+                            <div class="text-muted small">Absent</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="p-3 bg-warning bg-opacity-10 rounded text-center">
+                            <div class="h4 fw-bold text-warning">{{ half_day }}</div>
+                            <div class="text-muted small">Half-Day</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Leave Balance -->
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent border-0 pt-3">
+                <h5 class="mb-0"><i class="fas fa-calendar-check text-primary me-2"></i> Leave Balance</h5>
+            </div>
+            <div class="card-body">
+                {% if leave_balance %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Leave Type</th>
+                                    <th>Total</th>
+                                    <th>Used</th>
+                                    <th>Pending</th>
+                                    <th>Available</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for lb in leave_balance %}
+                                    <tr>
+                                        <td>{{ lb.leave_type.name }}</td>
+                                        <td>{{ lb.total }}</td>
+                                        <td>{{ lb.used }}</td>
+                                        <td>{{ lb.pending }}</td>
+                                        <td><strong class="{% if lb.available <= 0 %}text-danger{% else %}text-success{% endif %}">{{ lb.available }}</strong></td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted">No leave types configured.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Back Button -->
+        <div class="mt-3">
+            <a href="{% url 'employee_list' %}" class="btn btn-outline-secondary rounded-pill px-4">
+                <i class="fas fa-arrow-left me-2"></i> Back to Employees
+            </a>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

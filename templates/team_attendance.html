@@ -55,6 +55,7 @@
                     <tr>
                         <th>#</th>
                         <th>Employee</th>
+                        <th class="text-center">Shift</th>
                         <th class="text-center">Total Days</th>
                         <th class="text-center">Present</th>
                         <th class="text-center">Absent</th>
@@ -74,6 +75,17 @@
                                     </div>
                                     <span class="fw-semibold">{{ item.employee.username }}</span>
                                 </div>
+                            </td>
+                            <td class="text-center">
+                                {% if item.shift_name != '—' %}
+                                    <span class="badge bg-light text-dark rounded-pill px-2 py-1" style="font-size: 0.75rem;">
+                                        <i class="far fa-clock me-1"></i>
+                                        {{ item.shift_name }}
+                                        <br><small class="text-muted" style="font-size: 0.6rem;">{{ item.shift_timing }}</small>
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
                             </td>
                             <td class="text-center">{{ item.total_days }}</td>
                             <td class="text-center"><span class="badge bg-success">{{ item.present }}</span></td>
@@ -100,7 +112,7 @@
                         </tr>
                         <!-- Expandable Details Row -->
                         <tr class="detail-row" id="details-{{ item.employee.id }}" style="display: none;">
-                            <td colspan="8" class="bg-light px-4 py-3">
+                            <td colspan="9" class="bg-light px-4 py-3">
                                 <div class="d-flex flex-wrap gap-2">
                                     {% if item.records %}
                                         <span class="text-muted me-2"><i class="fas fa-clock me-1"></i> Attendance Records:</span>
@@ -123,7 +135,7 @@
                         </tr>
                     {% empty %}
                         <tr>
-                            <td colspan="8" class="text-center text-muted py-4">
+                            <td colspan="9" class="text-center text-muted py-4">
                                 <i class="fas fa-inbox text-secondary" style="font-size: 2.5rem; display: block; margin-bottom: 0.5rem;"></i>
                                 No attendance data available for this month.
                             </td>
@@ -177,4 +189,4 @@
         });
     });
 </script>
-{% endblock %}
+{% endblock %}  

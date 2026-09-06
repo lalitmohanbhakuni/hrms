@@ -1,0 +1,135 @@
+{% extends 'base.html' %}
+
+{% block title %}Setup - HRMS{% endblock %}
+{% block page_icon %}cog{% endblock %}
+{% block page_title %}Setup{% endblock %}
+
+{% block content %}
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-4" id="setupTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="attendance-tab" data-bs-toggle="tab" data-bs-target="#attendance" type="button" role="tab">
+            <i class="fas fa-clock me-1"></i> Attendance
+        </button>
+    </li>
+    <!-- NEW: Shift Assignment tab -->
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="assign-tab" data-bs-toggle="tab" data-bs-target="#assign" type="button" role="tab">
+            <i class="fas fa-users-cog me-1"></i> Shift Assignment
+        </button>
+    </li>
+    <!-- Future tabs can be added here -->
+    <!--
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="leave-tab" data-bs-toggle="tab" data-bs-target="#leave" type="button" role="tab">
+            <i class="fas fa-calendar-check me-1"></i> Leave
+        </button>
+    </li>
+    -->
+</ul>
+
+<div class="tab-content">
+    <!-- ===== Attendance Tab ===== -->
+    <div class="tab-pane fade show active" id="attendance" role="tabpanel">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">Shift Management</h5>
+            <a href="{% url 'shift_create' %}" class="btn btn-primary rounded-pill">
+                <i class="fas fa-plus me-1"></i> Create Shift
+            </a>
+        </div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Shift Name</th>
+                                <th>Start</th>
+                                <th>End</th>
+                                <th>Break</th>
+                                <th>Grace (min)</th>
+                                <th>Min Hours</th>
+                                <th>Overtime</th>
+                                <th>Working Days</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for shift in shifts %}
+                                <tr>
+                                    <td><strong>{{ shift.name }}</strong></td>
+                                    <td>{{ shift.start_time|time:"h:i A" }}</td>
+                                    <td>{{ shift.end_time|time:"h:i A" }}</td>
+                                    <td>
+                                        {% if shift.break_start and shift.break_end %}
+                                            {{ shift.break_start|time:"h:i A" }} – {{ shift.break_end|time:"h:i A" }}
+                                        {% else %}
+                                            —
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ shift.grace_period }}</td>
+                                    <td>{{ shift.min_working_hours|floatformat:0 }} min</td>
+                                    <td>{% if shift.overtime_allowed %}✅{% else %}❌{% endif %}</td>
+                                    <td>
+                                        {% if shift.mon %}M{% endif %}
+                                        {% if shift.tue %}T{% endif %}
+                                        {% if shift.wed %}W{% endif %}
+                                        {% if shift.thu %}T{% endif %}
+                                        {% if shift.fri %}F{% endif %}
+                                        {% if shift.sat %}S{% endif %}
+                                        {% if shift.sun %}S{% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'shift_edit' shift.id %}" class="btn btn-sm btn-outline-primary" title="Edit">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <a href="{% url 'shift_delete' shift.id %}" class="btn btn-sm btn-outline-danger" title="Delete">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="9" class="text-center text-muted py-4">
+                                        <i class="fas fa-clock fa-2x mb-2 d-block"></i>
+                                        No shifts defined yet.
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick links (optional) -->
+        <div class="mt-3">
+            <a href="{% url 'shift_list' %}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-right me-1"></i> Manage Shifts (full page)
+            </a>
+        </div>
+    </div>
+
+    <!-- ===== Shift Assignment Tab ===== -->
+    <div class="tab-pane fade" id="assign" role="tabpanel">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">Bulk Shift Assignment</h5>
+        </div>
+        <p class="text-muted">Select a shift and one or more employees, then click "Assign Shift".</p>
+        <a href="{% url 'assign_shift' %}" class="btn btn-primary rounded-pill">
+            <i class="fas fa-arrow-right me-1"></i> Go to Shift Assignment
+        </a>
+    </div>
+
+    <!-- Future tabs (commented out) -->
+    <!--
+    <div class="tab-pane fade" id="leave" role="tabpanel">
+        <h5>Leave Settings</h5>
+        <p>Leave type configuration will appear here.</p>
+    </div>
+    -->
+</div>
+
+{% endblock %}

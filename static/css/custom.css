@@ -1,5 +1,45 @@
 /* static/css/custom.css */
 
+.table-light > tr { height: 48px; vertical-align: middle;     font-size: 14px;}
+
+.table-responsive {
+    font-size: 14px;
+}
+
+.table-responsive tr  {
+height: 56px; vertical-align: middle;  
+}
+
+.table-responsive .table-hover tr:hover td {
+    background: #f9f9f9 !important;
+}
+
+/* .table-responsive {
+    margin: 0 -16px;
+} */
+
+.table-light tr th:first-child , .table  tr td:first-child{
+    padding-left: 16px;
+}
+.table {
+    border-top: 1px solid #ddd;
+}
+.table tr th  {
+    background-color: #f8f9fa;
+}
+.table-hover>tbody>tr:hover>* {
+    --bs-table-bg-state: #f9f9f9 !important;
+}
+
+.table  tr th {
+    color: #111827 !important;
+
+}
+.table  tr td   {
+color: #374151 !important;
+}
+
+
 /* ===== Sidebar ===== */
 .sidebar {
     position: fixed;
@@ -192,6 +232,165 @@
 .alert-premium .close-btn:hover {
     opacity: 1;
 }
+
+
+/* ===== Google Calendar‑Style Attendance Calendar ===== */
+.calendar-grid {
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 0 16px 8px 16px;
+}
+
+.calendar-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    text-align: center;
+    font-weight: 500;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: #5f6368;
+    padding: 12px 0 8px 0;
+    border-bottom: 1px solid #e8eaed;
+}
+
+.calendar-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+    background: #fff;
+}
+
+.calendar-day {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 8px 0 4px 0;
+    min-height: 72px;
+    background: #fff;
+    border-radius: 4px;
+    transition: background 0.15s ease;
+    cursor: default;
+    position: relative;
+}
+
+.calendar-day .day-number {
+    font-size: 0.9rem;
+    font-weight: 400;
+    color: #202124;
+    line-height: 1.4;
+}
+
+.calendar-day.weekend .day-number {
+    color: #9aa0a6;
+}
+
+.calendar-day.today .day-number {
+    background: #1a73e8;
+    color: #fff;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 500;
+}
+
+.calendar-day .day-events {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    margin-top: 2px;
+    min-height: 16px;
+}
+
+.event-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.event-dot.present { background: #34a853; }
+.event-dot.leave  { background: #fbbc04; }
+.event-dot.halfday { background: #ff6d00; }
+.event-dot.weekend { background: #9aa0a6; }
+.event-dot.none    { background: transparent; border: 1px solid #dadce0; }
+
+/* Hover effect (like Google Calendar) */
+.calendar-day:hover {
+    background: #f1f3f4;
+}
+
+.calendar-day.present:hover,
+.calendar-day.leave:hover,
+.calendar-day.halfday:hover {
+    background: #f1f3f4;
+}
+
+.calendar-day.empty {
+    background: transparent !important;
+    min-height: auto;
+}
+
+/* Legend */
+.calendar-legend {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1.2rem;
+    padding: 12px 16px 16px 16px;
+    border-top: 1px solid #e8eaed;
+    font-size: 0.75rem;
+    color: #5f6368;
+}
+.calendar-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.calendar-legend .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+}
+.calendar-legend .dot.present { background: #34a853; }
+.calendar-legend .dot.leave   { background: #fbbc04; }
+.calendar-legend .dot.halfday { background: #ff6d00; }
+.calendar-legend .dot.weekend { background: #9aa0a6; }
+.calendar-legend .dot.none    { background: transparent; border: 1px solid #dadce0; }
+
+/* Responsive */
+@media (max-width: 576px) {
+    .calendar-day {
+        min-height: 56px;
+        padding: 4px 0 2px 0;
+    }
+    .calendar-day .day-number {
+        font-size: 0.75rem;
+        width: 22px;
+        height: 22px;
+    }
+    .calendar-day.today .day-number {
+        width: 22px;
+        height: 22px;
+        font-size: 0.75rem;
+    }
+    .event-dot {
+        width: 6px;
+        height: 6px;
+    }
+    .calendar-legend {
+        gap: 0.8rem;
+        font-size: 0.65rem;
+    }
+}
+
+
 
 /* ===== Responsive ===== */
 @media (max-width: 992px) {

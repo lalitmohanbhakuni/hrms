@@ -84,33 +84,36 @@
     </div>
     <div class="card-body">
         <div class="table-responsive">
+            
             <table class="table table-hover align-middle mb-0" id="employeeTable">
-                <thead class="table-light">
+                <thead>
                     <tr>
                         <th>#</th>
-                        <th><i class="fas fa-user me-1"></i> Username</th>
-                        <th><i class="fas fa-envelope me-1"></i> Email</th>
-                        <th><i class="fas fa-user-tag me-1"></i> Role</th>
-                        <th><i class="fas fa-calendar-alt me-1"></i> Joined</th>
-                        <th class="text-end"><i class="fas fa-cog me-1"></i> Actions</th>
+                        <th>Employee ID</th>
+                        <th>Full Name</th>
+                        <th>Designation</th>
+                        <th>Department</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for emp in employees %}
-                        <tr class="employee-row">
+                        <tr>
                             <td>{{ forloop.counter }}</td>
+                            <td><strong>{{ emp.profile.employee_id|default:"N/A" }}</strong></td>
                             <td>
                                 <div class="d-flex align-items-center">
-                                    <div class="avatar-circle me-2" style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 600; font-size: 0.8rem;">
-                                        {{ emp.username|slice:":1"|upper }}
+                                    <div class="avatar-circle me-2" style="width:32px; height:32px; border-radius:50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display:flex; align-items:center; justify-content:center; color:#fff; font-weight:600; font-size:0.75rem;">
+                                        {{ emp.profile.full_name|slice:":1"|upper|default:emp.username|slice:":1"|upper }}
                                     </div>
-                                    <span class="fw-semibold">{{ emp.username }}</span>
-                                    {% if emp == request.user %}
-                                        <span class="badge bg-info ms-2">You</span>
-                                    {% endif %}
+                                    {{ emp.profile.full_name|default:emp.username }}
                                 </div>
                             </td>
-                            <td>{{ emp.email|default:"<span class='text-muted'>Not set</span>" }}</td>
+                            <td>{{ emp.profile.designation|default:"-" }}</td>
+                            <td>{{ emp.profile.department|default:"-" }}</td>
+                            <td>{{ emp.email|default:"-" }}</td>
                             <td>
                                 {% if emp.is_superuser %}
                                     <span class="badge bg-danger"><i class="fas fa-crown me-1"></i> Admin</span>
@@ -120,31 +123,27 @@
                                     <span class="badge bg-secondary"><i class="fas fa-user me-1"></i> Employee</span>
                                 {% endif %}
                             </td>
-                            <td>{{ emp.date_joined|date:"d M Y" }}</td>
-                            <td class="text-end">
+                            <td>
+                                <a href="{% url 'employee_edit' emp.id %}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-edit"></i>
+                                </a>
                                 {% if emp != request.user %}
-                                    <form method="post" action="{% url 'employee_delete' emp.id %}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete {{ emp.username }}? This cannot be undone.');">
+                                    <form method="post" action="{% url 'employee_delete' emp.id %}" class="d-inline" onsubmit="return confirm('Delete {{ emp.username }}?');">
                                         {% csrf_token %}
-                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete employee">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">
                                             <i class="fas fa-trash-alt"></i>
                                         </button>
                                     </form>
                                 {% else %}
                                     <span class="badge bg-secondary" title="Cannot delete yourself">
-                                        <i class="fas fa-lock"></i> Protected
+                                        <i class="fas fa-lock"></i>
                                     </span>
                                 {% endif %}
                             </td>
                         </tr>
-                    {% empty %}
-                        <tr>
-                            <td colspan="6" class="text-center text-muted py-4">
-                                <i class="fas fa-users text-secondary" style="font-size: 2rem; display: block; margin-bottom: 0.5rem;"></i>
-                                No employees found. <a href="{% url 'employee_create' %}" class="text-primary">Add one now</a>.
-                            </td>
-                        </tr>
                     {% endfor %}
                 </tbody>
+
             </table>
         </div>
     </div>

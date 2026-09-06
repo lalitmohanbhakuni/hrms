@@ -1,4 +1,5 @@
 from django.urls import path
+from django.contrib.auth import views as auth_views
 from . import views
 
 urlpatterns = [
@@ -13,9 +14,11 @@ urlpatterns = [
     path('clock-out/', views.clock_out, name='clock_out'),
     
     # Employee Management
-    path('employees/', views.employee_list, name='employee_list'),
-    path('employees/create/', views.employee_create, name='employee_create'),
+    path('employees/create/', views.employee_create, name='employee_create'),  # MUST come first
+    path('employees/<int:user_id>/', views.employee_detail, name='employee_detail'),
+    path('employees/edit/<int:user_id>/', views.employee_edit, name='employee_edit'),
     path('employees/delete/<int:user_id>/', views.employee_delete, name='employee_delete'),
+    path('employees/', views.employee_list, name='employee_list'),  # last
     
     # Leave Types (Admin)
     path('leave-types/', views.leave_type_list, name='leave_type_list'),
@@ -46,28 +49,65 @@ urlpatterns = [
     
     # Attendance Report
     path('attendance-report/', views.attendance_report, name='attendance_report'),
+
+    path('employees/<int:user_id>/', views.employee_detail, name='employee_detail'),
+
+    path('employee-attendance/<int:user_id>/', views.employee_attendance_detail, name='employee_attendance_detail'),
+    path('api/employee-search/', views.employee_search_api, name='employee_search_api'),
+
+    path('setup/', views.setup, name='setup'),
+
+
+
+    # Shift Management (Admin only)
+    path('shifts/', views.shift_list, name='shift_list'),
+    path('shifts/create/', views.shift_create, name='shift_create'),
+    path('shifts/edit/<int:pk>/', views.shift_edit, name='shift_edit'),
+    path('shifts/delete/<int:pk>/', views.shift_delete, name='shift_delete'),
+
+    path('assign-shift/', views.assign_shift, name='assign_shift'),
+
+
     
     # Notifications
     path('notifications/', views.notification_list, name='notification_list'),
-
-    # --- Attendance Module URLs ---
+    
+    # ---------- Attendance Module (new) ----------
     path('attendance/', views.attendance_view, name='attendance_view'),
     path('attendance/regularize-request/', views.regularize_request, name='regularize_request'),
     path('attendance/regularize-list/', views.regularize_request_list, name='regularize_request_list'),
     path('attendance/regularize-approve/<int:req_id>/', views.regularize_approve, name='regularize_approve'),
     path('attendance/regularize-reject/<int:req_id>/', views.regularize_reject, name='regularize_reject'),
 
-    # --- NEW: Setup / Management Dashboards ---
-    path('setup/', views.setup_dashboard, name='setup_dashboard'),
-    path('setup/leave-types/', views.manage_leave_types, name='manage_leave_types'),
-    path('setup/holidays/', views.manage_holidays, name='manage_holidays'),
-    path('setup/employees/', views.manage_employees, name='manage_employees'),
-    
-    # --- Setup Delete URLs (You already had these) ---
-    path('setup/leave-types/delete/<int:pk>/', views.delete_leave_type, name='delete_leave_type'),
-    path('setup/holidays/delete/<int:pk>/', views.delete_holiday, name='delete_holiday'),
-    path('setup/employees/delete/<int:pk>/', views.delete_employee, name='delete_employee'),
+    path('attendance-overview-data/', views.attendance_overview_data, name='attendance_overview_data'),
 
+
+    path('profile/', views.profile, name='profile'),
+    
+    # ---------- Password Reset ----------
+    path('password-reset/', 
+         auth_views.PasswordResetView.as_view(
+             template_name='registration/password_reset_form.html',
+             email_template_name='registration/password_reset_email.html',
+             subject_template_name='registration/password_reset_subject.txt'
+         ),
+         name='password_reset'),
+    path('password-reset/done/',
+         auth_views.PasswordResetDoneView.as_view(
+             template_name='registration/password_reset_done.html'
+         ),
+         name='password_reset_done'),
+    path('password-reset-confirm/<uidb64>/<token>/',
+         auth_views.PasswordResetConfirmView.as_view(
+             template_name='registration/password_reset_confirm.html'
+         ),
+         name='password_reset_confirm'),
+    path('password-reset-complete/',
+         auth_views.PasswordResetCompleteView.as_view(
+             template_name='registration/password_reset_complete.html'
+         ),
+         name='password_reset_complete'),
+    
     # Test
     path('test/', views.test_view, name='test'),
 ]

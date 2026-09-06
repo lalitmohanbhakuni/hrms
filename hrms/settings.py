@@ -73,7 +73,9 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # Internationalization
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
+# TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Kolkata'
+
 USE_I18N = True
 USE_TZ = True
 
@@ -89,3 +91,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/dashboard/'
 LOGOUT_REDIRECT_URL = '/login/'
+
+# ---------- Date & Time Formatting ----------
+USE_L10N = False  # Disable locale-based formatting to use our custom formats
+
+TIME_FORMAT = 'h:i:s A'       # e.g., 07:47:27 PM
+DATE_FORMAT = 'd M Y'         # e.g., 06 Sep 2026
+DATETIME_FORMAT = 'd M Y h:i:s A'  # e.g., 06 Sep 2026 07:47:27 PM

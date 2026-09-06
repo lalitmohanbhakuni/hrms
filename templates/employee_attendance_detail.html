@@ -1,0 +1,338 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ employee.username }} - Attendance - HRMS{% endblock %}
+{% block page_icon %}user{% endblock %}
+{% block page_title %}Employee Attendance{% endblock %}
+
+{% block content %}
+
+<!-- Back Button & Employee Search -->
+<div class="mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <a href="{% url 'attendance_report' %}" class="btn btn-outline-secondary btn-sm rounded-pill">
+        <i class="fas fa-arrow-left me-1"></i> Back to Report
+    </a>
+
+    <!-- Employee Search with Autocomplete -->
+    <div class="position-relative" style="width: 280px;">
+        <div class="input-group">
+            <input type="text" id="employeeSearch" class="form-control form-control-sm" 
+                   placeholder="Search employee..." autocomplete="off">
+            <button class="btn btn-outline-secondary btn-sm" type="button" id="clearSearch">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div id="searchResults" class="position-absolute w-100 bg-white border rounded-3 shadow-sm mt-1" 
+             style="display: none; max-height: 300px; overflow-y: auto; z-index: 1000;">
+            <div class="p-2 text-muted small" id="searchLoading" style="display: none;">Searching...</div>
+            <div id="searchList"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Employee Profile -->
+<div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-body p-4">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="avatar-circle" style="width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 600; font-size: 1.2rem;">
+                        {{ employee.username|slice:":1"|upper }}
+                    </div>
+                    <div>
+                        <h4 class="fw-bold mb-0">{{ profile.full_name|default:employee.username }}</h4>
+                        <p class="text-muted small mb-0">
+                            <i class="fas fa-id-card me-1"></i> ID: {{ profile.employee_id|default:"Not set" }}
+                            <span class="mx-2">|</span>
+                            <i class="fas fa-building me-1"></i> {{ profile.department|default:"No department" }}
+                            <span class="mx-2">|</span>
+                            <i class="fas fa-user-tie me-1"></i> {{ profile.designation|default:"No designation" }}
+                            <span class="mx-2">|</span>
+                            <i class="fas fa-clock me-1"></i> Shift: {{ shift }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 text-md-end">
+                <span class="badge bg-primary rounded-pill px-3 py-2">
+                    <i class="fas fa-calendar-alt me-1"></i> {{ month_name }}
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ... rest of the page (Month Navigation, KPI Cards, Daily Records) ... -->
+
+<!-- Month Navigation -->
+<div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-body d-flex justify-content-between align-items-center flex-wrap">
+        <div>
+            <i class="fas fa-calendar-alt text-primary me-2"></i>
+            <span class="fw-semibold">{{ month_name }}</span>
+        </div>
+        <div class="d-flex gap-1">
+            <a href="?month={{ prev_month }}&year={{ prev_year }}" class="btn btn-sm btn-outline-secondary rounded-pill">
+                <i class="fas fa-chevron-left"></i>
+            </a>
+            <span class="btn btn-sm btn-light rounded-pill disabled">{{ month_name }}</span>
+            {% if next_disabled %}
+                <button class="btn btn-sm btn-outline-secondary rounded-pill" disabled>
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            {% else %}
+                <a href="?month={{ next_month }}&year={{ next_year }}" class="btn btn-sm btn-outline-secondary rounded-pill">
+                    <i class="fas fa-chevron-right"></i>
+                </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+                <h6 class="text-muted mb-0">Working Days</h6>
+                <h3 class="mb-0 fw-bold text-primary">{{ working_days }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+                <h6 class="text-muted mb-0">Present</h6>
+                <h3 class="mb-0 fw-bold text-success">{{ present }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+                <h6 class="text-muted mb-0">Absent</h6>
+                <h3 class="mb-0 fw-bold text-danger">{{ absent }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+                <h6 class="text-muted mb-0">Leave</h6>
+                <h3 class="mb-0 fw-bold text-primary">{{ leave_days }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+                <h6 class="text-muted mb-0">Half Day</h6>
+                <h3 class="mb-0 fw-bold text-warning">{{ half_day }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+                <h6 class="text-muted mb-0"> Late Arrivals</h6>
+                <h3 class="mb-0 fw-bold text-danger">{{ late_days }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+                <h6 class="text-muted mb-0">Early Out</h6>
+                <h3 class="mb-0 fw-bold text-warning">{{ early_out_days }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+                <h6 class="text-muted mb-0">Overtime</h6>
+                <h3 class="mb-0 fw-bold text-info" style="font-size: 1.1rem;">{{ overtime }}</h3>
+                <span class="badge bg-success rounded-pill mt-1">{{ rate }}%</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Daily Records Table -->
+<div class="card border-0 shadow-sm rounded-3">
+    <div class="card-header bg-transparent border-0 pt-3">
+        <h5 class="mb-0">
+            <i class="fas fa-list text-primary me-2"></i> Daily Attendance – {{ month_name }}
+        </h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Shift</th>
+                        <th>Check In</th>
+                        <th>Check Out</th>
+                        <th>Hours</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if daily_records %}
+                        {% for rec in daily_records %}
+                            <tr>
+                                <td><strong>{{ rec.date|date:"d M Y" }}</strong></td>
+                                <td> <span class="badge bg-light text-dark rounded-pill px-3 py-2" style="font-size: 13px;"> {{ rec.shift }} </span> </td>
+                                <td>{{ rec.in_time }}</td>
+                                <td>{{ rec.out_time }}</td>
+                                <td> <span class="badge bg-light text-dark rounded-pill px-3 py-2" style="font-size: 13px;"> {{ rec.hours }} </span></td>
+                                <td>
+                                    <span class="badge 
+                                        {% if rec.status == 'Present' %}bg-success
+                                        {% elif rec.status == 'Absent' %}bg-danger
+                                        {% elif rec.status == 'On Leave' %}bg-primary
+                                        {% elif rec.status == 'Late' %}bg-warning text-dark
+                                        {% elif rec.status == 'Early Out' %}bg-info text-dark
+                                        {% else %}bg-secondary{% endif %}">
+                                        {{ rec.status }}
+                                    </span>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-4">
+                                <i class="fas fa-inbox text-secondary" style="font-size: 2rem; display: block; margin-bottom: 0.5rem;"></i>
+                                No attendance records for this month.
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Autocomplete JavaScript -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('employeeSearch');
+        const searchResults = document.getElementById('searchResults');
+        const searchList = document.getElementById('searchList');
+        const searchLoading = document.getElementById('searchLoading');
+        const clearBtn = document.getElementById('clearSearch');
+        let searchTimeout;
+
+        // Search function
+        function performSearch(query) {
+            if (query.length < 1) {
+                searchResults.style.display = 'none';
+                return;
+            }
+
+            searchLoading.style.display = 'block';
+            searchList.innerHTML = '';
+            searchResults.style.display = 'block';
+
+            fetch(`/api/employee-search/?q=${encodeURIComponent(query)}`)
+                .then(response => response.json())
+                .then(data => {
+                    searchLoading.style.display = 'none';
+                    
+                    if (data.length === 0) {
+                        searchList.innerHTML = '<div class="p-2 text-muted small">No employees found</div>';
+                        return;
+                    }
+
+                    data.forEach(emp => {
+                        const div = document.createElement('div');
+                        div.className = 'p-2 border-bottom hover-bg cursor-pointer';
+                        div.style.cursor = 'pointer';
+                        div.innerHTML = `
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="avatar-circle-sm" style="width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 600; font-size: 0.7rem;">
+                                    ${emp.username.slice(0,1).toUpperCase()}
+                                </div>
+                                <div>
+                                    <div class="fw-semibold small">${emp.full_name}</div>
+                                    <div class="text-muted small">${emp.username} ${emp.employee_id ? '| ID: ' + emp.employee_id : ''}</div>
+                                </div>
+                            </div>
+                        `;
+                        div.addEventListener('click', function() {
+                            window.location.href = `/employee-attendance/${emp.id}/`;
+                        });
+                        div.addEventListener('mouseenter', function() {
+                            this.style.backgroundColor = '#f8f9fa';
+                        });
+                        div.addEventListener('mouseleave', function() {
+                            this.style.backgroundColor = 'transparent';
+                        });
+                        searchList.appendChild(div);
+                    });
+                })
+                .catch(error => {
+                    searchLoading.style.display = 'none';
+                    searchList.innerHTML = '<div class="p-2 text-danger small">Error loading results</div>';
+                });
+        }
+
+        // Input event with debounce
+        searchInput.addEventListener('input', function() {
+            const query = this.value.trim();
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                performSearch(query);
+            }, 300);
+        });
+
+        // Focus event – show results if there's a query
+        searchInput.addEventListener('focus', function() {
+            const query = this.value.trim();
+            if (query.length >= 1) {
+                performSearch(query);
+            }
+        });
+
+        // Click outside to close results
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('#employeeSearch') && !e.target.closest('#searchResults')) {
+                searchResults.style.display = 'none';
+            }
+        });
+
+        // Clear button
+        clearBtn.addEventListener('click', function() {
+            searchInput.value = '';
+            searchResults.style.display = 'none';
+            searchInput.focus();
+        });
+
+        // Enter key to go to first result
+        searchInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                const firstResult = searchList.querySelector('.p-2');
+                if (firstResult) {
+                    firstResult.click();
+                }
+            }
+        });
+    });
+</script>
+
+<style>
+    .hover-bg:hover {
+        background-color: #f8f9fa;
+    }
+    .cursor-pointer {
+        cursor: pointer;
+    }
+    #searchResults {
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    #searchResults .p-2 {
+        transition: background 0.15s ease;
+    }
+</style>
+
+{% endblock %}

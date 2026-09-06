@@ -8,16 +8,16 @@
 
 <!-- ===== WELCOME BANNER ===== -->
 <div class="card border-0 shadow-sm rounded-3 mb-4 overflow-hidden" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-    <div class="card-body p-4 p-md-5 text-white">
+    <div class="card-body p-4 p-md-4 text-white">
         <div class="row align-items-center">
             <div class="col-md-8">
-                <h2 class="fw-bold mb-2">Welcome back, {{ user.username }}! 👋</h2>
+                <h4 class="fw-bold mb-2">Welcome back, {{ user.username }}! 👋</h4>
                 <p class="opacity-75 mb-0">Here's your attendance overview for <strong>{{ today|date:"F Y" }}</strong></p>
                 <div class="mt-3 d-flex flex-wrap gap-2">
-                    <span class="badge bg-white bg-opacity-20 text-white px-3 py-2 rounded-pill">
+                    <span class="badge bg-white bg-opacity-20 text-white px-3 py-2 rounded-pill" style="font-weight:normal">
                         <i class="fas fa-calendar-alt me-1"></i> {{ today|date:"l, d M Y" }}
                     </span>
-                    <span class="badge bg-white bg-opacity-20 text-white px-3 py-2 rounded-pill" id="liveTime">
+                    <span class="badge bg-white bg-opacity-20 text-white px-3 py-2 rounded-pill" id="liveTime" style="font-weight:normal">
                         <i class="fas fa-clock me-1"></i> Loading...
                     </span>
                 </div>
@@ -30,79 +30,192 @@
 </div>
 
 <!-- ===== STATS CARDS ===== -->
-<div class="row g-3 mb-4">
+<div class="row g-4 mb-4">
+    <!-- Card 1: Attendance Status (Admin only) -->
+    {% if user.is_superuser %}
     <div class="col-6 col-lg-3">
-        <div class="card border-0 shadow-sm h-100 hover-lift">
+        <div class="card border-0 shadow-sm h-100">
             <div class="card-body d-flex align-items-center">
-                <div class="rounded-circle bg-primary bg-opacity-10 p-3 me-3" style="width: 55px; height: 55px; display: flex; align-items: center; justify-content: center;">
-                    <i class="fas fa-calendar-check text-primary fs-4"></i>
+                <div class="rounded-circle bg-primary bg-opacity-10 p-3 me-3">
+                    <i class="fas fa-users text-primary fs-4"></i>
                 </div>
                 <div>
-                    <h6 class="text-muted mb-0 small">Total Days</h6>
-                    <h3 class="mb-0 fw-bold">{{ monthly_history|length }}</h3>
+                    <h6 class="text-muted mb-0">Total Employees</h6>
+                    <h3 class="mb-0 fw-bold">{{ total_employees }}</h3>
                 </div>
             </div>
         </div>
     </div>
     <div class="col-6 col-lg-3">
-        <div class="card border-0 shadow-sm h-100 hover-lift">
+        <div class="card border-0 shadow-sm h-100">
             <div class="card-body d-flex align-items-center">
-                <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3" style="width: 55px; height: 55px; display: flex; align-items: center; justify-content: center;">
-                    <i class="fas fa-{% if today_attendance and today_attendance.check_out_time %}check-circle text-success{% elif today_attendance %}clock text-warning{% else %}hourglass-start text-secondary{% endif %} fs-4"></i>
+                <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3">
+                    <i class="fas fa-check-circle text-success fs-4"></i>
                 </div>
                 <div>
-                    <h6 class="text-muted mb-0 small">Today's Status</h6>
-                    <h5 class="mb-0 fw-semibold">
-                        {% if today_attendance and today_attendance.check_out_time %}
-                            <span class="text-success">Completed</span>
-                        {% elif today_attendance %}
-                            <span class="text-warning">In Progress</span>
+                    <h6 class="text-muted mb-0">Present Today</h6>
+                    <h3 class="mb-0 fw-bold ">  <span> {{ present_today }} </span> / <span> {{ absent_today }} </span> </h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body d-flex align-items-center">
+                <div class="rounded-circle bg-warning bg-opacity-10 p-3 me-3">
+                    <i class="fas fa-user text-warning fs-4"></i>
+                </div>
+                <div>
+                    <h6 class="text-muted mb-0"> On Leave Today </h6>
+                    <h3 class="mb-0 fw-bold "> {{ on_leave_today }} </h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body d-flex align-items-center">
+                
+                <div class="rounded-circle bg-warning bg-opacity-10 p-3 me-3">
+                    <i class="fas fa-clock text-warning fs-4"></i>
+                </div>
+                <div>
+                    <h6 class="text-muted mb-0"> Pending  Requests </h6>
+                    <h3 class="mb-0 fw-bold "> {{ pending_actions_count }}  </h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% endif %}
+
+
+    {% if not user.is_superuser %}
+
+    <!-- Card 2: Pending Actions -->
+    <div class="col-12 col-md-{% if user.is_superuser %}4{% else %}6{% endif %}">
+        <div class="card border-0 shadow-sm h-100 hover-lift" style="border-left: 4px solid #ffc107;">
+            <div class="card-body">
+                <div class="d-flex align-items-start justify-content-between">
+                    <div>
+                        <h6 class="text-muted small text-uppercase fw-semibold mb-2">Pending Actions</h6>
+                        <h3 class="mb-0 fw-bold">{{ pending_actions_count }}</h3>
+                        <span class="text-muted small">Leave requests awaiting approval</span>
+                    </div>
+                    <div class="rounded-circle bg-warning bg-opacity-10 p-3">
+                        <i class="fas fa-clock text-warning fs-4"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 3: Upcoming Holiday -->
+    <div class="col-12 col-md-{% if user.is_superuser %}4{% else %}6{% endif %}">
+        <div class="card border-0 shadow-sm h-100 hover-lift" style="border-left: 4px solid #20c997;">
+            <div class="card-body">
+                <div class="d-flex align-items-start justify-content-between">
+                    <div>
+                        <h6 class="text-muted small text-uppercase fw-semibold mb-2">Upcoming Holiday</h6>
+                        {% if next_holiday %}
+                            <h5 class="mb-0 fw-bold">{{ next_holiday.name }}</h5>
+                            <span class="text-muted small">{{ next_holiday.date|date:"d M Y" }}</span>
                         {% else %}
-                            <span class="text-secondary">Not Started</span>
+                            <span class="text-muted">No upcoming holidays</span>
                         {% endif %}
-                    </h5>
+                    </div>
+                    <div class="rounded-circle bg-success bg-opacity-10 p-3">
+                        <i class="fas fa-calendar-alt text-success fs-4"></i>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-    <div class="col-6 col-lg-3">
-        <div class="card border-0 shadow-sm h-100 hover-lift">
-            <div class="card-body d-flex align-items-center">
-                <div class="rounded-circle bg-purple bg-opacity-10 p-3 me-3" style="width: 55px; height: 55px; display: flex; align-items: center; justify-content: center;">
-                    <i class="fas fa-calendar-day text-purple-500 fs-4"></i>
-                </div>
-                <div>
-                    <h6 class="text-muted mb-0 small">Pending Leaves</h6>
-                    <h3 class="mb-0 fw-bold">{{ pending_leaves|default:0 }}</h3>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-lg-3">
-        <div class="card border-0 shadow-sm h-100 hover-lift">
-            <div class="card-body d-flex align-items-center">
-                <div class="rounded-circle bg-info bg-opacity-10 p-3 me-3" style="width: 55px; height: 55px; display: flex; align-items: center; justify-content: center;">
-                    <i class="fas fa-clock text-info fs-4"></i>
-                </div>
-                <div>
-                    <h6 class="text-muted mb-0 small">Current Time</h6>
-                    <h3 class="mb-0 fw-bold" id="current-time" style="font-size: 1.2rem;">--:--:--</h3>
-                </div>
-            </div>
-        </div>
-    </div>
+
+    {% endif %}
+
+
 </div>
 
 <!-- ===== QUICK ACTIONS + ATTENDANCE ===== -->
 <div class="row g-3 mb-4">
-    <div class="col-lg-7">
+    <div class="col-lg-6">
+        <!-- Hidden inputs for timer -->
+        <input type="hidden" id="checkInTimestamp" value="{% if today_attendance and today_attendance.check_in_time %}{{ today_attendance.check_in_time|date:'c' }}{% endif %}">
+        <input type="hidden" id="totalWorkingSeconds" value="{% if today_attendance and today_attendance.total_working_time %}{{ today_attendance.total_working_time.total_seconds|floatformat:0 }}{% else %}0{% endif %}">
+        <input type="hidden" id="attendanceState" value="{% if today_attendance %}{{ today_attendance.state }}{% else %}none{% endif %}">
+
         <div class="card border-0 shadow-sm rounded-3 h-100">
             <div class="card-body p-4">
-                <h5 class="card-title mb-3">
-                    <i class="fas fa-fingerprint text-primary me-2"></i> Attendance
-                </h5>
-                <div class="d-flex flex-wrap align-items-center gap-3">
-                    {% if not today_attendance %}
+                <div>
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-fingerprint text-primary me-2"></i> Today's Attendance
+                    </h5>
+                </div>
+                <div class="d-flex justify-content-between align-items-start mb-3 mt-3">
+
+                
+                <span class="badge bg-light text-dark rounded-pill px-3 py-2">
+                    <i class="far fa-clock me-1"></i> 
+                    {% if employee_shift %}
+                        {{ employee_shift.name }} &nbsp;
+                        <span class="text-muted" style="font-weight: normal; font-size: 13px;">
+                            <span style="font-size: 13px;">
+                                {{ employee_shift.get_working_days }}
+                            </span>  &nbsp;
+
+                            {{ employee_shift.start_time|time:"h:i A" }} – {{ employee_shift.end_time|time:"h:i A" }}
+                            
+                            
+                        </span>
+                    {% else %}
+                        No shift assigned
+                        <small class="text-muted">—</small>
+                    {% endif %}
+                </span>
+                </div>
+
+                <!-- Timer Display -->
+                <div class="row g-3 align-items-center">
+                    <div class="col-md-3">
+                        <div class="text-muted small">Check‑in</div>
+                        <div class="fw-bold">
+                            {% if today_attendance and today_attendance.check_in_time %}
+                                {{ today_attendance.check_in_time|time:"h:i A" }}
+                            {% else %}
+                                <span class="text-secondary">--:--</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4 text-center">
+                        <div class="text-muted small">Check‑out</div>
+                        <div class="fw-bold">
+                            {% if today_attendance and today_attendance.check_out_time %}
+                                {{ today_attendance.check_out_time|time:"h:i A" }}
+                            {% else %}
+                                <span class="text-secondary">--:--</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-5 text-end">
+                        <div class="text-muted small">Timer</div>
+                        <div id="timerDisplay" class="fw-bold text-primary" style="font-size: 1.8rem; letter-spacing: 1px;">
+                            <span id="liveTimer">
+                                {% if today_attendance and today_attendance.total_working_time %}
+                                    {{ today_attendance.total_working_time|time:"H:i:s" }}
+                                {% else %}
+                                    00:00:00
+                                {% endif %}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Buttons -->
+                <div class="mt-3 d-flex flex-wrap align-items-center gap-3">
+                    {% if not today_attendance or today_attendance.state == 'checked_out' %}
                         <form method="post" action="{% url 'clock_in' %}" class="d-inline">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-success btn-lg rounded-pill px-5">
@@ -110,9 +223,14 @@
                             </button>
                         </form>
                         <span class="text-muted small">
-                            <i class="fas fa-info-circle me-1"></i> You haven't clocked in today
+                            <i class="fas fa-info-circle me-1"></i>
+                            {% if today_attendance and today_attendance.state == 'checked_out' %}
+                                You are currently clocked out. Click to start a new interval.
+                            {% else %}
+                                You haven't clocked in today.
+                            {% endif %}
                         </span>
-                    {% elif today_attendance and not today_attendance.check_out_time %}
+                    {% elif today_attendance and today_attendance.state == 'checked_in' %}
                         <form method="post" action="{% url 'clock_out' %}" class="d-inline">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-danger btn-lg rounded-pill px-5">
@@ -120,21 +238,24 @@
                             </button>
                         </form>
                         <span class="badge bg-warning text-dark d-flex align-items-center px-3 py-2 rounded-pill">
-                            <i class="fas fa-clock me-2"></i> In: {{ today_attendance.check_in_time|time:"H:i:s" }}
+                            {% if late_minutes > 0 %}
+                                <span class="ms-2 fw-bold">
+                                    <i class="fas fa-exclamation-triangle me-1"></i> Late: {{ late_minutes }} min
+                                </span>
+                            {% endif %}
                         </span>
-                    {% else %}
-                        <div class="alert alert-success d-flex align-items-center mb-0 w-100">
-                            <i class="fas fa-check-circle me-2"></i> Completed Today
-                            <span class="ms-2 text-muted small">
-                                In: {{ today_attendance.check_in_time|time:"H:i:s" }} | Out: {{ today_attendance.check_out_time|time:"H:i:s" }}
-                            </span>
-                        </div>
                     {% endif %}
                 </div>
             </div>
         </div>
+
     </div>
-    <div class="col-lg-5">
+
+
+
+
+    <!-- Quick Actions -->
+    <div class="col-lg-6">
         <div class="card border-0 shadow-sm rounded-3 h-100">
             <div class="card-body p-4">
                 <h5 class="card-title mb-3">
@@ -164,142 +285,359 @@
     </div>
 </div>
 
-<!-- ===== LEAVE BALANCE & UPCOMING HOLIDAYS (VIEWABLE BY ANYONE) ===== -->
 <div class="row g-3 mb-4">
-    
-    <!-- Leave Balance Overview -->
-    <!-- Leave Balance Overview -->
-<div class="col-md-6">
-    <div class="card border-0 shadow-sm rounded-3 h-100">
-        <div class="card-header bg-transparent border-0 pt-3">
-            <h5 class="mb-0">
-                <i class="fas fa-umbrella-beach text-success me-2"></i> Total Leave Balance
-            </h5>
-        </div>
-        <div class="card-body d-flex align-items-center justify-content-center">
-            <div class="text-center">
-                <h1 class="fw-bold display-3 text-success">{{ total_leave_balance }} <small style="font-size: 0.5em;">Days</small></h1>
-                <p class="text-muted mb-0">Total days available across all leave types</p>
+
+<!-- ===== WEEKLY BAR CHART (Admin only) ===== -->
+    {% if user.is_superuser %}
+        <!-- json_script tags for bar chart data -->
+        {{ weekly_days|json_script:"weeklyDays" }}
+        {{ weekly_day_present|json_script:"weeklyDayPresent" }}
+        {{ weekly_day_absent|json_script:"weeklyDayAbsent" }}
+        {{ weekly_day_half|json_script:"weeklyDayHalf" }}
+        {{ weekly_day_onleave|json_script:"weeklyDayOnLeave" }}
+        <div class="col-lg-5">
+            <div class="card border-0 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-transparent border-0 pt-3">
+                    <h5 class="mb-0">
+                        <i class="fas fa-calendar-week text-primary me-2"></i> This Week's Daily Attendance
+                        <span class="badge bg-secondary ms-2">{{ week_start|date:"M d" }} – {{ week_end|date:"M d" }}</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="weeklyBarChart" width="400" height="200"></canvas>
+                </div>
             </div>
         </div>
-    </div>
-</div>
+    {% endif %}
 
-    <!-- Upcoming Holidays -->
-    <div class="col-md-6">
-        <div class="card border-0 shadow-sm rounded-3 h-100">
-            <div class="card-header bg-transparent border-0 pt-3">
+    {% if user.is_superuser and pending_leave_requests %}
+    <div class="col-lg-7">
+        <div class="card border-0 shadow-sm rounded-3 mb-4">
+            <div class="card-header bg-transparent border-0 pt-3 d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
-                    <i class="fas fa-calendar-star text-warning me-2"></i> Upcoming Holidays
+                    <i class="fas fa-clock text-warning me-2"></i> Pending Leave Requests
+                    <span class="badge bg-warning ms-2">{{ pending_leave_requests|length }}</span>
                 </h5>
-            </div>
-            <div class="card-body p-0">
-                <ul class="list-group list-group-flush">
-                    {% for holiday in upcoming_holidays %}
-                    <li class="list-group-item d-flex justify-content-between align-items-center py-3">
-                        <div>
-                            <i class="fas fa-star text-warning me-2"></i> 
-                            <strong>{{ holiday.name }}</strong>
-                        </div>
-                        <span class="badge bg-secondary rounded-pill">
-                            <i class="fas fa-calendar-alt me-1"></i>{{ holiday.date|date:"d M Y" }}
-                        </span>
-                    </li>
-                    {% empty %}
-                    <li class="list-group-item text-center text-muted py-4">
-                        <i class="fas fa-check-circle text-success fa-2x mb-2 d-block"></i>
-                        No upcoming holidays scheduled.
-                    </li>
-                    {% endfor %}
-                </ul>
-            </div>
-        </div>
-    </div>
-
-</div>
-
-
-<!-- ===== ADMIN: TODAY'S ATTENDANCE GRAPH (NEW) ===== -->
-{% if user.is_superuser %}
-<div class="row g-3 mb-4">
-    <div class="col-6">
-        <div class="card border-0 shadow-sm rounded-3">
-            <div class="card-header bg-transparent border-0 pt-3">
-                <h5 class="mb-0">
-                    <i class="fas fa-chart-pie text-primary me-2"></i> Today's Attendance
-                    <span class="badge bg-primary ms-2">Out of {{ total_employees }} Employees</span>
-                </h5>
+                <a href="{% url 'admin_leaves' %}" class="btn btn-sm btn-outline-primary rounded-pill">
+                    View All <i class="fas fa-arrow-right ms-1"></i>
+                </a>
             </div>
             <div class="card-body">
-                <canvas id="attendanceChart" height="100"></canvas>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle table-sm">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Employee</th>
+                                <th>Leave Type</th>
+                                <th>Date</th>
+                                <th>Duration</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for req in pending_leave_requests %}
+                                <tr>
+                                    <td><strong>{{ req.user.username }}</strong></td>
+                                    <td>{{ req.leave_type.name }}</td>
+                                    <td>{{ req.start_date|date:"d M" }} - {{ req.end_date|date:"d M" }}</td>
+                                    <td>{{ req.get_duration }} day{{ req.get_duration|pluralize }}</td>
+                                    <td>
+                                        <form method="post" action="{% url 'leave_approve' req.id %}" style="display:inline;">
+                                            {% csrf_token %}
+                                            <button type="submit" style="border-width: 0px; background: inherit;" ><i class=" text-success fas fa-check"></i></button>
+                                        </form>
+                                        <form method="post" action="{% url 'leave_reject' req.id %}" style="display:inline;">
+                                            {% csrf_token %}
+                                            <button type="submit" style="border-width: 0px; background: inherit;"><i class=" text-danger fas fa-times"></i></button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
-    </div>
+        </div>
+        {% endif %}
 
-    <!-- Left Side: Chart -->
-    
-    <!-- Right Side: Pending Leave Requests (Table Format) -->
-<div class="col-md-6">
-    <div class="card border-0 shadow-sm rounded-3 h-100 d-flex flex-column">
+    </div>
+        
+
+
+<div class="row g-3 mb-4">
+    <div class="col-lg-12">
+    <!-- ===== LEAVE BALANCE ===== -->
+    <div class="card border-0 shadow-sm rounded-3">
         <div class="card-header bg-transparent border-0 pt-3 d-flex justify-content-between align-items-center">
             <h5 class="mb-0">
-                <i class="fas fa-envelope-open-text text-warning me-2"></i> Pending Leave Requests
+                <i class="fas fa-calendar-check text-primary me-2"></i> Leave Balance
             </h5>
-            <a href="{% url 'admin_leaves' %}" class="btn btn-sm btn-outline-primary">View All</a>
+            <a href="{% url 'employee_leaves' %}" class="btn btn-sm btn-outline-primary rounded-pill">
+                View All <i class="fas fa-arrow-right ms-1"></i>
+            </a>
         </div>
-        
-        <div class="card-body p-0 flex-grow-1 overflow-auto">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th scope="col">Name</th>
-                        <th scope="col">Date & Type</th>
-                        <th scope="col" class="text-end">Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for leave in admin_pending_leaves %}
-                    <tr>
-                        <td>
-                            <div class="d-flex align-items-center">
-                                <div class="rounded-circle bg-primary bg-opacity-10 p-2 me-2 d-flex align-items-center justify-content-center" style="width: 35px; height: 35px;">
-                                    <i class="fas fa-user text-primary small"></i>
+        <div class="card-body">
+            <!-- Summary Stats -->
+            <div class="row g-2 mb-3">
+                <div class="col-3">
+                    <div class="p-2 bg-light rounded-3 text-center border">
+                        <div class="text-muted small">Total</div>
+                        <div class="h5 fw-bold mb-0">{{ total_available|add:total_used }}</div>
+                    </div>
+                </div>
+                <div class="col-3">
+                    <div class="p-2 bg-light rounded-3 text-center border">
+                        <div class="text-muted small">Used</div>
+                        <div class="h5 fw-bold text-warning mb-0">{{ total_used }}</div>
+                    </div>
+                </div>
+                <div class="col-3">
+                    <div class="p-2 bg-light rounded-3 text-center border">
+                        <div class="text-muted small">Pending</div>
+                        <div class="h5 fw-bold text-primary mb-0">{{ total_pending }}</div>
+                    </div>
+                </div>
+                <div class="col-3">
+                    <div class="p-2 bg-light rounded-3 text-center border">
+                        <div class="text-muted small">Available</div>
+                        <div class="h5 fw-bold text-success mb-0">{{ total_available }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Divider -->
+            <hr class="my-2">
+
+            <!-- Leave Types List -->
+            {% if leave_balance %}
+                <div class="row g-2 mt-2">
+                    {% for item in leave_balance %}
+                        <div class="col-6 col-md-4">
+                            <div class="card border shadow-sm h-100 premium-leave-card"
+                                style="border-left: 4px solid 
+                                    {% if item.used > item.total %}#dc3545
+                                    {% elif item.used > item.total|add:'-3' %}#ffc107
+                                    {% else %}#28a745{% endif %};">
+                                <div class="card-body p-3">
+                                    <div class="d-flex align-items-start justify-content-between mb-1">
+                                        <h6 class="card-title fw-bold mb-0" style="font-size: 0.85rem;">{{ item.leave_type.name }}</h6>
+                                        <span class="badge rounded-pill px-2 py-1" style="font-size: 0.65rem; background: #eee; color: #444;">
+                                            {{ item.used }}/{{ item.total }}
+                                        </span>
+                                    </div>
+                                    <div class="progress mb-1" style="height: 4px;">
+                                        {% with percent=item.used|floatformat:0 %}
+                                            <div class="progress-bar 
+                                                {% if item.used > item.total %}bg-danger
+                                                {% elif item.used > item.total|add:'-3' %}bg-warning
+                                                {% else %}bg-success{% endif %}" 
+                                                role="progressbar" 
+                                                style="width: {% if item.total > 0 %}{{ item.used|floatformat:0 }}{% else %}0{% endif %}%;">
+                                            </div>
+                                        {% endwith %}
+                                    </div>
+                                    <div class="d-flex justify-content-between small text-muted">
+                                        <span>Available: <strong>{{ item.available }}</strong></span>
+                                        {% if item.pending > 0 %}
+                                            <span class="text-warning"><i class="fas fa-clock me-1"></i>{{ item.pending }}</span>
+                                        {% endif %}
+                                    </div>
                                 </div>
-                                <strong>{{ leave.user.username }}</strong>
                             </div>
-                        </td>
-                        <td>
-                            <div class="text-nowrap">{{ leave.start_date|date:"d M" }} - {{ leave.end_date|date:"d M" }}</div>
-                            <span class="badge bg-light text-dark border">{{ leave.leave_type.name }}</span>
-                        </td>
-                        <td class="text-end">
-                            <div class="btn-group btn-group-sm" role="group">
-                                <a href="{% url 'leave_approve' leave.id %}" class="btn btn-outline-success" title="Approve"><i class="fas fa-check"></i></a>
-                                <a href="{% url 'leave_reject' leave.id %}" class="btn btn-outline-danger" title="Reject"><i class="fas fa-times"></i></a>
-                                <a href="{% url 'leave_approve' leave.id %}" class="btn btn-outline-secondary" title="View"><i class="fas fa-eye"></i></a>
-                            </div>
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="3" class="text-center text-muted py-4">
-                            <i class="fas fa-check-circle text-success fa-2x mb-2 d-block"></i>
-                            No pending leave requests. All clear!
-                        </td>
-                    </tr>
+                        </div>
                     {% endfor %}
-                </tbody>
-            </table>
+                </div>
+            {% else %}
+                <div class="text-center py-3">
+                    <i class="fas fa-calendar-alt text-secondary mb-2 d-block" style="font-size: 2rem;"></i>
+                    <p class="text-muted">No leave types configured yet.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+
+    </div>
+
+    
+    <div class="col-lg-8">
+        
+    </div>
+</div>
+
+
+<!-- ===== ATTENDANCE OVERVIEW ===== -->
+
+{% if user.is_superuser %}
+
+<div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-header bg-transparent border-0 pt-3 d-flex flex-wrap justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <i class="fas fa-chart-line text-primary me-2"></i> Attendance Overview
+        </h5>
+        <div class="btn-group btn-group-sm" role="group">
+            <button type="button" class="btn btn-outline-secondary period-btn active" data-period="week">This Week</button>
+            <button type="button" class="btn btn-outline-secondary period-btn" data-period="month">This Month</button>
+            <button type="button" class="btn btn-outline-secondary period-btn" data-period="last_month">Last Month</button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div style="position: relative; height: 250px;">
+            <canvas id="attendanceOverviewChart"></canvas>
+        </div>
+        <div class="text-muted small text-center mt-2">
+            Showing attendance rate based on <span id="totalEmployeesOverview">0</span> employees.
         </div>
     </div>
 </div>
 
-    <!-- Right Side: Pending Leave Requests -->
-    
-
-
-</div>
 {% endif %}
+
+
+
+<!-- ===== ATTENDANCE CALENDAR ===== -->
+ 
+<!-- ===== ATTENDANCE CALENDAR (Google‑Style) ===== -->
+<div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-header bg-transparent border-0 pt-3 d-flex flex-wrap justify-content-between align-items-center">
+        <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-outline-secondary rounded-pill" onclick="window.location.href='?month={{ today.month }}&year={{ today.year }}'">
+                Today
+            </button>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <a href="?month={{ month|add:'-1' }}&year={% if month == 1 %}{{ year|add:'-1' }}{% else %}{{ year }}{% endif %}" class="btn btn-sm btn-outline-secondary rounded-pill">
+                <i class="fas fa-chevron-left"></i>
+            </a>
+            <span class="fw-bold" style="min-width: 140px; text-align: center; font-size: 1.1rem;">
+                {{ selected_month_name }}
+            </span>
+            <a href="?month={{ month|add:'1' }}&year={% if month == 12 %}{{ year|add:'1' }}{% else %}{{ year }}{% endif %}" class="btn btn-sm btn-outline-secondary rounded-pill">
+                <i class="fas fa-chevron-right"></i>
+            </a>
+        </div>
+        <div style="width: 70px;"></div> <!-- spacer for alignment -->
+    </div>
+    <div class="card-body p-0">
+        <!-- Weekday headers -->
+        <div class="calendar-grid">
+            <div class="calendar-weekdays">
+                <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
+            </div>
+            <!-- Days grid -->
+            <div class="calendar-days">
+                {% for i in "x"|rjust:first_weekday %}
+                    <div class="calendar-day empty"></div>
+                {% endfor %}
+                {% for item in calendar_data %}
+                    <div class="calendar-day 
+                        {% if item.is_weekend %}weekend{% endif %}
+                        {% if item.date == today %}today{% endif %}
+                        {% if item.status == 'Present' %}present{% endif %}
+                        {% if item.status == 'leave' %}leave{% endif %}
+                        {% if item.status == 'Half-Day' %}halfday{% endif %}
+                        {% if item.status == 'none' %}none{% endif %}
+                    ">
+                        <span class="day-number">{{ item.day }}</span>
+                        <div class="day-events">
+                            {% if item.status == 'Present' %}
+                                <span class="event-dot present" title="Present"></span>
+                            {% elif item.status == 'leave' %}
+                                <span class="event-dot leave" title="On Leave"></span>
+                            {% elif item.status == 'Half-Day' %}
+                                <span class="event-dot halfday" title="Half-Day"></span>
+                            {% elif item.status == 'weekend' %}
+                                <span class="event-dot weekend" title="Weekend"></span>
+                            {% elif item.status == 'none' %}
+                                <span class="event-dot none" title="No Record"></span>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+        <!-- Legend -->
+        <div class="calendar-legend">
+            <span><span class="dot present"></span> Present</span>
+            <span><span class="dot leave"></span> On Leave</span>
+            <span><span class="dot halfday"></span> Half-Day</span>
+            <span><span class="dot weekend"></span> Weekend</span>
+            <span><span class="dot none"></span> No Record</span>
+        </div>
+    </div>
+</div>
+
+
+
+<!-- ===== CALENDAR CSS ===== -->
+<style>
+.calendar-grid {
+    max-width: 100%;
+    margin: 0 auto;
+}
+.calendar-header {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    text-align: center;
+    font-weight: 600;
+    color: #6c757d;
+    font-size: 0.8rem;
+    padding: 8px 0;
+    border-bottom: 1px solid #e9ecef;
+    margin-bottom: 4px;
+}
+.calendar-body {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+.calendar-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 0;
+    border-radius: 6px;
+    background: #fff;
+    transition: background 0.2s;
+    min-height: 50px;
+}
+.calendar-cell:hover {
+    background: #f8f9fa;
+}
+.calendar-cell .day-number {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #1a1a2e;
+}
+.calendar-cell .status-icon {
+    font-size: 0.7rem;
+    margin-top: 2px;
+}
+.calendar-cell.weekend .day-number {
+    color: #adb5bd;
+}
+.calendar-cell.weekend .status-icon i {
+    color: #ced4da;
+}
+.calendar-cell.empty {
+    background: transparent !important;
+}
+@media (max-width: 576px) {
+    .calendar-cell {
+        min-height: 40px;
+        padding: 4px 0;
+    }
+    .calendar-cell .day-number {
+        font-size: 0.75rem;
+    }
+    .calendar-cell .status-icon {
+        font-size: 0.6rem;
+    }
+}
+</style>
+
 
 <!-- ===== ADMIN: ALL EMPLOYEES ATTENDANCE ===== -->
 {% if user.is_superuser %}
@@ -335,6 +673,7 @@
                         <th>Date</th>
                         <th>Check In</th>
                         <th>Check Out</th>
+                        <th>Working Hours</th>
                         <th>Status</th>
                     </tr>
                 </thead>
@@ -345,14 +684,26 @@
                                 <td>{{ forloop.counter }}</td>
                                 <td><strong>{{ att.user.username }}</strong></td>
                                 <td>{{ att.date|date:"d M Y" }}</td>
-                                <td>{{ att.check_in_time|time:"H:i:s" }}</td>
+                                <td>{{ att.check_in_time|time }}</td>
                                 <td>
                                     {% if att.check_out_time %}
-                                        {{ att.check_out_time|time:"H:i:s" }}
+                                        {{ att.check_out_time|time }}
                                     {% else %}
                                         <span class="badge bg-warning text-dark">Not Clocked Out</span>
                                     {% endif %}
                                 </td>
+                                <td>
+                                    <span class="badge bg-light text-dark rounded-pill px-3 py-2 
+                                                    bg-success 
+                                                    rounded-pill px-3 py-2">
+                                    {% if att.check_in_time and att.check_out_time %}
+                                        {{ att.check_out_time|timeuntil:att.check_in_time }}
+                                    {% else %}
+                                        <span class="text-muted">—</span>
+                                    {% endif %}
+                                    </span>
+                                </td>
+                                
                                 <td>
                                     <span class="badge {% if att.status == 'Present' %}bg-success{% else %}bg-secondary{% endif %}">
                                         {{ att.status }}
@@ -380,6 +731,7 @@
 {% endif %}
 
 <!-- ===== MONTHLY HISTORY ===== -->
+ <!-- ===== MONTHLY HISTORY ===== -->
 <div class="card border-0 shadow-sm rounded-3">
     <div class="card-header bg-transparent border-0 pt-3 d-flex flex-wrap justify-content-between align-items-center">
         <h5 class="mb-0">
@@ -404,31 +756,55 @@
     <div class="card-body">
         <div class="table-responsive">
             {% if monthly_history %}
-                <table class="table table-hover align-middle mb-0">
+                <!-- Summary row -->
+                
+                <table class="table table-hover align-middle mb-0 history-table">
                     <thead class="table-light">
                         <tr>
                             <th><i class="fas fa-calendar-day me-1"></i> Date</th>
                             <th><i class="fas fa-sign-in-alt me-1"></i> Check In</th>
                             <th><i class="fas fa-sign-out-alt me-1"></i> Check Out</th>
+                            <th><i class="fas fa-clock me-1"></i> Total Hours</th>
                             <th><i class="fas fa-tag me-1"></i> Status</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for record in monthly_history %}
-                            <tr>
-                                <td><strong>{{ record.date|date:"d M Y" }}</strong></td>
-                                <td>{{ record.check_in_time|time:"H:i:s" }}</td>
-                                <td>
-                                    {% if record.check_out_time %}
-                                        {{ record.check_out_time|time:"H:i:s" }}
-                                    {% else %}
-                                        <span class="badge bg-warning text-dark">Pending</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i> {{ record.status }}</span>
-                                </td>
-                            </tr>
+                            {% with hours=0 %}
+                                {% if record.check_in_time and record.check_out_time %}
+                                    {% with diff=record.check_out_time|timeuntil:record.check_in_time %}
+                                        <tr>
+                                            <td><strong>{{ record.date|date:"d M Y" }}</strong></td>
+                                            <td>{{ record.check_in_time|time:"H:i:s" }}</td>
+                                            <td>{{ record.check_out_time|time:"H:i:s" }}</td>
+                                            <td>
+                                                <span class="badge bg-light text-dark rounded-pill px-3 py-2 
+                                                    {% if diff|length >= 8 %}bg-success{% else %}bg-warning text-dark{% endif %} 
+                                                    rounded-pill px-3 py-2">
+                                                    {{ diff }}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-success rounded-pill px-3 py-2">
+                                                    <i class="fas fa-check-circle me-1"></i> {{ record.status }}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    {% endwith %}
+                                {% else %}
+                                    <tr>
+                                        <td><strong>{{ record.date|date:"d M Y" }}</strong></td>
+                                        <td>{{ record.check_in_time|time:"H:i:s" }}</td>
+                                        <td><span class="text-muted">—</span></td>
+                                        <td><span class="text-muted">—</span></td>
+                                        <td>
+                                            <span class="badge bg-warning text-dark rounded-pill px-3 py-2">
+                                                <i class="fas fa-clock me-1"></i> Incomplete
+                                            </span>
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                            {% endwith %}
                         {% endfor %}
                     </tbody>
                 </table>
@@ -441,6 +817,9 @@
         </div>
     </div>
 </div>
+
+<span id="current-time" style="display:none;"></span>
+
 
 <!-- ===== EXTRA STYLES ===== -->
 <style>
@@ -464,9 +843,129 @@
         --bs-bg-opacity: 0.2;
     }
 </style>
+
+<!-- ===== JAVASCRIPT ===== -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    // Update live clock
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded – initializing charts...');
+    
+   
+        
+    // ---- Weekly Bar Chart ----
+    const weeklyCtx = document.getElementById('weeklyBarChart');
+    if (weeklyCtx) {
+        try {
+            // Safely get each JSON element – exit if any is missing
+            const daysEl = document.getElementById('weeklyDays');
+            if (!daysEl) {
+                console.warn('Weekly chart data missing – skipping chart.');
+                return;
+            }
+            const presentEl = document.getElementById('weeklyDayPresent');
+            const absentEl = document.getElementById('weeklyDayAbsent');
+            const halfEl = document.getElementById('weeklyDayHalf');
+            const onLeaveEl = document.getElementById('weeklyDayOnLeave');
+
+            // If any required element is missing, exit
+            if (!presentEl || !absentEl || !halfEl || !onLeaveEl) {
+                console.warn('Weekly chart data incomplete – skipping chart.');
+                return;
+            }
+
+            const days = JSON.parse(daysEl.textContent);
+            const present = JSON.parse(presentEl.textContent);
+            const absent = JSON.parse(absentEl.textContent);
+            const half = JSON.parse(halfEl.textContent);
+            const onLeave = JSON.parse(onLeaveEl.textContent);
+
+            console.log('Weekly Data:', { days, present, absent, half, onLeave });
+
+            new Chart(weeklyCtx, {
+                type: 'bar',
+                data: {
+                    labels: days,
+                    datasets: [
+                        {
+                            label: 'Present',
+                            data: present,
+                            backgroundColor: 'rgba(40, 167, 69, 0.7)',
+                            borderColor: '#28a745',
+                            borderWidth: 1,
+                            borderRadius: 4
+                        },
+                        {
+                            label: 'Absent',
+                            data: absent,
+                            backgroundColor: 'rgba(220, 53, 69, 0.7)',
+                            borderColor: '#dc3545',
+                            borderWidth: 1,
+                            borderRadius: 4
+                        },
+                        {
+                            label: 'Half-Day',
+                            data: half,
+                            backgroundColor: 'rgba(255, 193, 7, 0.7)',
+                            borderColor: '#ffc107',
+                            borderWidth: 1,
+                            borderRadius: 4
+                        },
+                        {
+                            label: 'On Leave',
+                            data: onLeave,
+                            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                            borderColor: '#000000',
+                            borderWidth: 1,
+                            borderRadius: 4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: { font: { size: 12 } }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.dataset.label || '';
+                                    const value = context.raw;
+                                    const dayIndex = context.dataIndex;
+                                    const total = present[dayIndex] + absent[dayIndex] + half[dayIndex] + onLeave[dayIndex];
+                                    const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+                                    return `${label}: ${value} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1,
+                                font: { size: 11 }
+                            }
+                        },
+                        x: {
+                            ticks: { font: { size: 11 } }
+                        }
+                    }
+                }
+            });
+            console.log('Weekly chart created successfully!');
+        } catch (error) {
+            console.error('Error creating weekly chart:', error);
+        }
+    }
+
+});
+</script>
+
+<!-- ===== LIVE CLOCK ===== -->
+<!-- <script>
     function updateClock() {
         const now = new Date();
         const timeStr = now.toLocaleTimeString('en-US', { 
@@ -480,45 +979,177 @@
     }
     setInterval(updateClock, 1000);
     updateClock();
+</script> -->
 
-    // ===== NEW BAR GRAPH JS =====
-    {% if user.is_superuser %}
-    const ctx = document.getElementById('attendanceChart').getContext('2d');
-    const attendanceChart = new Chart(ctx, {
-        type: 'bar', // <--- Changed to Bar Chart
-        data: {
-            labels: ['Present', 'Absent', 'Half Day', 'Late'],
-            datasets: [{
-                label: 'Number of Employees',
-                data: [{{ present_count }}, {{ absent_count }}, {{ half_day_count }}, {{ late_count }}],
-                backgroundColor: [
-                    '#28a745', // Green (Present)
-                    '#dc3545', // Red (Absent)
-                    '#ffc107', // Yellow (Half Day)
-                    '#17a2b8'  // Blue (Late)
-                ],
-                borderRadius: 8,
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: { display: false },
-                title: { display: true, text: 'Total Employees: {{ total_employees }}' }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        stepSize: 1
-                    }
-                }
-            }
+<!-- ===== LIVE TIMER ===== -->
+
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const timerElement = document.getElementById('liveTimer');
+        if (!timerElement) return;
+
+        const checkInInput = document.getElementById('checkInTimestamp');
+        const totalSecInput = document.getElementById('totalWorkingSeconds');
+        const stateInput = document.getElementById('attendanceState');
+        if (!checkInInput || !totalSecInput || !stateInput) return;
+
+        const checkInTime = new Date(checkInInput.value);
+        const totalSeconds = parseInt(totalSecInput.value) || 0;
+        const state = stateInput.value;
+
+        // If state is checked_out or no check-in time, just display total and stop.
+        if (state === 'checked_out' || isNaN(checkInTime.getTime())) {
+            // Already checked out or no check-in – show final total (no update)
+            const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+            const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+            const secs = String(totalSeconds % 60).padStart(2, '0');
+            timerElement.textContent = `${hours}:${minutes}:${secs}`;
+            return;
         }
+
+        // State is checked_in – start live timer
+        function updateTimer() {
+            const now = new Date();
+            const elapsed = Math.floor((now - checkInTime) / 1000);
+            const total = totalSeconds + elapsed;
+            if (total < 0) return;
+            const hours = String(Math.floor(total / 3600)).padStart(2, '0');
+            const minutes = String(Math.floor((total % 3600) / 60)).padStart(2, '0');
+            const seconds = String(total % 60).padStart(2, '0');
+            timerElement.textContent = `${hours}:${minutes}:${seconds}`;
+        }
+
+        updateTimer();
+        setInterval(updateTimer, 1000);
     });
-    {% endif %}
 </script>
+
+
+
+<script>
+    console.log(JSON.parse(document.getElementById('weeklyDayPresent').textContent));
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('attendanceOverviewChart').getContext('2d');
+    let chart = null;
+
+    function fetchAttendanceOverview(period) {
+        fetch(`/attendance-overview-data/?period=${period}`)
+            .then(response => response.json())
+            .then(data => {
+                const labels = data.labels;
+                const present = data.present;
+                const onLeave = data.on_leave;
+                const absent = data.absent;
+                const total = data.total_employees;
+
+                document.getElementById('totalEmployeesOverview').textContent = total;
+
+                if (chart) {
+                    chart.destroy();
+                }
+
+                chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'Present %',
+                                data: present,
+                                borderColor: '#28a745',
+                                backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                                borderWidth: 2,
+                                pointBackgroundColor: '#28a745',
+                                pointBorderColor: '#fff',
+                                pointBorderWidth: 1,
+                                pointRadius: 4,
+                                fill: true,
+                                tension: 0.3
+                            },
+                            {
+                                label: 'On Leave %',
+                                data: onLeave,
+                                borderColor: '#fd7e14',
+                                backgroundColor: 'rgba(253, 126, 20, 0.1)',
+                                borderWidth: 2,
+                                pointBackgroundColor: '#fd7e14',
+                                pointBorderColor: '#fff',
+                                pointBorderWidth: 1,
+                                pointRadius: 4,
+                                fill: true,
+                                tension: 0.3
+                            },
+                            {
+                                label: 'Absent %',
+                                data: absent,
+                                borderColor: '#dc3545',
+                                backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                                borderWidth: 2,
+                                pointBackgroundColor: '#dc3545',
+                                pointBorderColor: '#fff',
+                                pointBorderWidth: 1,
+                                pointRadius: 4,
+                                fill: true,
+                                tension: 0.3
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                                labels: {
+                                    usePointStyle: true,
+                                    pointStyle: 'circle'
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return `${context.dataset.label}: ${context.raw}%`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100,
+                                ticks: {
+                                    stepSize: 10,
+                                    callback: function(value) {
+                                        return value + '%';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            })
+            .catch(error => console.error('Error fetching attendance overview:', error));
+    }
+
+    // Initial fetch for default period (week)
+    fetchAttendanceOverview('week');
+
+    // Handle period button clicks
+    document.querySelectorAll('.period-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            const period = this.dataset.period;
+            fetchAttendanceOverview(period);
+        });
+    });
+});
+</script>
+
+
+
+
 
 
 {% endblock %}

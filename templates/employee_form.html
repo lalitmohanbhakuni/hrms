@@ -19,61 +19,115 @@
                 <form method="post" novalidate>
                     {% csrf_token %}
                     
-                    <!-- Username -->
-                    <div class="mb-3">
-                        <label for="{{ form.username.id_for_label }}" class="form-label fw-semibold">
-                            <i class="fas fa-user text-primary me-1"></i> Username
-                        </label>
-                        <input type="text" name="{{ form.username.name }}" id="{{ form.username.id_for_label }}" 
-                               class="form-control {% if form.username.errors %}is-invalid{% endif %}" 
-                               value="{{ form.username.value|default:'' }}" 
-                               placeholder="Enter username" required>
-                        {% if form.username.help_text %}
-                            <div class="form-text text-muted small">{{ form.username.help_text }}</div>
-                        {% endif %}
-                        {% for error in form.username.errors %}
-                            <div class="invalid-feedback">{{ error }}</div>
-                        {% endfor %}
+                    <!-- User Account Info -->
+                    <h6 class="fw-bold text-primary mt-2 mb-3"><i class="fas fa-user-circle me-2"></i>Account Details</h6>
+                    
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="username" class="form-label fw-semibold">Username *</label>
+                            <input type="text" name="username" id="username" class="form-control" 
+                                   value="{{ user.username|default:'' }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="email" class="form-label fw-semibold">Email Address *</label>
+                            <input type="email" name="email" id="email" class="form-control" 
+                                   value="{{ user.email|default:'' }}" required>
+                        </div>
                     </div>
 
-                    <!-- Password1 -->
-                    <div class="mb-3">
-                        <label for="{{ form.password1.id_for_label }}" class="form-label fw-semibold">
-                            <i class="fas fa-lock text-primary me-1"></i> Password
-                        </label>
-                        <input type="password" name="{{ form.password1.name }}" id="{{ form.password1.id_for_label }}" 
-                               class="form-control {% if form.password1.errors %}is-invalid{% endif %}" 
-                               placeholder="Enter password" required>
-                        {% if form.password1.help_text %}
-                            <div class="form-text text-muted small">
-                                <ul class="mb-0 ps-3">
-                                    <li>Your password can't be too similar to your other personal information.</li>
-                                    <li>Your password must contain at least 8 characters.</li>
-                                    <li>Your password can't be a commonly used password.</li>
-                                    <li>Your password can't be entirely numeric.</li>
-                                </ul>
-                            </div>
-                        {% endif %}
-                        {% for error in form.password1.errors %}
-                            <div class="invalid-feedback">{{ error }}</div>
-                        {% endfor %}
+                    <div class="row g-3 mt-2">
+                        <div class="col-md-6">
+                            <label for="password1" class="form-label fw-semibold">Password {% if action == 'Create' %}*{% endif %}</label>
+                            <input type="password" name="password1" id="password1" class="form-control" 
+                                   placeholder="{% if action == 'Create' %}Enter password{% else %}Leave blank to keep current{% endif %}"
+                                   {% if action == 'Create' %}required{% endif %}>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="password2" class="form-label fw-semibold">Confirm Password {% if action == 'Create' %}*{% endif %}</label>
+                            <input type="password" name="password2" id="password2" class="form-control" 
+                                   placeholder="Confirm password"
+                                   {% if action == 'Create' %}required{% endif %}>
+                        </div>
                     </div>
 
-                    <!-- Password2 -->
-                    <div class="mb-3">
-                        <label for="{{ form.password2.id_for_label }}" class="form-label fw-semibold">
-                            <i class="fas fa-check-circle text-primary me-1"></i> Confirm Password
-                        </label>
-                        <input type="password" name="{{ form.password2.name }}" id="{{ form.password2.id_for_label }}" 
-                               class="form-control {% if form.password2.errors %}is-invalid{% endif %}" 
-                               placeholder="Confirm password" required>
-                        {% for error in form.password2.errors %}
-                            <div class="invalid-feedback">{{ error }}</div>
-                        {% endfor %}
+                    <hr class="my-4">
+
+                    <!-- Employee Profile -->
+                    <h6 class="fw-bold text-primary mb-3"><i class="fas fa-id-badge me-2"></i>Employee Profile</h6>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="employee_id" class="form-label fw-semibold">Employee ID *</label>
+                            <input type="text" name="employee_id" id="employee_id" class="form-control" 
+                                   value="{{ profile.employee_id|default:'' }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="full_name" class="form-label fw-semibold">Full Name *</label>
+                            <input type="text" name="full_name" id="full_name" class="form-control" 
+                                   value="{{ profile.full_name|default:'' }}" required>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mt-2">
+                        <div class="col-md-6">
+                            <label for="date_of_birth" class="form-label fw-semibold">Date of Birth</label>
+                            <input type="date" name="date_of_birth" id="date_of_birth" class="form-control" 
+                                   value="{{ profile.date_of_birth|date:'Y-m-d'|default:'' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="date_of_joining" class="form-label fw-semibold">Date of Joining</label>
+                            <input type="date" name="date_of_joining" id="date_of_joining" class="form-control" 
+                                   value="{{ profile.date_of_joining|date:'Y-m-d'|default:'' }}">
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mt-2">
+                        <div class="col-md-6">
+                            <label for="designation" class="form-label fw-semibold">Designation</label>
+                            <input type="text" name="designation" id="designation" class="form-control" 
+                                   value="{{ profile.designation|default:'' }}" placeholder="e.g., Software Engineer">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="department" class="form-label fw-semibold">Department</label>
+                            <input type="text" name="department" id="department" class="form-control" 
+                                   value="{{ profile.department|default:'' }}" placeholder="e.g., Engineering">
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mt-2">
+                        <div class="col-md-6">
+                            <label for="shift" class="form-label fw-semibold">
+                                <i class="fas fa-clock text-primary me-1"></i> Assigned Shift
+                            </label>
+                            <select name="shift" id="shift" class="form-select">
+                                <option value="">-- No shift --</option>
+                                {% for shift in shifts %}
+                                    <option value="{{ shift.id }}" 
+                                        {% if profile.shift.id == shift.id %}selected{% endif %}>
+                                        {{ shift.name }} ({{ shift.start_time|time:"h:i A" }} – {{ shift.end_time|time:"h:i A" }})
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text text-muted small">Select a shift for this employee.</div>
+                        </div>
+                    </div>
+
+
+                    <div class="row g-3 mt-2">
+                        <div class="col-md-6">
+                            <label for="phone" class="form-label fw-semibold">Phone Number</label>
+                            <input type="text" name="phone" id="phone" class="form-control" 
+                                   value="{{ profile.phone|default:'' }}" placeholder="+91 98765 43210">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="address" class="form-label fw-semibold">Address</label>
+                            <textarea name="address" id="address" class="form-control" rows="2" 
+                                      placeholder="Enter full address">{{ profile.address|default:'' }}</textarea>
+                        </div>
                     </div>
 
                     <!-- Submit Buttons -->
-                    <div class="d-flex justify-content-end gap-2 pt-3 border-top">
+                    <div class="d-flex justify-content-end gap-2 pt-4 mt-3 border-top">
                         <a href="{% url 'employee_list' %}" class="btn btn-outline-secondary rounded-pill px-4">
                             <i class="fas fa-times me-2"></i> Cancel
                         </a>
@@ -87,20 +141,4 @@
         </div>
     </div>
 </div>
-
-<!-- Additional styling to match the rest of the app -->
-<style>
-    .form-control:focus {
-        border-color: #667eea;
-        box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
-    }
-    .form-text ul {
-        padding-left: 1.2rem;
-        margin-bottom: 0;
-    }
-    .form-text ul li {
-        font-size: 0.8rem;
-        color: #6c757d;
-    }
-</style>
 {% endblock %}

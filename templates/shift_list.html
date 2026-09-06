@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+
+{% block title %}Shifts - HRMS{% endblock %}
+{% block page_icon %}clock{% endblock %}
+{% block page_title %}Shift Management{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between mb-3">
+    <h5 class="mb-0">All Shifts</h5>
+    <a href="{% url 'shift_create' %}" class="btn btn-primary rounded-pill">
+        <i class="fas fa-plus me-1"></i> Create Shift
+    </a>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Shift Name</th>
+                        <th>Start</th>
+                        <th>End</th>
+                        <th>Break</th>
+                        <th>Grace (min)</th>
+                        <th>Min Hours</th>
+                        <th>Overtime</th>
+                        <th>Overtime Limit</th> 
+                        <th>Working Days</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for shift in shifts %}
+                        <tr>
+                            <td><strong>{{ shift.name }}</strong></td>
+                            <td>{{ shift.start_time|time:"h:i A" }}</td>
+                            <td>{{ shift.end_time|time:"h:i A" }}</td>
+                            <td>
+                                {% if shift.break_start and shift.break_end %}
+                                    {{ shift.break_start|time:"h:i A" }} – {{ shift.break_end|time:"h:i A" }}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+                            <td>{{ shift.grace_period }}</td>
+                            <td>{{ shift.min_working_hours|floatformat:0 }} min</td>
+                            <td>{% if shift.overtime_allowed %}✅{% else %}❌{% endif %}</td>
+                            <td>
+                                {% if shift.overtime_allowed %}
+                                    {{ shift.overtime_limit }} hrs
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if shift.mon %}M{% endif %}
+                                {% if shift.tue %}T{% endif %}
+                                {% if shift.wed %}W{% endif %}
+                                {% if shift.thu %}T{% endif %}
+                                {% if shift.fri %}F{% endif %}
+                                {% if shift.sat %}S{% endif %}
+                                {% if shift.sun %}S{% endif %}
+                            </td>
+                            <td>
+                                <a href="{% url 'shift_edit' shift.id %}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <a href="{% url 'shift_delete' shift.id %}" class="btn btn-sm btn-outline-danger">
+                                    <i class="fas fa-trash-alt"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="9" class="text-center text-muted py-4">
+                                <i class="fas fa-clock fa-2x mb-2 d-block"></i>
+                                No shifts defined yet.
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

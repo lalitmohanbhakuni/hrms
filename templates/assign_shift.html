@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+
+{% block title %}Assign Shift - HRMS{% endblock %}
+{% block page_icon %}users-cog{% endblock %}
+{% block page_title %}Bulk Shift Assignment{% endblock %}
+
+{% block content %}
+
+<div class="row">
+    <div class="col-lg-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="row g-3">
+                        <!-- Shift Selection -->
+                        <div class="col-md-4">
+                            <label for="shift" class="form-label fw-semibold">Select Shift</label>
+                            <select name="shift" id="shift" class="form-select" required>
+                                <option value="">-- Choose a shift --</option>
+                                {% for shift in shifts %}
+                                    <option value="{{ shift.id }}">{{ shift.name }} ({{ shift.start_time|time:"h:i A" }} – {{ shift.end_time|time:"h:i A" }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Effective From -->
+                        <div class="col-md-4">
+                            <label for="effective_from" class="form-label fw-semibold">Effective From</label>
+                            <input type="date" name="effective_from" id="effective_from" class="form-control" value="{{ today|date:'Y-m-d' }}">
+                            <div class="form-text text-muted small">Date when this shift assignment starts.</div>
+                        </div>
+
+                        <!-- Clear Filters -->
+                        <div class="col-md-4 d-flex align-items-end justify-content-end">
+                            <a href="{% url 'assign_shift' %}" class="btn btn-outline-secondary rounded-pill">
+                                <i class="fas fa-times me-1"></i> Clear Filters
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Filter Row -->
+                    <div class="row g-3 mt-2">
+                        <div class="col-md-3">
+                            <label for="department_filter" class="form-label fw-semibold">Department</label>
+                            <select name="department" id="department_filter" class="form-select" onchange="this.form.submit()">
+                                <option value="">All Departments</option>
+                                {% for dept in distinct_departments %}
+                                    <option value="{{ dept }}" {% if department_filter == dept %}selected{% endif %}>{{ dept }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="designation_filter" class="form-label fw-semibold">Designation</label>
+                            <select name="designation" id="designation_filter" class="form-select" onchange="this.form.submit()">
+                                <option value="">All Designations</option>
+                                {% for desig in distinct_designations %}
+                                    <option value="{{ desig }}" {% if designation_filter == desig %}selected{% endif %}>{{ desig }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="location_filter" class="form-label fw-semibold">Location</label>
+                            <input type="text" name="location" id="location_filter" class="form-control" value="{{ location_filter }}" placeholder="Filter by location...">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="team_filter" class="form-label fw-semibold">Team</label>
+                            <input type="text" name="team" id="team_filter" class="form-control" value="{{ team_filter }}" placeholder="Filter by team...">
+                        </div>
+                    </div>
+
+                    <!-- Employee Selection -->
+                    <div class="mt-4">
+                        <label class="form-label fw-semibold">Select Employees</label>
+                        <div class="card border">
+                            <div class="card-body" style="max-height: 350px; overflow-y: auto;">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" id="selectAll">
+                                    <label class="form-check-label fw-semibold" for="selectAll">Select All</label>
+                                </div>
+                                <hr>
+                                {% for emp in employees %}
+                                    <div class="form-check">
+                                        <input class="form-check-input employee-checkbox" type="checkbox" name="employees" value="{{ emp.id }}" id="emp_{{ emp.id }}">
+                                        <label class="form-check-label" for="emp_{{ emp.id }}">
+                                            {{ emp.full_name }} ({{ emp.username }})
+                                            <span class="badge bg-secondary ms-1">{{ emp.shift_name|default:"No shift" }}</span>
+                                            {% if emp.department %}<span class="badge bg-info ms-1">{{ emp.department }}</span>{% endif %}
+                                            {% if emp.designation %}<span class="badge bg-light text-dark ms-1">{{ emp.designation }}</span>{% endif %}
+                                        </label>
+                                    </div>
+                                {% empty %}
+                                    <p class="text-muted">No employees found matching the filters.</p>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Submit -->
+                    <div class="mt-4 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary rounded-pill px-4">
+                            <i class="fas fa-save me-2"></i> Assign Shift
+                        </button>
+                        <a href="{% url 'setup' %}" class="btn btn-outline-secondary rounded-pill px-4">
+                            <i class="fas fa-times me-2"></i> Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Select / Deselect all
+    document.getElementById('selectAll').addEventListener('change', function() {
+        const checkboxes = document.querySelectorAll('.employee-checkbox');
+        checkboxes.forEach(cb => cb.checked = this.checked);
+    });
+</script>
+{% endblock %}
