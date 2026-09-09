@@ -9,6 +9,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-fallback-key')
 
 # ---------- LOGGING ----------
+# Ensure the logs directory exists
+LOG_DIR = BASE_DIR / 'logs'
+if not LOG_DIR.exists():
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -45,7 +50,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',  # ← Must be first
+    'django.middleware.security.SecurityMiddleware',  # Must be first
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -119,22 +124,25 @@ DATETIME_FORMAT = 'd M Y h:i:s A'
 
 
 # ============================================================
-# SECURITY SETTINGS
+# SECURITY SETTINGS (Production-Ready)
 # ============================================================
 
 # ---------- DEBUG & ALLOWED HOSTS ----------
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'False') == 'True'   # Default False on Render
+
 ALLOWED_HOSTS = [
     '127.0.0.1',
     'localhost',
-    'yourdomain.com',        # Replace with your domain
-    'www.yourdomain.com',    # Replace with your domain
+    'https://hrms-1udd.onrender.com',
+
+    # 'hrms-1udd.onrender.com',        # Your Render domain
+    # 'yourdomain.com',                 # Keep for future
+    # 'www.yourdomain.com',
 ]
 
 # ---------- CSRF TRUSTED ORIGINS ----------
 CSRF_TRUSTED_ORIGINS = [
-    'https://yourdomain.com',
-    'https://www.yourdomain.com',
+    'https://hrms-1udd.onrender.com',
 ]
 
 # ---------- SECURITY HEADERS ----------
@@ -143,20 +151,20 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'
 
 # ---------- HTTPS / SSL SETTINGS ----------
-SECURE_SSL_REDIRECT = False              # Set to True in production
-SECURE_HSTS_SECONDS = 0                  # Set to 31536000 in production
-SECURE_HSTS_INCLUDE_SUBDOMAINS = False
-SECURE_HSTS_PRELOAD = False
+SECURE_SSL_REDIRECT = True               # Force HTTPS
+SECURE_HSTS_SECONDS = 31536000           # 1 year
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
 
 # ---------- SESSION SECURITY ----------
-SESSION_COOKIE_SECURE = True
+SESSION_COOKIE_SECURE = True             # HTTPS only
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
-SESSION_COOKIE_AGE = 3600
+SESSION_COOKIE_AGE = 3600                # 1 hour
 
 # ---------- CSRF SECURITY ----------
-CSRF_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True                # HTTPS only
 CSRF_COOKIE_HTTPONLY = True
 CSRF_COOKIE_SAMESITE = 'Lax'
 
@@ -167,4 +175,4 @@ ADMIN_ROLES = [
     'Supervisor',
     'Team Lead',
     'Operations',
-]   
+]
