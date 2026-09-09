@@ -3,6 +3,7 @@ from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import User
 from .models import Attendance, LeaveType, Holiday, LeaveRequest, Notification, RegularizationRequest, EmployeeProfile
 from .models import Shift
+from .models import OfficeLocation
 
 # Inline profile in User admin
 class EmployeeProfileInline(admin.StackedInline):
@@ -55,4 +56,9 @@ class RegularizationRequestAdmin(admin.ModelAdmin):
 class ShiftAdmin(admin.ModelAdmin):
     list_display = ['name', 'start_time', 'end_time', 'grace_period', 'min_working_hours']
     list_filter = ['overtime_allowed']
+
+@admin.register(OfficeLocation)
+class OfficeLocationAdmin(admin.ModelAdmin):
+    list_display = ('name', 'latitude', 'longitude', 'allowed_radius', 'is_active')
+    
     

@@ -89,8 +89,8 @@
                 <thead>
                     <tr>
                         <th>#</th>
-                        <th>Employee ID</th>
                         <th>Full Name</th>
+                        <th>Employee ID</th>
                         <th>Designation</th>
                         <th>Department</th>
                         <th>Email</th>
@@ -102,26 +102,33 @@
                     {% for emp in employees %}
                         <tr>
                             <td>{{ forloop.counter }}</td>
-                            <td><strong>{{ emp.profile.employee_id|default:"N/A" }}</strong></td>
                             <td>
                                 <div class="d-flex align-items-center">
                                     <div class="avatar-circle me-2" style="width:32px; height:32px; border-radius:50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display:flex; align-items:center; justify-content:center; color:#fff; font-weight:600; font-size:0.75rem;">
                                         {{ emp.profile.full_name|slice:":1"|upper|default:emp.username|slice:":1"|upper }}
                                     </div>
-                                    {{ emp.profile.full_name|default:emp.username }}
+                                    <span style="font-weight:600;">{{ emp.profile.full_name|default:emp.username }} </span>
                                 </div>
                             </td>
+                            <td>{{ emp.profile.employee_id|default:"N/A" }}</td>
+                            
                             <td>{{ emp.profile.designation|default:"-" }}</td>
                             <td>{{ emp.profile.department|default:"-" }}</td>
                             <td>{{ emp.email|default:"-" }}</td>
                             <td>
-                                {% if emp.is_superuser %}
-                                    <span class="badge bg-danger"><i class="fas fa-crown me-1"></i> Admin</span>
-                                {% elif emp.is_staff %}
-                                    <span class="badge bg-primary"><i class="fas fa-user-tie me-1"></i> Staff</span>
-                                {% else %}
-                                    <span class="badge bg-secondary"><i class="fas fa-user me-1"></i> Employee</span>
-                                {% endif %}
+                                {% with profile=emp.profile %}
+                                    {% if emp.is_superuser %}
+                                        <span class="badge bg-danger"><i class="fas fa-crown me-1"></i> Admin</span>
+                                    {% elif profile and profile.role == 'hr_admin' %}
+                                        <span class="badge bg-primary"><i class="fas fa-user-tie me-1"></i> HR Admin</span>
+                                    {% elif profile and profile.role == 'manager' %}
+                                        <span class="badge bg-success"><i class="fas fa-user-tie me-1"></i> Manager</span>
+                                    {% elif emp.is_staff %}
+                                        <span class="badge bg-primary"><i class="fas fa-user-tie me-1"></i> Staff</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary"><i class="fas fa-user me-1"></i> Employee</span>
+                                    {% endif %}
+                                {% endwith %}
                             </td>
                             <td>
                                 <a href="{% url 'employee_edit' emp.id %}" class="btn btn-sm btn-outline-primary">

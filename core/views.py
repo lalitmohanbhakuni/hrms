@@ -1,17 +1,50 @@
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import User
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib import messages
-from django.utils import timezone
 from datetime import date, timedelta, datetime
-from .models import Attendance, LeaveType, Holiday, LeaveRequest, Notification, RegularizationRequest, EmployeeProfile, Shift
-from .forms import EmployeeForm
 from django.http import HttpResponse, JsonResponse
 from calendar import monthrange
 from django.db.models import Q
 import calendar as cal
+from math import radians, sin, cos, sqrt, atan2
+
+from .models import Attendance, LeaveType, Holiday, LeaveRequest, Notification, RegularizationRequest, EmployeeProfile, Shift, Company, OfficeLocation
+from .forms import EmployeeForm
+from .decorators import admin_or_hr_required
+from .utils import get_approver, get_hr_admin, can_approve_request
+from django_ratelimit.decorators import ratelimit
+from django.contrib.auth.models import Group
+from .decorators import admin_or_hr_required, hr_admin_required
+from django.utils import timezone
+import csv
+from datetime import datetime
+
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch, cm
+from reportlab.pdfgen import canvas
+from io import BytesIO
+from django.http import FileResponse
+
+
+
+
+def haversine(lat1, lon1, lat2, lon2):
+    """Returns distance in meters between two GPS coordinates."""
+    R = 6371000  # Earth's radius in meters
+    lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+    c = 2 * atan2(sqrt(a), sqrt(1-a))
+    return R * c
+
 
 # ---------- Helper: Notification Functions ----------
 def create_notification(user, message, notification_type='info', related_object=None):
@@ -29,17 +62,26 @@ def notify_admins(message, notification_type='info', related_object=None):
 
 
 # ---------- Login & Logout ----------
+@ratelimit(key='ip', rate='5/m', method='POST')  # 5 attempts per minute per IP
 def login_view(request):
     if request.method == 'POST':
+        # Check if rate limit exceeded
+        if request.limited:
+            messages.error(request, 'Too many login attempts. Please try again after 1 minute.')
+            return render(request, 'login.html')
+        
         username = request.POST.get('username')
         password = request.POST.get('password')
         user = authenticate(request, username=username, password=password)
+        
         if user is not None:
             login(request, user)
             return redirect('dashboard')
         else:
             messages.error(request, 'Invalid username or password.')
+    
     return render(request, 'login.html')
+
 
 def logout_view(request):
     logout(request)
@@ -93,7 +135,6 @@ def dashboard(request):
     if today_attendance and today_attendance.state == 'checked_in':
         if employee_shift:
             shift_start = datetime.combine(today, employee_shift.start_time)
-            # Make it timezone-aware using the current timezone
             shift_start = timezone.make_aware(shift_start)
             check_in = today_attendance.check_in_time
             if check_in > shift_start:
@@ -175,20 +216,93 @@ def dashboard(request):
         except User.DoesNotExist:
             pass
 
-    all_today_attendance = None
-    all_employees = None
-    pending_leave_requests = []
+    # ---------- Pending Actions Count & List (Team-based) ----------
+    # Superuser & HR Admin: only see manager‑less employees
+    if user.is_superuser or user.groups.filter(name='HR Admin').exists():
+        admin_requests = LeaveRequest.objects.filter(
+            status='Pending',
+            user__profile__manager__isnull=True
+        )
+        pending_actions_count = admin_requests.count()
+        pending_leave_requests = admin_requests.order_by('-applied_on')[:10]
 
-    if user.is_superuser:
-        all_today_attendance = Attendance.objects.filter(date=today).select_related('user')
-        all_employees = User.objects.all().order_by('username')
-        all_employees_attendance = Attendance.objects.filter(
-            date__year=admin_year,
-            date__month=admin_month
-        ).select_related('user').order_by('user__username', 'date')
-        pending_leave_requests = LeaveRequest.objects.filter(status='Pending').order_by('-applied_on')[:10]
-    else:
+        # Keep additional data for superuser (charts, all employees, etc.)
+        if user.is_superuser:
+            all_today_attendance = Attendance.objects.filter(date=today).select_related('user')
+            all_employees = User.objects.all().order_by('username')
+            all_employees_attendance = Attendance.objects.filter(
+                date__year=admin_year,
+                date__month=admin_month
+            ).select_related('user').order_by('user__username', 'date')
+        else:
+            all_today_attendance = None
+            all_employees = None
+            all_employees_attendance = None
+
+    elif user.groups.filter(name='Manager').exists():
+        # Manager → see only their team's pending requests
+        try:
+            profile = user.profile
+            team_members = EmployeeProfile.objects.filter(manager=profile).values_list('user_id', flat=True)
+            manager_requests = LeaveRequest.objects.filter(
+                status='Pending',
+                user_id__in=team_members
+            )
+            pending_actions_count = manager_requests.count()
+            pending_leave_requests = manager_requests.order_by('-applied_on')[:10]
+        except EmployeeProfile.DoesNotExist:
+            pending_actions_count = 0
+            pending_leave_requests = LeaveRequest.objects.none()
+        all_today_attendance = None
+        all_employees = None
         all_employees_attendance = None
+    else:
+        # Employee → see only their own pending requests
+        pending_actions_count = LeaveRequest.objects.filter(user=user, status='Pending').count()
+        pending_leave_requests = LeaveRequest.objects.filter(user=user, status='Pending').order_by('-applied_on')[:10]
+        all_today_attendance = None
+        all_employees = None
+        all_employees_attendance = None
+
+    # For the notification dropdown "Actions" tab
+    pending_actions = pending_leave_requests
+
+
+    # ---------- Manager-specific Stats ----------
+    team_count = 0
+    team_present_today = 0
+    team_on_leave_today = 0
+    team_pending_actions_count = 0
+
+    if user.groups.filter(name='Manager').exists():
+        try:
+            profile = user.profile
+            team_members = EmployeeProfile.objects.filter(manager=profile).values_list('user_id', flat=True)
+            team_count = team_members.count()
+            
+            # Present today in team
+            team_present_today = Attendance.objects.filter(
+                date=today,
+                status='Present',
+                user_id__in=team_members
+            ).values('user').distinct().count()
+            
+            # On leave today in team
+            team_on_leave_today = LeaveRequest.objects.filter(
+                status='Approved',
+                start_date__lte=today,
+                end_date__gte=today,
+                user_id__in=team_members
+            ).values('user').distinct().count()
+            
+            # Pending requests in team
+            team_pending_actions_count = LeaveRequest.objects.filter(
+                status='Pending',
+                user_id__in=team_members
+            ).count()
+            
+        except EmployeeProfile.DoesNotExist:
+            pass
 
     # ---------- Monthly Chart Data ----------
     attendance_chart_labels = []
@@ -206,21 +320,28 @@ def dashboard(request):
             attendance_chart_absent.append(month_attendances.filter(status='Absent').count())
             attendance_chart_half.append(month_attendances.filter(status='Half-Day').count())
 
-    # ---------- Weekly Bar Chart Data (All 7 days, future days = 0) ----------
-    # Defaults for non‑admin
+    # ---------- Weekly Bar Chart Data ----------
+    start_of_week = today - timedelta(days=today.weekday())
+    week_start = start_of_week
+    week_end = start_of_week + timedelta(days=6)
+
+    # Default empty data for ALL users
     weekly_days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
     weekly_day_present = [0, 0, 0, 0, 0, 0, 0]
     weekly_day_absent = [0, 0, 0, 0, 0, 0, 0]
     weekly_day_half = [0, 0, 0, 0, 0, 0, 0]
     weekly_day_onleave = [0, 0, 0, 0, 0, 0, 0]
-    start_of_week = today - timedelta(days=today.weekday())
-    week_start = start_of_week
-    week_end = start_of_week + timedelta(days=6)
 
-    # For admin, calculate real data
+    # -------- Manager chart variables (always defined) --------
+    manager_weekly_days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+    manager_weekly_day_present = [0, 0, 0, 0, 0, 0, 0]
+    manager_weekly_day_absent = [0, 0, 0, 0, 0, 0, 0]
+    manager_weekly_day_half = [0, 0, 0, 0, 0, 0, 0]
+    manager_weekly_day_onleave = [0, 0, 0, 0, 0, 0, 0]
+
+    # ---------- ADMIN CHART (Superuser only) ----------
     if user.is_superuser:
         total_employees = User.objects.filter(is_superuser=False).count()
-        start_of_week = today - timedelta(days=today.weekday())
         weekly_days = []
         weekly_day_present = []
         weekly_day_absent = []
@@ -260,8 +381,54 @@ def dashboard(request):
 
         week_start = start_of_week
         week_end = start_of_week + timedelta(days=6)
-    else:
-        # For non-admin, total_employees is still needed for stats
+
+    # ---------- MANAGER CHART (Manager only) ----------
+    elif user.groups.filter(name='Manager').exists():
+        try:
+            profile = user.profile
+            team_members = EmployeeProfile.objects.filter(manager=profile).values_list('user_id', flat=True)
+            team_count = team_members.count()
+            manager_weekly_days = []
+            manager_weekly_day_present = []
+            manager_weekly_day_absent = []
+            manager_weekly_day_half = []
+            manager_weekly_day_onleave = []
+
+            for i in range(7):
+                day = start_of_week + timedelta(days=i)
+                if day <= today:
+                    present = Attendance.objects.filter(
+                        date=day,
+                        status='Present',
+                        user_id__in=team_members
+                    ).values('user').distinct().count()
+                    half = Attendance.objects.filter(
+                        date=day,
+                        status='Half-Day',
+                        user_id__in=team_members
+                    ).values('user').distinct().count()
+                    on_leave = LeaveRequest.objects.filter(
+                        status='Approved',
+                        start_date__lte=day,
+                        end_date__gte=day,
+                        user_id__in=team_members
+                    ).values('user').distinct().count()
+                    absent = team_count - present - on_leave
+                else:
+                    present = 0
+                    absent = 0
+                    half = 0
+                    on_leave = 0
+                manager_weekly_days.append(day.strftime('%a'))
+                manager_weekly_day_present.append(present)
+                manager_weekly_day_absent.append(absent)
+                manager_weekly_day_half.append(half)
+                manager_weekly_day_onleave.append(on_leave)
+        except EmployeeProfile.DoesNotExist:
+            pass
+
+    # ---------- TOTAL EMPLOYEES (for non-superuser) ----------
+    if not user.is_superuser:
         total_employees = User.objects.filter(is_superuser=False).count()
 
     # ---- Month navigation ----
@@ -290,25 +457,71 @@ def dashboard(request):
 
     absent_today = total_employees - present_today
 
-    if user.is_superuser:
-        pending_actions_count = LeaveRequest.objects.filter(status='Pending').count()
-    else:
-        pending_actions_count = LeaveRequest.objects.filter(user=user, status='Pending').count()
-
     next_holiday = Holiday.objects.filter(date__gte=today).order_by('date').first()
 
-    # On Leave Today
     on_leave_today = LeaveRequest.objects.filter(
         status='Approved',
         start_date__lte=today,
         end_date__gte=today
     ).values('user').distinct().count()
 
-    # Timer total seconds
     today_total_seconds = 0
     if today_attendance and today_attendance.total_working_time:
         today_total_seconds = int(today_attendance.total_working_time.total_seconds())
-     
+
+
+    # ---------- Admin: Employee Data for Dashboard (expandable table) ----------
+    employee_data = []
+
+    if user.is_superuser or user.groups.filter(name='HR Admin').exists():
+        # Get all employees (non-superuser)
+        employees = User.objects.filter(is_superuser=False).order_by('username')
+        attendances = Attendance.objects.filter(
+            date__year=admin_year,
+            date__month=admin_month
+        ).select_related('user')
+        
+        for emp in employees:
+            emp_records = [att for att in attendances if att.user == emp]
+            total_days = len(emp_records)
+            present = len([r for r in emp_records if r.status == 'Present'])
+            absent = len([r for r in emp_records if r.status == 'Absent'])
+            half_day = len([r for r in emp_records if r.status == 'Half-Day'])
+            percentage = int((present / total_days) * 100) if total_days > 0 else 0
+            
+            # Get shift info
+            profile = getattr(emp, 'profile', None)
+            shift_name = profile.shift.name if profile and profile.shift else '—'
+            shift_timing = ''
+            if profile and profile.shift:
+                start = profile.shift.start_time.strftime('%I:%M %p')
+                end = profile.shift.end_time.strftime('%I:%M %p')
+                shift_timing = f"{start} – {end}"
+            
+            # Build records list for expandable rows
+            records = []
+            for att in emp_records:
+                records.append({
+                    'date': att.date,
+                    'in_time': att.check_in_time.strftime('%I:%M %p') if att.check_in_time else '--:--',
+                    'out_time': att.check_out_time.strftime('%I:%M %p') if att.check_out_time else '--:--',
+                    'status': att.status,
+                })
+            
+            employee_data.append({
+                'employee': emp,
+                'records': records,
+                'total_days': total_days,
+                'present': present,
+                'absent': absent,
+                'half_day': half_day,
+                'percentage': percentage,
+                'shift_name': shift_name,
+                'shift_timing': shift_timing,
+            })
+    else:
+        employee_data = []  # For non-admins, empty
+
 
     context = {
         'user': user,
@@ -334,14 +547,12 @@ def dashboard(request):
         'admin_next_year': admin_next_year,
         'admin_next_disabled': admin_next_disabled,
         'admin_base_params': admin_base_params,
-        # Leave balance
         'leave_balance': leave_balance,
         'total_available': total_available,
         'total_used': total_used,
         'total_pending': total_pending,
-        # Pending leave requests
         'pending_leave_requests': pending_leave_requests,
-        # Chart data
+        'pending_actions': pending_actions,
         'attendance_chart_labels': attendance_chart_labels,
         'attendance_chart_present': attendance_chart_present,
         'attendance_chart_absent': attendance_chart_absent,
@@ -353,49 +564,133 @@ def dashboard(request):
         'weekly_day_onleave': weekly_day_onleave,
         'week_start': week_start,
         'week_end': week_end,
-        # Stats
         'total_employees': total_employees,
         'present_today': present_today,
         'absent_today': absent_today,
         'pending_actions_count': pending_actions_count,
         'next_holiday': next_holiday,
         'today_total_seconds': today_total_seconds,
-        # Calendar
         'calendar_data': calendar_data,
         'first_weekday': first_weekday,
         'month': month,
         'year': year,
         'on_leave_today': on_leave_today,
         'employee_shift': employee_shift,
-        'late_minutes': late_minutes
+        'late_minutes': late_minutes,
+        'team_count': team_count,
+        'team_present_today': team_present_today,
+        'team_on_leave_today': team_on_leave_today,
+        'team_pending_actions_count': team_pending_actions_count,
+        # -------- Manager chart data --------
+        'manager_weekly_days': manager_weekly_days,
+        'manager_weekly_day_present': manager_weekly_day_present,
+        'manager_weekly_day_absent': manager_weekly_day_absent,
+        'manager_weekly_day_half': manager_weekly_day_half,
+        'manager_weekly_day_onleave': manager_weekly_day_onleave,
+        'employee_data': employee_data,
     }
     return render(request, 'dashboard.html', context)
-    
 
 
 # ---------- Attendance ----------
+
 @login_required
 def clock_in(request):
-    today = date.today()
-    attendance = Attendance.objects.filter(user=request.user, date=today).first()
-
-    if attendance and attendance.state == 'checked_in':
-        messages.warning(request, 'You are already checked in.')
-    else:
+    if request.method == 'POST':
+        user = request.user
+        today = date.today()
+        
+        # Check if already checked in today
+        attendance = Attendance.objects.filter(user=user, date=today).first()
+        
+        if attendance and attendance.state == 'checked_in':
+            messages.warning(request, 'You are already checked in.')
+            return redirect('dashboard')
+        
+        # Get employee profile and attendance type
+        profile = getattr(user, 'profile', None)
+        if not profile:
+            messages.error(request, 'Employee profile not found.')
+            return redirect('dashboard')
+        
+        attendance_type = profile.attendance_type
+        check_in_lat = None
+        check_in_lng = None
+        check_in_dist = None
+        
+        # Location validation for Office employees
+        if attendance_type == 'office':
+            office = profile.office_location
+            if not office:
+                messages.error(request, 'No office location assigned. Please contact HR.')
+                return redirect('dashboard')
+            
+            lat = request.POST.get('latitude')
+            lng = request.POST.get('longitude')
+            
+            if lat is None or lng is None:
+                messages.error(request, 'Location data missing. Please enable GPS and try again.')
+                return redirect('dashboard')
+            
+            try:
+                lat = float(lat)
+                lng = float(lng)
+            except ValueError:
+                messages.error(request, 'Invalid location data.')
+                return redirect('dashboard')
+            
+            # Calculate distance using haversine
+            distance = haversine(lat, lng, float(office.latitude), float(office.longitude))
+            
+            if distance > office.allowed_radius:
+                messages.error(request, f'You are not in the office location. (Distance: {distance:.0f}m, Allowed: {office.allowed_radius}m)')
+                return redirect('dashboard')
+            
+            # Location is valid – save the data
+            check_in_lat = lat
+            check_in_lng = lng
+            check_in_dist = int(distance)
+        else:
+            # Remote or Flexible – no location validation, but capture location if provided
+            lat = request.POST.get('latitude')
+            lng = request.POST.get('longitude')
+            if lat and lng:
+                try:
+                    check_in_lat = float(lat)
+                    check_in_lng = float(lng)
+                except ValueError:
+                    pass
+        
+        # Existing logic with location fields
         if attendance and attendance.state == 'checked_out':
+            # Re-check-in after being checked out
             attendance.check_in_time = timezone.now()
             attendance.state = 'checked_in'
+            attendance.check_in_latitude = check_in_lat
+            attendance.check_in_longitude = check_in_lng
+            attendance.check_in_distance = check_in_dist
             attendance.save()
         else:
+            # New check-in
             attendance = Attendance.objects.create(
                 user=request.user,
                 check_in_time=timezone.now(),
                 state='checked_in',
-                total_working_time=timedelta(0)
+                total_working_time=timedelta(0),
+                check_in_latitude=check_in_lat,
+                check_in_longitude=check_in_lng,
+                check_in_distance=check_in_dist,
             )
-        messages.success(request, f'Clocked in at {attendance.check_in_time.strftime("%H:%M:%S")}')
-
+        
+        # ----- FIX: Indent these lines correctly -----
+        local_time = timezone.localtime(attendance.check_in_time)
+        messages.success(request, f'Clocked in at {local_time.strftime("%I:%M:%S %p")}')
+        return redirect('dashboard')
+    
+    # GET request – just redirect
     return redirect('dashboard')
+
+        
 
 @login_required
 def clock_out(request):
@@ -412,8 +707,26 @@ def clock_out(request):
             attendance.total_working_time = interval
         attendance.check_out_time = timezone.now()
         attendance.state = 'checked_out'
+        
+        # Capture check-out location (optional)
+        if request.method == 'POST':
+            lat = request.POST.get('check_out_latitude')
+            lng = request.POST.get('check_out_longitude')
+            if lat and lng:
+                try:
+                    attendance.check_out_latitude = float(lat)
+                    attendance.check_out_longitude = float(lng)
+                except ValueError:
+                    pass
+        
         attendance.save()
-        messages.success(request, f'Clocked out at {attendance.check_out_time.strftime("%H:%M:%S")}. Total worked today: {attendance.total_working_time}')
+        
+        # ----- FIX: Show local time in AM/PM -----
+        local_out = timezone.localtime(attendance.check_out_time)
+        messages.success(
+            request, 
+            f'Clocked out at {local_out.strftime("%I:%M:%S %p")}. Total worked today: {attendance.total_working_time}'
+        )
 
     return redirect('dashboard')
 
@@ -424,25 +737,118 @@ def is_admin(user):
 
 
 # ---------- Employee Management ----------
+
 @login_required
-@user_passes_test(is_admin)
+@hr_admin_required   # <-- Changed from @admin_or_hr_required
 def employee_list(request):
     employees = User.objects.all().order_by('username')
     return render(request, 'employee_list.html', {'employees': employees})
 
+
+
 @login_required
-@user_passes_test(is_admin)
+@hr_admin_required
 def employee_create(request):
     if request.method == 'POST':
         form = EmployeeForm(request.POST)
         if form.is_valid():
-            profile = form.save()  # returns the EmployeeProfile object
-            # Assign shift if provided
+            # ---- Step 1: Create the User ----
+            username = form.cleaned_data['username']
+            email = form.cleaned_data['email']
+            password = form.cleaned_data['password1']
+            
+            user = User.objects.create_user(
+                username=username,
+                email=email,
+                password=password
+            )
+            
+            # ---- Step 2: Create the Profile (without employee_id yet) ----
+            profile = EmployeeProfile(
+                user=user,
+                full_name=form.cleaned_data['full_name'],
+                date_of_birth=form.cleaned_data.get('date_of_birth'),
+                date_of_joining=form.cleaned_data.get('date_of_joining'),
+                designation=form.cleaned_data.get('designation', ''),
+                department=form.cleaned_data.get('department', ''),
+                phone=form.cleaned_data.get('phone', ''),
+                address=form.cleaned_data.get('address', ''),
+                attendance_type=form.cleaned_data['attendance_type'],
+                office_location=form.cleaned_data.get('office_location'),
+                role=form.cleaned_data.get('role', 'employee'),
+            )
+            
+            # ---- Step 3: Auto‑generate employee_id (FIXED) ----
+            if hasattr(request.user, 'profile') and request.user.profile and request.user.profile.company:
+                company = request.user.profile.company
+            else:
+                company = Company.objects.first()
+            
+            if company:
+                prefix = company.code_prefix
+                # ✅ Get the maximum numeric value from existing employee_ids
+                existing_ids = EmployeeProfile.objects.filter(
+                    company=company,
+                    employee_id__startswith=prefix
+                ).values_list('employee_id', flat=True)
+                
+                max_num = 0
+                for emp_id in existing_ids:
+                    try:
+                        num = int(emp_id[len(prefix):])
+                        if num > max_num:
+                            max_num = num
+                    except ValueError:
+                        continue
+                
+                next_num = max_num + 1
+                profile.employee_id = f"{prefix}{next_num:03d}"
+                profile.company = company
+            else:
+                # Fallback: no company
+                existing_ids = EmployeeProfile.objects.values_list('employee_id', flat=True)
+                max_num = 0
+                for emp_id in existing_ids:
+                    if emp_id.startswith('EMP'):
+                        try:
+                            num = int(emp_id[3:])
+                            if num > max_num:
+                                max_num = num
+                        except ValueError:
+                            continue
+                next_num = max_num + 1
+                profile.employee_id = f"EMP{next_num:04d}"
+            
+            # ---- Step 4: Save the profile ----
+            profile.save()
+
+            # ---- Assign manager if provided ----
+            manager_id = request.POST.get('manager')
+            if manager_id:
+                profile.manager_id = manager_id
+                profile.save(update_fields=['manager_id'])
+            
+            # ---- Step 5: Assign shift if provided ----
             shift_id = request.POST.get('shift')
             if shift_id:
                 profile.shift_id = shift_id
-                profile.save()
-            messages.success(request, f'Employee {profile.full_name} created successfully!')
+                profile.save(update_fields=['shift_id'])
+            
+            # ---- Step 6: Assign role and add to group ----
+            from django.contrib.auth.models import Group
+            
+            role = request.POST.get('role', 'employee')
+            if role == 'manager':
+                group, _ = Group.objects.get_or_create(name='Manager')
+                user.groups.add(group)
+            elif role == 'hr_admin':
+                group, _ = Group.objects.get_or_create(name='HR Admin')
+                user.groups.add(group)
+            else:
+                # Employee – remove from all admin groups
+                user.groups.clear()
+            
+            messages.success(request, f'Employee {profile.full_name} created successfully! Employee ID: {profile.employee_id}')
             return redirect('employee_list')
         else:
             for field, errors in form.errors.items():
@@ -450,17 +856,28 @@ def employee_create(request):
                     messages.error(request, f'{field}: {error}')
     else:
         form = EmployeeForm()
-
+    
     shifts = Shift.objects.all().order_by('name')
+    offices = OfficeLocation.objects.filter(is_active=True)
+    all_managers = EmployeeProfile.objects.filter(
+        role__in=['manager', 'hr_admin']
+    ).order_by('full_name')
+    
     context = {
         'form': form,
         'action': 'Create',
         'shifts': shifts,
+        'offices': offices,
+        'all_managers': all_managers,
     }
     return render(request, 'employee_form.html', context)
 
+    
+    
+
+
 @login_required
-@user_passes_test(is_admin)
+@hr_admin_required
 def employee_edit(request, user_id):
     user = get_object_or_404(User, id=user_id)
 
@@ -487,7 +904,7 @@ def employee_edit(request, user_id):
                 return redirect('employee_edit', user_id=user.id)
         user.save()
 
-        profile.employee_id = request.POST.get('employee_id')
+        # Employee ID should NEVER change – REMOVED that line
         profile.full_name = request.POST.get('full_name')
         profile.date_of_birth = request.POST.get('date_of_birth') or None
         profile.date_of_joining = request.POST.get('date_of_joining') or None
@@ -495,6 +912,17 @@ def employee_edit(request, user_id):
         profile.department = request.POST.get('department', '')
         profile.phone = request.POST.get('phone', '')
         profile.address = request.POST.get('address', '')
+        
+        # NEW FIELDS for location check-in
+        profile.attendance_type = request.POST.get('attendance_type')
+        profile.office_location_id = request.POST.get('office_location') or None
+        
+        # ----- NEW: Role Field -----
+        profile.role = request.POST.get('role', 'employee')
+        
+        # ----- NEW: Manager Field -----
+        profile.manager_id = request.POST.get('manager') or None
+        
         # Update shift if provided
         shift_id = request.POST.get('shift')
         if shift_id:
@@ -503,20 +931,57 @@ def employee_edit(request, user_id):
             profile.shift = None
         profile.save()
 
+        # ---- NEW: Update role and groups ----
+        from django.contrib.auth.models import Group
+        
+        role = request.POST.get('role', 'employee')
+        if role == 'manager':
+            group, _ = Group.objects.get_or_create(name='Manager')
+            user.groups.add(group)
+            # Remove from HR Admin if it was there
+            hr_group = Group.objects.filter(name='HR Admin').first()
+            if hr_group:
+                user.groups.remove(hr_group)
+        elif role == 'hr_admin':
+            group, _ = Group.objects.get_or_create(name='HR Admin')
+            user.groups.add(group)
+            # Remove from Manager if it was there
+            mgr_group = Group.objects.filter(name='Manager').first()
+            if mgr_group:
+                user.groups.remove(mgr_group)
+        else:
+            # Employee – remove from all admin groups
+            user.groups.clear()
+
         messages.success(request, f'Employee {profile.full_name} updated successfully.')
         return redirect('employee_list')
 
     shifts = Shift.objects.all().order_by('name')
+    offices = OfficeLocation.objects.filter(is_active=True)
+
+    # Only Managers and HR Admins can be assigned as managers
+    all_managers = EmployeeProfile.objects.filter(
+        role__in=['manager', 'hr_admin']
+    ).order_by('full_name')
+    
     context = {
         'user': user,
         'profile': profile,
         'action': 'Edit',
         'shifts': shifts,
+        'offices': offices,
+        'all_managers': all_managers,
+        
     }
     return render(request, 'employee_form.html', context)
 
+
+        
+
+
+
 @login_required
-@user_passes_test(is_admin)
+@hr_admin_required
 def employee_delete(request, user_id):
     employee = get_object_or_404(User, id=user_id)
     if request.method == 'POST':
@@ -530,7 +995,7 @@ def employee_delete(request, user_id):
 
 # ---------- Employee Detail ----------
 @login_required
-@user_passes_test(is_admin)
+@hr_admin_required
 def employee_detail(request, user_id):
     employee_user = get_object_or_404(User, id=user_id)
 
@@ -587,13 +1052,13 @@ def employee_detail(request, user_id):
 
 # ---------- Leave Types ----------
 @login_required
-@user_passes_test(is_admin)
+@hr_admin_required
 def leave_type_list(request):
     types = LeaveType.objects.all().order_by('name')
     return render(request, 'leave_type_list.html', {'leave_types': types})
 
 @login_required
-@user_passes_test(is_admin)
+@hr_admin_required
 def leave_type_create(request):
     if request.method == 'POST':
         name = request.POST.get('name')
@@ -607,7 +1072,7 @@ def leave_type_create(request):
     return render(request, 'leave_type_form.html', {'action': 'Create'})
 
 @login_required
-@user_passes_test(is_admin)
+@hr_admin_required
 def leave_type_edit(request, pk):
     leave_type = get_object_or_404(LeaveType, id=pk)
     if request.method == 'POST':
@@ -620,7 +1085,7 @@ def leave_type_edit(request, pk):
     return render(request, 'leave_type_form.html', {'action': 'Edit', 'leave_type': leave_type})
 
 @login_required
-@user_passes_test(is_admin)
+@hr_admin_required
 def leave_type_delete(request, pk):
     leave_type = get_object_or_404(LeaveType, id=pk)
     if request.method == 'POST':
@@ -632,13 +1097,13 @@ def leave_type_delete(request, pk):
 
 # ---------- Holidays ----------
 @login_required
-@user_passes_test(is_admin)
+@hr_admin_required
 def holiday_list(request):
     holidays = Holiday.objects.all().order_by('date')
     return render(request, 'holiday_list.html', {'holidays': holidays})
 
 @login_required
-@user_passes_test(is_admin)
+@admin_or_hr_required
 def holiday_create(request):
     if request.method == 'POST':
         name = request.POST.get('name')
@@ -652,7 +1117,7 @@ def holiday_create(request):
     return render(request, 'holiday_form.html', {'action': 'Add'})
 
 @login_required
-@user_passes_test(is_admin)
+@admin_or_hr_required
 def holiday_edit(request, pk):
     holiday = get_object_or_404(Holiday, id=pk)
     if request.method == 'POST':
@@ -664,7 +1129,7 @@ def holiday_edit(request, pk):
     return render(request, 'holiday_form.html', {'action': 'Edit', 'holiday': holiday})
 
 @login_required
-@user_passes_test(is_admin)
+@admin_or_hr_required
 def holiday_delete(request, pk):
     holiday = get_object_or_404(Holiday, id=pk)
     if request.method == 'POST':
@@ -769,11 +1234,17 @@ def leave_apply(request):
         )
         messages.success(request, 'Leave request submitted successfully.')
 
-        notify_admins(
-            f"{request.user.username} has applied for {leave_type.name} leave from {start_date} to {end_date}.",
-            notification_type='action',
-            related_object=leave_request
-        )
+        # ---- Send notification ONLY to the approver ----
+        # get_approver() always returns a user (manager or HR Admin), so no fallback is needed.
+        approver = get_approver(request.user)
+        if approver:
+            create_notification(
+                approver,
+                f"{request.user.username} has applied for {leave_type.name} leave from {start_date} to {end_date}.",
+                notification_type='action',
+                related_object=leave_request
+            )
+
         return redirect('employee_leaves')
 
     leave_types = LeaveType.objects.filter(is_active=True)
@@ -782,11 +1253,47 @@ def leave_apply(request):
 
 # ---------- Admin Leave Approvals ----------
 @login_required
-@user_passes_test(is_admin)
+@admin_or_hr_required
 def admin_leaves(request):
-    pending = LeaveRequest.objects.filter(status='Pending').order_by('-applied_on')
-    approved = LeaveRequest.objects.filter(status='Approved').order_by('-applied_on')
-    rejected = LeaveRequest.objects.filter(status='Rejected').order_by('-applied_on')
+    user = request.user
+    
+    # ---- Scope filtering based on user role ----
+    # Superuser and HR Admin see only manager‑less employees
+    if user.is_superuser or user.groups.filter(name='HR Admin').exists():
+        pending = LeaveRequest.objects.filter(
+            status='Pending',
+            user__profile__manager__isnull=True
+        ).order_by('-applied_on')
+        approved = LeaveRequest.objects.filter(
+            status='Approved',
+            user__profile__manager__isnull=True
+        ).order_by('-applied_on')
+        rejected = LeaveRequest.objects.filter(
+            status='Rejected',
+            user__profile__manager__isnull=True
+        ).order_by('-applied_on')
+    else:
+        # Manager → see only their team's requests
+        try:
+            profile = user.profile
+            team_members = EmployeeProfile.objects.filter(manager=profile).values_list('user_id', flat=True)
+            pending = LeaveRequest.objects.filter(
+                status='Pending',
+                user_id__in=team_members
+            ).order_by('-applied_on')
+            approved = LeaveRequest.objects.filter(
+                status='Approved',
+                user_id__in=team_members
+            ).order_by('-applied_on')
+            rejected = LeaveRequest.objects.filter(
+                status='Rejected',
+                user_id__in=team_members
+            ).order_by('-applied_on')
+        except EmployeeProfile.DoesNotExist:
+            pending = LeaveRequest.objects.none()
+            approved = LeaveRequest.objects.none()
+            rejected = LeaveRequest.objects.none()
+    
     context = {
         'pending_leaves': pending,
         'approved_leaves': approved,
@@ -794,10 +1301,17 @@ def admin_leaves(request):
     }
     return render(request, 'admin_leaves.html', context)
 
+
 @login_required
-@user_passes_test(is_admin)
+@admin_or_hr_required
 def leave_approve(request, leave_id):
     leave = get_object_or_404(LeaveRequest, id=leave_id)
+
+    # ---- NEW: Authorization Check ----
+    if not can_approve_request(request.user, leave):
+        messages.error(request, 'You are not authorized to approve this request.')
+        return redirect('admin_leaves')
+
     if request.method == 'POST':
         comment = request.POST.get('admin_comment', '')
         leave.status = 'Approved'
@@ -813,10 +1327,18 @@ def leave_approve(request, leave_id):
         return redirect('admin_leaves')
     return render(request, 'leave_approve.html', {'leave': leave})
 
+
+
 @login_required
-@user_passes_test(is_admin)
+@admin_or_hr_required
 def leave_reject(request, leave_id):
     leave = get_object_or_404(LeaveRequest, id=leave_id)
+
+    # ---- NEW: Authorization Check ----
+    if not can_approve_request(request.user, leave):
+        messages.error(request, 'You are not authorized to reject this request.')
+        return redirect('admin_leaves')
+
     if request.method == 'POST':
         reason = request.POST.get('rejection_reason')
         if not reason:
@@ -836,10 +1358,10 @@ def leave_reject(request, leave_id):
     return render(request, 'leave_reject.html', {'leave': leave})
 
 
-
 # ---------- Team Attendance (Admin only) ----------
+
 @login_required
-@user_passes_test(is_admin)
+@admin_or_hr_required
 def team_attendance(request):
     today = date.today()
     month = int(request.GET.get('month', today.month))
@@ -847,7 +1369,22 @@ def team_attendance(request):
     if month < 1 or month > 12: month = today.month
     if year < 2000 or year > 2100: year = today.year
     selected_date = date(year, month, 1)
-    employees = User.objects.filter(is_superuser=False).order_by('username')
+    
+    user = request.user
+    
+    # ---- Get the employees based on user role ----
+    if user.is_superuser or user.groups.filter(name='HR Admin').exists():
+        # Superuser or HR Admin → see ALL employees
+        employees = User.objects.filter(is_superuser=False).order_by('username')
+    else:
+        # Manager → see only their team
+        try:
+            profile = user.profile
+            # Get all employees who report to this manager
+            team_members = EmployeeProfile.objects.filter(manager=profile).values_list('user_id', flat=True)
+            employees = User.objects.filter(id__in=team_members).order_by('username')
+        except EmployeeProfile.DoesNotExist:
+            employees = User.objects.none()
     
     attendances = Attendance.objects.filter(
         date__year=year,
@@ -905,15 +1442,17 @@ def team_attendance(request):
     return render(request, 'team_attendance.html', context)
 
 
-# ---------- Attendance Report ----------
+
+
 @login_required
-@user_passes_test(is_admin)
+@hr_admin_required
 def attendance_report(request):
     today = date.today()
     employees = User.objects.filter(is_superuser=False).order_by('username')
     
     month = int(request.GET.get('month', today.month))
     year = int(request.GET.get('year', today.year))
+
     if month < 1 or month > 12: month = today.month
     if year < 2000 or year > 2100: year = today.year
     
@@ -923,9 +1462,9 @@ def attendance_report(request):
     last_day_of_month = date(year, month, last_day_num)
     
     if year == today.year and month == today.month:
-        end_date = today  # Only up to today for current month
+        end_date = today
     else:
-        end_date = last_day_of_month  # Full month for past months
+        end_date = last_day_of_month
     
     # --- Filters ---
     department_filter = request.GET.get('department', '')
@@ -945,7 +1484,7 @@ def attendance_report(request):
     attendances = Attendance.objects.filter(
         date__year=year,
         date__month=month,
-        date__lte=end_date   # 👈 KEY FIX
+        date__lte=end_date
     ).select_related('user')
     
     # --- Get leaves (limited to end_date) ---
@@ -993,8 +1532,6 @@ def attendance_report(request):
         overtime_minutes = 0
         
         daily_records = []
-
-        
         
         for att in emp_records.order_by('date'):
             status_label = 'Present'
@@ -1020,8 +1557,6 @@ def attendance_report(request):
                     if status_label == 'Present':
                         status_label = 'Early Out'
                 
-                # --- OVERTIME CALCULATION (FIXED) ---
-                # Only if check-out is AFTER shift end
                 if att.check_out_time > shift_end:
                     overtime_seconds = (att.check_out_time - shift_end).total_seconds()
                     ot_minutes = int(overtime_seconds // 60)
@@ -1034,7 +1569,6 @@ def attendance_report(request):
                     ot_minutes = 0
                 
                 overtime_minutes += ot_minutes
-                # ----------------------------------
             
             hours_str = '--'
             if att.check_in_time and att.check_out_time:
@@ -1054,7 +1588,6 @@ def attendance_report(request):
                 'hours': hours_str,
                 'status': status_label,
             })
-            
         
         if status_filter == 'On Leave' and leave_days == 0:
             continue
@@ -1088,6 +1621,328 @@ def attendance_report(request):
     total_ot_minutes = total_overtime_minutes % 60
     total_ot_formatted = f"{total_ot_hours}h {total_ot_minutes}m" if total_overtime_minutes > 0 else "0h 0m"
     
+
+    # ---------- PDF DOWNLOAD ----------
+if request.GET.get('download') == 'pdf':
+    from .utils import get_employee_attendance_for_pdf
+    from reportlab.lib.pagesizes import A4
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch, cm
+    from io import BytesIO
+    from django.http import FileResponse
+    
+    # ---- Use the already filtered employee_data ----
+    download_type = request.GET.get('download_type', 'all')
+    employee_id = request.GET.get('employee_id')
+    
+    pdf_employee_data = employee_data
+    
+    if download_type == 'single':
+        if not employee_id:
+            messages.error(request, 'Please select an employee.')
+            return redirect('attendance_report')
+        try:
+            emp = User.objects.get(id=employee_id)
+            pdf_employee_data = [item for item in employee_data if item['employee'].id == emp.id]
+            if not pdf_employee_data:
+                messages.error(request, 'Employee not found or you do not have access.')
+                return redirect('attendance_report')
+        except User.DoesNotExist:
+            messages.error(request, 'Employee not found.')
+            return redirect('attendance_report')
+    
+    if not pdf_employee_data:
+        messages.error(request, 'No data available for the selected filters.')
+        return redirect('attendance_report')
+    
+    # --- Generate PDF ---
+    buffer = BytesIO()
+    first_day = date(year, month, 1)
+    _, last_day_num = monthrange(year, month)
+    last_day = date(year, month, last_day_num)
+    company = Company.objects.first()
+    company_name = company.name if company else 'HRMS'
+    
+    doc = SimpleDocTemplate(buffer, pagesize=A4,
+                            topMargin=0.5*inch, bottomMargin=0.5*inch,
+                            leftMargin=0.5*inch, rightMargin=0.5*inch)
+    styles = getSampleStyleSheet()
+    normal_style = styles['Normal']
+    heading_style = styles['Heading2']
+    
+    header_style = ParagraphStyle('HeaderStyle', parent=normal_style, fontSize=14, fontName='Helvetica-Bold', alignment=1, spaceAfter=6)
+    subheader_style = ParagraphStyle('SubHeaderStyle', parent=normal_style, fontSize=12, alignment=1, spaceAfter=12)
+    info_label_style = ParagraphStyle('InfoLabelStyle', parent=normal_style, fontSize=10, fontName='Helvetica-Bold')
+    info_value_style = ParagraphStyle('InfoValueStyle', parent=normal_style, fontSize=10)
+    summary_label_style = ParagraphStyle('SummaryLabelStyle', parent=normal_style, fontSize=9, fontName='Helvetica-Bold')
+    
+    elements = []
+    
+    
+    for idx, emp_data in enumerate(pdf_employee_data):
+        if idx > 0:
+            elements.append(PageBreak())    
+        emp = emp_data['employee']
+        detailed = get_employee_attendance_for_pdf(emp, year, month, first_day, last_day)
+        profile = detailed['profile']
+        shift = detailed['shift']
+        daily = detailed['daily_data']
+        
+        # Company header
+        elements.append(Paragraph(company_name, header_style))
+        elements.append(Paragraph("Attendance Report", subheader_style))
+        month_name = first_day.strftime('%B %Y')
+        elements.append(Paragraph(month_name, normal_style))
+        elements.append(Spacer(1, 0.3*inch))
+        
+        # Employee Info (3 columns, borderless)
+        info_data = [
+            [
+                Paragraph(f"<b>Employee:</b> {emp.username}", normal_style),
+                Paragraph(f"<b>Employee ID:</b> {profile.employee_id if profile else '—'}", normal_style),
+                Paragraph(f"<b>Department:</b> {profile.department if profile else '—'}", normal_style),
+            ],
+            [
+                Paragraph(f"<b>Designation:</b> {profile.designation if profile else '—'}", normal_style),
+                Paragraph(f"<b>Manager:</b> {profile.manager.full_name if profile and profile.manager else '—'}", normal_style),
+                Paragraph(f"<b>Shift:</b> {shift.name if shift else '—'}", normal_style),
+            ],
+            [
+                Paragraph(f"<b>Attendance Type:</b> {profile.get_attendance_type_display() if profile else '—'}", normal_style),
+                Paragraph("", normal_style),
+                Paragraph("", normal_style),
+            ],
+        ]
+        col_widths = [doc.width / 3.0] * 3
+        info_table = Table(info_data, colWidths=col_widths)
+        info_table.setStyle(TableStyle([
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('FONTSIZE', (0,0), (-1,-1), 9),
+            ('LEFTPADDING', (0,0), (-1,-1), 4),
+            ('RIGHTPADDING', (0,0), (-1,-1), 4),
+            ('TOPPADDING', (0,0), (-1,-1), 3),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+        ]))
+        elements.append(info_table)
+        elements.append(Spacer(1, 0.2*inch))
+        
+        # Daily Attendance
+        elements.append(Paragraph("Daily Attendance", heading_style))
+        table_data = [['Date', 'Day', 'Status', 'Check In', 'Check Out', 'Hours']]
+        for day in daily:
+            table_data.append([
+                day['date'].strftime('%d %b'),
+                day['day_name'],
+                day['status'],
+                day['check_in'] if day['check_in'] else '—',
+                day['check_out'] if day['check_out'] else '—',
+                day['working_hours'] if day['working_hours'] else '—'
+            ])
+        table = Table(table_data, colWidths=[1.8*cm, 1.8*cm, 2.2*cm, 2.5*cm, 2.5*cm, 2.5*cm])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.grey),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0,0), (-1,0), 9),
+            ('FONTSIZE', (0,1), (-1,-1), 8),
+            ('BOTTOMPADDING', (0,0), (-1,0), 6),
+            ('TOPPADDING', (0,0), (-1,-1), 4),
+            ('BOTTOMPADDING', (0,1), (-1,-1), 4),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.lightgrey]),
+        ]))
+        elements.append(table)
+        elements.append(Spacer(1, 0.3*inch))
+        
+        # Monthly Summary
+        elements.append(Paragraph("Monthly Summary", heading_style))
+        ot_hours = int(detailed['overtime_minutes'] // 60)
+        ot_minutes = int(detailed['overtime_minutes'] % 60)
+        overtime_str = f"{ot_hours}h {ot_minutes}m" if ot_minutes > 0 or ot_hours > 0 else "0h"
+        
+        summary_data = [
+            [Paragraph("Working Days:", summary_label_style), str(detailed['working_days']),
+             Paragraph("Present:", summary_label_style), str(detailed['present'])],
+            [Paragraph("Absent:", summary_label_style), str(detailed['absent']),
+             Paragraph("Leave:", summary_label_style), str(detailed['leave'])],
+            [Paragraph("Half Day:", summary_label_style), str(detailed['half_day']),
+             Paragraph("Late Arrivals:", summary_label_style), str(detailed['late_arrivals'])],
+            [Paragraph("Overtime:", summary_label_style), overtime_str,
+             Paragraph("Total Working Hours:", summary_label_style), detailed['total_working_hours']],
+            [Paragraph("Average Working Hours:", summary_label_style), detailed['avg_working_hours'],
+             Paragraph("", summary_label_style), ""],
+        ]
+        summary_table = Table(summary_data, colWidths=[3*cm, 2.5*cm, 3*cm, 2.5*cm])
+        summary_table.setStyle(TableStyle([
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('FONTSIZE', (0,0), (-1,-1), 9),
+            ('LEFTPADDING', (0,0), (-1,-1), 4),
+            ('RIGHTPADDING', (0,0), (-1,-1), 4),
+            ('TOPPADDING', (0,0), (-1,-1), 3),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+        ]))
+        elements.append(summary_table)
+        elements.append(Spacer(1, 0.5*inch))
+        
+        # ----- Footer (inside the loop) -----
+        local_now = timezone.localtime(timezone.now())
+        footer_text = f"Generated on {local_now.strftime('%d %B %Y, %I:%M %p')} · Employee ID: {profile.employee_id if profile else 'N/A'}"
+        elements.append(Paragraph(footer_text,
+                                  ParagraphStyle('Footer', parent=normal_style, fontSize=7, alignment=1)))
+    
+    # ----- Build the document (outside the loop) -----
+    doc.build(elements)
+    buffer.seek(0)
+    
+    month_name = first_day.strftime('%B_%Y')
+    if download_type == 'single' and len(pdf_employee_data) == 1:
+        emp = pdf_employee_data[0]['employee']
+        emp_id = emp.profile.employee_id if emp.profile else f"EMP{emp.id:04d}"
+        filename = f"attendance_{emp_id}_{month_name}.pdf"
+    else:
+        filename = f"attendance_{month_name}.pdf"
+    
+    return FileResponse(buffer, as_attachment=True, filename=filename)
+
+        
+    # ---------- CSV DOWNLOAD ----------
+    if request.GET.get('download') == 'csv':
+        download_type = request.GET.get('download_type', 'all')  # 'all' or 'single'
+        employee_id = request.GET.get('employee_id')
+        
+        # --- Single employee mode ---
+        if download_type == 'single':
+            if not employee_id:
+                messages.error(request, 'Please select an employee.')
+                return redirect('attendance_report')
+            
+            try:
+                single_user = User.objects.get(id=employee_id)
+                # Filter employee_data to only this employee (and check access)
+                filtered_data = [item for item in employee_data if item['employee'].id == single_user.id]
+                if not filtered_data:
+                    messages.error(request, 'Employee not found or you do not have access.')
+                    return redirect('attendance_report')
+                employee_data = filtered_data  # Replace with single employee
+            except User.DoesNotExist:
+                messages.error(request, 'Employee not found.')
+                return redirect('attendance_report')
+        
+        if not employee_data:
+            messages.error(request, 'No attendance data available for the selected month.')
+            return redirect('attendance_report')
+        
+        # --- Generate CSV ---
+        month_name = date(year, month, 1).strftime('%B_%Y')
+        
+        # Build date columns
+        dates = [first_day + timedelta(days=i) for i in range((end_date - first_day).days + 1)]
+        date_headers = [d.strftime('%b %d') for d in dates]
+        
+        # CSV filename
+        if download_type == 'single' and len(employee_data) == 1:
+            emp = employee_data[0]['employee']
+            emp_id = emp.profile.employee_id if hasattr(emp, 'profile') and emp.profile else f"EMP{emp.id:04d}"
+            filename = f"attendance_{emp_id}_{month_name}.csv"
+        else:
+            filename = f"attendance_{month_name}.csv"
+        
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        
+        writer = csv.writer(response)
+        
+        # Header
+        header = ['Employee ID', 'Employee Name', 'Department', 'Designation', 'Shift'] + date_headers + ['Present', 'Absent', 'Leave', 'Half Day', 'Late Arrivals', 'Overtime']
+        writer.writerow(header)
+        
+        # Get all holidays and weekly off patterns for the month
+        holidays = Holiday.objects.filter(date__gte=first_day, date__lte=end_date).values_list('date', flat=True)
+        holidays = set(holidays)
+        
+        for emp_data in employee_data:
+            emp = emp_data['employee']
+            profile = emp.profile
+            shift = emp.profile.shift if emp.profile and emp.profile.shift else None
+            
+            # Build status dict for each date
+            status_dict = {}
+            for d in dates:
+                if d in holidays:
+                    status_dict[d] = 'H'
+                elif shift:
+                    day_name = d.strftime('%a').lower()[:3]
+                    # Check if day is a working day (mon, tue, wed, thu, fri, sat, sun)
+                    if not getattr(shift, day_name, False):
+                        status_dict[d] = 'WO'
+                else:
+                    # No shift – assume working day (will be filled later)
+                    status_dict[d] = ''
+            
+            # Fill from attendance records
+            emp_att_records = Attendance.objects.filter(user=emp, date__gte=first_day, date__lte=end_date)
+            for att in emp_att_records:
+                if att.status == 'Present':
+                    status_dict[att.date] = 'P'
+                elif att.status == 'Half-Day':
+                    status_dict[att.date] = 'HD'
+                # 'Absent' is handled by default later
+            
+            # Fill from approved leaves (override)
+            emp_leave_requests = LeaveRequest.objects.filter(user=emp, status='Approved', start_date__lte=end_date, end_date__gte=first_day)
+            for leave in emp_leave_requests:
+                start = max(leave.start_date, first_day)
+                end = min(leave.end_date, end_date)
+                for d in (start + timedelta(n) for n in range((end - start).days + 1)):
+                    status_dict[d] = 'L'
+            
+            # Build row
+            row = [
+                profile.employee_id if profile else '',
+                emp.username,
+                profile.department if profile else '',
+                profile.designation if profile else '',
+                shift.name if shift else '',
+            ]
+            
+            # For each date, get status; default to 'A' if not set (working day with no attendance)
+            for d in dates:
+                status = status_dict.get(d)
+                if status is None or status == '':
+                    # If it's a working day (not holiday, not WO), mark Absent
+                    # (Holiday and WO are already set)
+                    status = 'A'
+                row.append(status)
+            
+            # Compute totals from the row data (excluding first 5 columns)
+            daily_statuses = row[5:]
+            present_count = sum(1 for s in daily_statuses if s == 'P')
+            absent_count = sum(1 for s in daily_statuses if s == 'A')
+            leave_count = sum(1 for s in daily_statuses if s == 'L')
+            half_count = sum(1 for s in daily_statuses if s == 'HD')
+            # Late arrivals and overtime from the already computed data
+            late_count = emp_data.get('late_days', 0)
+            ot_minutes_total = 0
+            # Overtime from attendance records (recompute or use existing)
+            for att in emp_att_records.filter(status='Present'):
+                if shift and att.check_in_time and att.check_out_time:
+                    shift_end = timezone.make_aware(datetime.combine(att.date, shift.end_time))
+                    if att.check_out_time > shift_end:
+                        ot = (att.check_out_time - shift_end).total_seconds() // 60
+                        if shift.overtime_allowed and shift.overtime_limit:
+                            ot = min(ot, shift.overtime_limit * 60)
+                        ot_minutes_total += ot
+            
+            row.extend([present_count, absent_count, leave_count, half_count, late_count, f"{int(ot_minutes_total//60)}h {int(ot_minutes_total%60)}m" if ot_minutes_total else "0h"])
+            writer.writerow(row)
+        
+        return response
+    
+    # ---------- Normal page rendering ----------
     prev_month = month-1 if month>1 else 12
     prev_year = year if month>1 else year-1
     next_month = month+1 if month<12 else 1
@@ -1124,7 +1979,7 @@ def attendance_report(request):
 
 # ---------- Employee Attendance Detail ----------
 @login_required
-@user_passes_test(is_admin)
+@hr_admin_required
 def employee_attendance_detail(request, user_id):
 
     # If search parameter is provided, redirect to that employee
@@ -1358,8 +2213,19 @@ def attendance_view(request):
             work_seconds = 0
             overtime_seconds = 0
 
-        check_in_display = check_in.strftime('%H:%M') if check_in else '--:--'
-        check_out_display = check_out.strftime('%H:%M') if check_out else '--:--'
+        
+        if check_in:
+            local_check_in = timezone.localtime(check_in)
+            check_in_display = local_check_in.strftime('%I:%M %p')
+        else:
+            check_in_display = '--:--'
+
+        if check_out:
+            local_check_out = timezone.localtime(check_out)
+            check_out_display = local_check_out.strftime('%I:%M %p')
+        else:
+            check_out_display = '--:--'
+            
         work_hours = f"{int(work_seconds // 3600):02d}:{int((work_seconds % 3600) // 60):02d}" if work_seconds else '--:--'
         overtime_display = f"{int(overtime_seconds // 3600):02d}:{int((overtime_seconds % 3600) // 60):02d}" if overtime_seconds else '--:--'
         can_regularize = (status in ['Absent', 'Incomplete'])
@@ -1375,6 +2241,7 @@ def attendance_view(request):
             'attendance_id': att.id if att else None,
             'is_weekend': current_date.weekday() >= 5,
         })
+        all_dates.sort(key=lambda x: x['date'], reverse=True)
 
     avg_working_hours = round(total_working_hours / complete_count, 2) if complete_count > 0 else 0
     avg_in_time = minutes_to_time(total_in_minutes / complete_count) if complete_count > 0 else "--:--"
@@ -1401,6 +2268,7 @@ def attendance_view(request):
 
 
 # ---------- Regularization ----------
+
 @login_required
 def regularize_request(request):
     if request.method == 'POST':
@@ -1423,7 +2291,8 @@ def regularize_request(request):
                 messages.error(request, 'Attendance already exists for this date.')
                 return redirect('regularize_request')
 
-            RegularizationRequest.objects.create(
+            # Create the regularization request
+            reg_req = RegularizationRequest.objects.create(
                 user=request.user,
                 date=date_str,
                 check_in_time=check_in if check_in else None,
@@ -1432,11 +2301,30 @@ def regularize_request(request):
                 status='Pending'
             )
             messages.success(request, 'Regularization request submitted successfully.')
+
+            # ---- NEW: Get the approver and send notification ----
+            approver = get_approver(request.user)
+            if approver:
+                create_notification(
+                    approver,
+                    f"{request.user.username} has submitted a regularization request for {date_str}.",
+                    notification_type='action',
+                    related_object=reg_req
+                )
+            else:
+                # Fallback: notify all admins if no approver found
+                notify_admins(
+                    f"{request.user.username} has submitted a regularization request for {date_str}.",
+                    notification_type='action',
+                    related_object=reg_req
+                )
+
             return redirect('regularize_request_list')
         else:
             messages.error(request, 'Please fill in all required fields.')
 
     return render(request, 'attendance/regularize_request.html')
+
 
 
 @login_required
@@ -1450,7 +2338,7 @@ def regularize_request_list(request):
 
 
 @login_required
-@user_passes_test(is_admin)
+@admin_or_hr_required
 def regularize_approve(request, req_id):
     reg_req = get_object_or_404(RegularizationRequest, id=req_id)
     if request.method == 'POST':
@@ -1476,7 +2364,7 @@ def regularize_approve(request, req_id):
 
 
 @login_required
-@user_passes_test(is_admin)
+@admin_or_hr_required
 def regularize_reject(request, req_id):
     reg_req = get_object_or_404(RegularizationRequest, id=req_id)
     if request.method == 'POST':
@@ -1510,7 +2398,9 @@ def profile(request):
     profile, created = EmployeeProfile.objects.get_or_create(user=user)
     
     if request.method == 'POST':
-        user.username = request.POST.get('username')
+        # ⛔ Do NOT allow username change
+        # user.username = request.POST.get('username')   <-- REMOVED
+        
         user.email = request.POST.get('email')
         password1 = request.POST.get('password1')
         password2 = request.POST.get('password2')
@@ -1529,16 +2419,23 @@ def profile(request):
         profile.department = request.POST.get('department')
         profile.phone = request.POST.get('phone')
         profile.address = request.POST.get('address')
+        
+        # ❌ REMOVED: attendance_type and office_location – employees cannot change these
+        # profile.attendance_type = request.POST.get('attendance_type')
+        # profile.office_location_id = request.POST.get('office_location') or None
+        
         profile.save()
         
         messages.success(request, 'Profile updated successfully.')
         return redirect('profile')
     
+    # GET request – no offices needed since we removed those fields
     context = {
         'user': user,
         'profile': profile,
     }
     return render(request, 'profile.html', context)
+    
 
 
 # ---------- Attendance Overview Data ----------
@@ -1612,7 +2509,7 @@ def attendance_overview_data(request):
 
 # ---------- Setup Page ----------
 @login_required
-@user_passes_test(is_admin)
+@hr_admin_required
 def setup(request):
     shifts = Shift.objects.all().order_by('start_time')
     context = {
@@ -1625,13 +2522,13 @@ def setup(request):
 # ---------- Shift Management (Admin only) ----------
 
 @login_required
-@user_passes_test(is_admin)
+@hr_admin_required
 def shift_list(request):
     shifts = Shift.objects.all().order_by('start_time')
     return render(request, 'shift_list.html', {'shifts': shifts})
 
 @login_required
-@user_passes_test(is_admin)
+@hr_admin_required
 def shift_create(request):
     if request.method == 'POST':
         name = request.POST.get('name')
@@ -1674,7 +2571,7 @@ def shift_create(request):
     return render(request, 'shift_form.html', {'action': 'Create'})
 
 @login_required
-@user_passes_test(is_admin)
+@hr_admin_required
 def shift_edit(request, pk):
     shift = get_object_or_404(Shift, id=pk)
     if request.method == 'POST':
@@ -1700,7 +2597,7 @@ def shift_edit(request, pk):
     return render(request, 'shift_form.html', {'action': 'Edit', 'shift': shift})
 
 @login_required
-@user_passes_test(is_admin)
+@hr_admin_required
 def shift_delete(request, pk):
     shift = get_object_or_404(Shift, id=pk)
     if request.method == 'POST':
@@ -1713,8 +2610,10 @@ def shift_delete(request, pk):
 
 # ---------- Bulk Shift Assignment (Admin only) ----------
 @login_required
-@user_passes_test(is_admin)
+@admin_or_hr_required
 def assign_shift(request):
+    user = request.user
+
     if request.method == 'POST':
         shift_id = request.POST.get('shift')
         employee_ids = request.POST.getlist('employees')
@@ -1726,7 +2625,21 @@ def assign_shift(request):
 
         shift = get_object_or_404(Shift, id=shift_id)
 
-        # Update employees with shift and effective date
+        # ----- Filter employee_ids for managers (only their team) -----
+        if not (user.is_superuser or user.groups.filter(name='HR Admin').exists()):
+            # Manager: only allow updating employees in their team
+            try:
+                profile = user.profile
+                team_members = EmployeeProfile.objects.filter(manager=profile).values_list('user_id', flat=True)
+                # Keep only IDs that are in the manager's team
+                employee_ids = [int(eid) for eid in employee_ids if int(eid) in team_members]
+            except EmployeeProfile.DoesNotExist:
+                employee_ids = []
+
+        if not employee_ids:
+            messages.error(request, 'No valid employees selected for shift assignment.')
+            return redirect('assign_shift')
+
         updated = EmployeeProfile.objects.filter(user_id__in=employee_ids).update(
             shift=shift,
             shift_effective_from=effective_from if effective_from else None
@@ -1735,8 +2648,20 @@ def assign_shift(request):
         return redirect('assign_shift')
 
     # GET – show the form with filters
-    employees = User.objects.filter(is_superuser=False).select_related('profile').order_by('username')
     shifts = Shift.objects.all().order_by('name')
+
+    # ----- Filter employees based on user role -----
+    if user.is_superuser or user.groups.filter(name='HR Admin').exists():
+        # Superuser/HR Admin → see ALL employees
+        employees = User.objects.filter(is_superuser=False).select_related('profile').order_by('username')
+    else:
+        # Manager → see only their team
+        try:
+            profile = user.profile
+            team_members = EmployeeProfile.objects.filter(manager=profile).values_list('user_id', flat=True)
+            employees = User.objects.filter(id__in=team_members).select_related('profile').order_by('username')
+        except EmployeeProfile.DoesNotExist:
+            employees = User.objects.none()
 
     # Get filter parameters
     department_filter = request.GET.get('department', '')
@@ -1757,12 +2682,12 @@ def assign_shift(request):
 
     # Build employee list
     employee_list = []
-    for user in filtered_employees:
-        profile = getattr(user, 'profile', None)
+    for emp_user in filtered_employees:
+        profile = getattr(emp_user, 'profile', None)
         employee_list.append({
-            'id': user.id,
-            'username': user.username,
-            'full_name': profile.full_name if profile else user.username,
+            'id': emp_user.id,
+            'username': emp_user.username,
+            'full_name': profile.full_name if profile else emp_user.username,
             'shift_name': profile.shift.name if profile and profile.shift else 'None',
             'department': profile.department if profile else '',
             'designation': profile.designation if profile else '',
@@ -1770,7 +2695,7 @@ def assign_shift(request):
             'team': getattr(profile, 'team', ''),
         })
 
-    # Get distinct departments, designations for filters
+    # Get distinct departments and designations for filters
     distinct_departments = EmployeeProfile.objects.values_list('department', flat=True).distinct().order_by('department')
     distinct_designations = EmployeeProfile.objects.values_list('designation', flat=True).distinct().order_by('designation')
 
@@ -1787,9 +2712,10 @@ def assign_shift(request):
     return render(request, 'assign_shift.html', context)
 
 
+
 # ---------- Employee Search API (for autocomplete) ----------
 @login_required
-@user_passes_test(is_admin)
+@admin_or_hr_required
 def employee_search_api(request):
     query = request.GET.get('q', '')
     if len(query) < 1:
@@ -1813,8 +2739,263 @@ def employee_search_api(request):
         })
     return JsonResponse(results, safe=False)
 
-        
+def error_404(request, exception):
+    return render(request, '404.html', status=404)
 
+def error_500(request):
+    return render(request, '500.html', status=500)
+
+def error_403(request, exception):
+    return render(request, '403.html', status=403)
+
+def error_400(request, exception):
+    return render(request, '400.html', status=400)
+
+
+
+    
+    # ---------- Attendance Report PDF ----------
+    # ---------- Attendance Report PDF ----------
+@login_required
+@hr_admin_required
+def attendance_report_pdf(request):
+    from .utils import get_employee_attendance_for_pdf
+    from reportlab.lib.pagesizes import A4
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch, cm
+    from io import BytesIO
+    from django.http import FileResponse
+    from django.db.models import Q
+    from django.utils import timezone
+    
+    today = date.today()
+    month = int(request.GET.get('month', today.month))
+    year = int(request.GET.get('year', today.year))
+    download_type = request.GET.get('download_type', 'all')
+    employee_id = request.GET.get('employee_id')
+    
+    # --- Filter employees based on user role ---
+    user = request.user
+    if user.is_superuser or user.groups.filter(name='HR Admin').exists():
+        employees = User.objects.filter(is_superuser=False).order_by('username')
+    else:
+        # Manager → only their team
+        try:
+            profile = user.profile
+            team_members = EmployeeProfile.objects.filter(manager=profile).values_list('user_id', flat=True)
+            employees = User.objects.filter(id__in=team_members).order_by('username')
+        except EmployeeProfile.DoesNotExist:
+            employees = User.objects.none()
+    
+    # Apply filters
+    department_filter = request.GET.get('department', '')
+    employee_search = request.GET.get('employee', '')
+    shift_filter = request.GET.get('shift', '')
+    
+    if department_filter:
+        employees = employees.filter(profile__department__icontains=department_filter)
+    if employee_search:
+        employees = employees.filter(
+            Q(username__icontains=employee_search) | 
+            Q(profile__full_name__icontains=employee_search)
+        )
+    if shift_filter and shift_filter != 'all':
+        employees = employees.filter(profile__shift_id=shift_filter)
+    
+    # Single employee mode
+    if download_type == 'single':
+        if not employee_id:
+            messages.error(request, 'Please select an employee.')
+            return redirect('attendance_report')
+        try:
+            emp = User.objects.get(id=employee_id)
+            if emp not in employees:
+                messages.error(request, 'Employee not found or you do not have access.')
+                return redirect('attendance_report')
+            employees = [emp]
+        except User.DoesNotExist:
+            messages.error(request, 'Employee not found.')
+            return redirect('attendance_report')
+    
+    if not employees:
+        messages.error(request, 'No employees found for the selected filters.')
+        return redirect('attendance_report')
+    
+    # --- Generate PDF ---
+    buffer = BytesIO()
+    first_day = date(year, month, 1)
+    _, last_day_num = monthrange(year, month)
+    last_day = date(year, month, last_day_num)
+    
+    company = Company.objects.first()
+    company_name = company.name if company else 'HRMS'
+    
+    doc = SimpleDocTemplate(buffer, pagesize=A4,
+                            topMargin=0.5*inch, bottomMargin=0.5*inch,
+                            leftMargin=0.5*inch, rightMargin=0.5*inch)
+    
+    styles = getSampleStyleSheet()
+    heading_style = styles['Heading2']
+    normal_style = styles['Normal']
+    
+    header_style = ParagraphStyle(
+        'HeaderStyle',
+        parent=normal_style,
+        fontSize=14,
+        fontName='Helvetica-Bold',
+        alignment=1,
+        spaceAfter=6
+    )
+    subheader_style = ParagraphStyle(
+        'SubHeaderStyle',
+        parent=normal_style,
+        fontSize=12,
+        alignment=1,
+        spaceAfter=12
+    )
+    info_label_style = ParagraphStyle(
+        'InfoLabelStyle',
+        parent=normal_style,
+        fontSize=10,
+        fontName='Helvetica-Bold'
+    )
+    info_value_style = ParagraphStyle(
+        'InfoValueStyle',
+        parent=normal_style,
+        fontSize=10
+    )
+    summary_label_style = ParagraphStyle(
+        'SummaryLabelStyle',
+        parent=normal_style,
+        fontSize=9,
+        fontName='Helvetica-Bold'
+    )
+    
+    elements = []
+    
+    for idx, emp in enumerate(employees):
+    if idx > 0:
+        elements.append(PageBreak())
+
+    emp_data = get_employee_attendance_for_pdf(emp, year, month, first_day, last_day)
+    profile = emp_data['profile']
+    shift = emp_data['shift']
+    daily_data = emp_data['daily_data']
+
+    # Header
+    elements.append(Paragraph(company_name, header_style))
+    elements.append(Paragraph("Attendance Report", subheader_style))
+    month_name = first_day.strftime('%B %Y')
+    elements.append(Paragraph(month_name, normal_style))
+    elements.append(Spacer(1, 0.3*inch))
+
+    # Employee Info
+    info_data = [
+        [Paragraph("Employee:", info_label_style), Paragraph(emp.username, info_value_style),
+         Paragraph("Employee ID:", info_label_style), Paragraph(profile.employee_id if profile else '—', info_value_style)],
+        [Paragraph("Department:", info_label_style), Paragraph(profile.department if profile else '—', info_value_style),
+         Paragraph("Designation:", info_label_style), Paragraph(profile.designation if profile else '—', info_value_style)],
+        [Paragraph("Manager:", info_label_style), Paragraph(profile.manager.full_name if profile and profile.manager else '—', info_value_style),
+         Paragraph("Shift:", info_label_style), Paragraph(shift.name if shift else '—', info_value_style)],
+        [Paragraph("Attendance Type:", info_label_style), Paragraph(profile.get_attendance_type_display() if profile else '—', info_value_style),
+         Paragraph("", info_label_style), Paragraph("", info_value_style)],
+    ]
+    info_table = Table(info_data, colWidths=[1.2*cm, 4*cm, 1.2*cm, 4*cm])
+    info_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('FONTSIZE', (0,0), (-1,-1), 10),
+        ('LEFTPADDING', (0,0), (-1,-1), 2),
+        ('RIGHTPADDING', (0,0), (-1,-1), 2),
+        ('TOPPADDING', (0,0), (-1,-1), 3),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+    ]))
+    elements.append(info_table)
+    elements.append(Spacer(1, 0.2*inch))
+
+    # Daily Attendance
+    elements.append(Paragraph("Daily Attendance", heading_style))
+    table_data = [['Date', 'Day', 'Status', 'Check In', 'Check Out', 'Hours']]
+    for day in daily_data:
+        table_data.append([
+            day['date'].strftime('%d %b'),
+            day['day_name'],
+            day['status'],
+            day['check_in'] if day['check_in'] else '—',
+            day['check_out'] if day['check_out'] else '—',
+            day['working_hours'] if day['working_hours'] else '—'
+        ])
+    table = Table(table_data, colWidths=[1.8*cm, 1.8*cm, 2.2*cm, 2.5*cm, 2.5*cm, 2.5*cm])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.grey),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,0), 9),
+        ('FONTSIZE', (0,1), (-1,-1), 8),
+        ('BOTTOMPADDING', (0,0), (-1,0), 6),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,1), (-1,-1), 4),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.lightgrey]),
+    ]))
+    elements.append(table)
+    elements.append(Spacer(1, 0.3*inch))
+
+    # Monthly Summary
+    elements.append(Paragraph("Monthly Summary", heading_style))
+    ot_hours = int(emp_data['overtime_minutes'] // 60)
+    ot_minutes = int(emp_data['overtime_minutes'] % 60)
+    overtime_str = f"{ot_hours}h {ot_minutes}m" if ot_minutes > 0 or ot_hours > 0 else "0h"
+
+    summary_data = [
+        [Paragraph("Working Days:", summary_label_style), str(emp_data['working_days']),
+         Paragraph("Present:", summary_label_style), str(emp_data['present'])],
+        [Paragraph("Absent:", summary_label_style), str(emp_data['absent']),
+         Paragraph("Leave:", summary_label_style), str(emp_data['leave'])],
+        [Paragraph("Half Day:", summary_label_style), str(emp_data['half_day']),
+         Paragraph("Late Arrivals:", summary_label_style), str(emp_data['late_arrivals'])],
+        [Paragraph("Overtime:", summary_label_style), overtime_str,
+         Paragraph("Total Working Hours:", summary_label_style), emp_data['total_working_hours']],
+        [Paragraph("Average Working Hours:", summary_label_style), emp_data['avg_working_hours'],
+         Paragraph("", summary_label_style), ""],
+    ]
+    summary_table = Table(summary_data, colWidths=[3*cm, 2.5*cm, 3*cm, 2.5*cm])
+    summary_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('FONTSIZE', (0,0), (-1,-1), 9),
+        ('LEFTPADDING', (0,0), (-1,-1), 4),
+        ('RIGHTPADDING', (0,0), (-1,-1), 4),
+        ('TOPPADDING', (0,0), (-1,-1), 3),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+    ]))
+    elements.append(summary_table)
+    elements.append(Spacer(1, 0.5*inch))
+
+    # ----- Footer (inside the loop) -----
+    local_now = timezone.localtime(timezone.now())
+    footer_text = f"Generated on {local_now.strftime('%d %B %Y, %I:%M %p')} · Employee ID: {profile.employee_id if profile else 'N/A'}"
+    elements.append(Paragraph(footer_text,
+                              ParagraphStyle('Footer', parent=normal_style, fontSize=7, alignment=1)))
+
+# ----- Build the document (outside the loop) -----
+doc.build(elements)
+buffer.seek(0)
+
+    
+    month_name = first_day.strftime('%B_%Y')
+    if download_type == 'single' and len(employees) == 1:
+        emp = employees[0]
+        emp_id = emp.profile.employee_id if emp.profile else f"EMP{emp.id:04d}"
+        filename = f"attendance_{emp_id}_{month_name}.pdf"
+    else:
+        filename = f"attendance_{month_name}.pdf"
+    
+    return FileResponse(buffer, as_attachment=True, filename=filename)
+
+        
 # ---------- Test View ----------
 def test_view(request):
     return HttpResponse("Django is working!")

@@ -75,6 +75,7 @@
                     {% endfor %}
                 </select>
             </div>
+            
             <!-- Year -->
             <div class="col-md-2">
                 <label class="form-label fw-semibold">Year</label>
@@ -137,6 +138,69 @@
         </form>
     </div>
 </div>
+
+
+<!-- Filters section -->
+ <br>
+
+ <div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-body">
+    <form method="get" id="reportForm">
+    <!-- Month filter (already exists) -->
+        
+        <!-- Download options -->
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Month</label>
+                <select name="month" class="form-select">
+                    {% for m in months %}
+                        <option value="{{ m.value }}" {% if m.selected %}selected{% endif %}>
+                            {{ m.label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Download</label>
+                <select name="download_type" id="downloadType" class="form-select">
+                    <option value="all">All Employees</option>
+                    <option value="single">Single Employee</option>
+                </select>
+            </div>
+            
+            <div class="col-md-3" id="employeeSearchWrapper" style="display: none; position: relative;">
+                <label class="form-label">Employee</label>
+                <input type="text" id="employeeSearch" class="form-control" placeholder="Search by name or ID...">
+                <input type="hidden" name="employee_id" id="employeeId">
+                <div id="employeeSuggestions" class="list-group mt-1" style="
+                    position: absolute;
+                    z-index: 1000;
+                    width: 100%;
+                    max-height: 200px;
+                    overflow-y: auto;
+                    background: white;
+                    border: 1px solid #ddd;
+                    border-radius: 4px;
+                    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+                    display: none;
+                "></div>
+            </div>
+
+            <div class="col-md-3 d-flex align-items-end">
+                <button type="submit" name="download" value="csv" class="btn btn-success">
+                    <i class="fas fa-file-csv"></i> Download Report
+                </button>
+                <button type="submit" name="download" value="pdf" class="btn btn-danger">
+                    <i class="fas fa-file-pdf"></i> Download PDF
+                </button>
+            </div>
+        </div>
+    </form>
+    </div>
+ </div>
+
+
 
 <!-- ===== REPORT TABLE ===== -->
 <div class="card border-0 shadow-sm rounded-3">
@@ -303,4 +367,74 @@
         });
     });
 </script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const downloadType = document.getElementById('downloadType');
+    const employeeWrapper = document.getElementById('employeeSearchWrapper');
+    const employeeSearch = document.getElementById('employeeSearch');
+    const employeeId = document.getElementById('employeeId');
+    const suggestions = document.getElementById('employeeSuggestions');
+
+    downloadType.addEventListener('change', function() {
+        if (this.value === 'single') {
+            employeeWrapper.style.display = 'block';
+        } else {
+            employeeWrapper.style.display = 'none';
+            employeeSearch.value = '';
+            employeeId.value = '';
+            suggestions.style.display = 'none';
+        }
+    });
+
+    let timeout = null;
+    employeeSearch.addEventListener('input', function() {
+        clearTimeout(timeout);
+        const query = this.value.trim();
+        if (query.length < 2) {
+            suggestions.style.display = 'none';
+            return;
+        }
+        timeout = setTimeout(() => {
+            fetch(`/api/employee-search/?q=${encodeURIComponent(query)}`)
+                .then(response => response.json())
+                .then(data => {
+                    suggestions.innerHTML = '';
+                    if (data.length === 0) {
+                        suggestions.innerHTML = '<div class="list-group-item text-muted">No employees found</div>';
+                        suggestions.style.display = 'block';
+                        return;
+                    }
+                    data.forEach(emp => {
+                        const item = document.createElement('button');
+                        item.type = 'button';
+                        item.className = 'list-group-item list-group-item-action';
+                        item.textContent = `${emp.full_name} (${emp.employee_id})`;
+                        item.dataset.id = emp.id;
+                        item.addEventListener('click', function() {
+                            employeeSearch.value = this.textContent;
+                            employeeId.value = this.dataset.id;
+                            suggestions.style.display = 'none';
+                        });
+                        suggestions.appendChild(item);
+                    });
+                    suggestions.style.display = 'block';
+                })
+                .catch(() => {
+                    suggestions.innerHTML = '<div class="list-group-item text-danger">Error loading employees</div>';
+                    suggestions.style.display = 'block';
+                });
+        }, 300);
+    });
+
+    // Hide suggestions on click outside
+    document.addEventListener('click', function(e) {
+        if (!employeeSearch.contains(e.target) && !suggestions.contains(e.target)) {
+            suggestions.style.display = 'none';
+        }
+    });
+});
+</script>
+
+
 {% endblock %}

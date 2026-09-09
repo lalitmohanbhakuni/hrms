@@ -7,10 +7,31 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Security
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-fallback-key')
-# DEBUG = os.environ.get('DEBUG', 'False') == 'True'
-DEBUG = True
 
-ALLOWED_HOSTS = ['*']
+# ---------- LOGGING ----------
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'file': {
+            'level': 'ERROR',
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'logs/error.log',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['file'],
+            'level': 'ERROR',
+            'propagate': True,
+        },
+        'core': {
+            'handlers': ['file'],
+            'level': 'ERROR',
+            'propagate': True,
+        },
+    },
+}
 
 # Application definition
 INSTALLED_APPS = [
@@ -24,7 +45,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
+    'django.middleware.security.SecurityMiddleware',  # ← Must be first
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -46,7 +67,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-                'core.context_processors.notification_context',  # <-- ADD THIS
+                'core.context_processors.notification_context',
             ],
         },
     },
@@ -59,7 +80,7 @@ DATABASES = {
     'default': dj_database_url.config(
         default='sqlite:///db.sqlite3',
         conn_max_age=600,
-        ssl_require=False   # ← Works for both SQLite and PostgreSQL
+        ssl_require=False
     )
 }
 
@@ -73,9 +94,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # Internationalization
 LANGUAGE_CODE = 'en-us'
-# TIME_ZONE = 'UTC'
 TIME_ZONE = 'Asia/Kolkata'
-
 USE_I18N = True
 USE_TZ = True
 
@@ -92,9 +111,60 @@ LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/dashboard/'
 LOGOUT_REDIRECT_URL = '/login/'
 
-# ---------- Date & Time Formatting ----------
-USE_L10N = False  # Disable locale-based formatting to use our custom formats
+# Date & Time Formatting
+USE_L10N = False
+TIME_FORMAT = 'h:i:s A'
+DATE_FORMAT = 'd M Y'
+DATETIME_FORMAT = 'd M Y h:i:s A'
 
-TIME_FORMAT = 'h:i:s A'       # e.g., 07:47:27 PM
-DATE_FORMAT = 'd M Y'         # e.g., 06 Sep 2026
-DATETIME_FORMAT = 'd M Y h:i:s A'  # e.g., 06 Sep 2026 07:47:27 PM
+
+# ============================================================
+# SECURITY SETTINGS
+# ============================================================
+
+# ---------- DEBUG & ALLOWED HOSTS ----------
+DEBUG = True
+ALLOWED_HOSTS = [
+    '127.0.0.1',
+    'localhost',
+    'yourdomain.com',        # Replace with your domain
+    'www.yourdomain.com',    # Replace with your domain
+]
+
+# ---------- CSRF TRUSTED ORIGINS ----------
+CSRF_TRUSTED_ORIGINS = [
+    'https://yourdomain.com',
+    'https://www.yourdomain.com',
+]
+
+# ---------- SECURITY HEADERS ----------
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
+
+# ---------- HTTPS / SSL SETTINGS ----------
+SECURE_SSL_REDIRECT = False              # Set to True in production
+SECURE_HSTS_SECONDS = 0                  # Set to 31536000 in production
+SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+SECURE_HSTS_PRELOAD = False
+
+# ---------- SESSION SECURITY ----------
+SESSION_COOKIE_SECURE = True
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SESSION_COOKIE_AGE = 3600
+
+# ---------- CSRF SECURITY ----------
+CSRF_COOKIE_SECURE = True
+CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SAMESITE = 'Lax'
+
+# ---------- ROLE-BASED ACCESS CONTROL ----------
+ADMIN_ROLES = [
+    'HR Admin',
+    'Manager',
+    'Supervisor',
+    'Team Lead',
+    'Operations',
+]   

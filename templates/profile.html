@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load auth_extras %}
 
 {% block title %}My Profile - HRMS{% endblock %}
 {% block page_icon %}user{% endblock %}
@@ -48,7 +49,7 @@
                                 </div>
                                 <div class="mt-3">
                                     <h5 class="fw-bold mb-0">{{ profile.full_name|default:user.username }}</h5>
-                                    <span class="badge bg-secondary rounded-pill">{{ user.is_superuser|yesno:"Admin,Employee" }}</span>
+                                    <span class="badge bg-secondary rounded-pill">{% if user|is_admin_or_hr %}Admin{% else %}Employee{% endif %}</span>
                                     <p class="text-muted small mt-2">
                                         <i class="fas fa-envelope me-1"></i> {{ user.email }}
                                     </p>
@@ -69,11 +70,22 @@
 
                         <!-- Right Column: Editable Fields -->
                         <div class="col-md-8">
+                            <!-- ⚠️ Admin-Controlled Info Alert -->
+                            <div class="alert alert-info bg-light border-0 p-3 mb-3">
+                                <i class="fas fa-info-circle text-primary me-2"></i>
+                                <strong>Username, Employee ID, Shift, Attendance Type & Office Location</strong> are managed by HR/Admin. 
+                                Contact your HR department if you need to update these.
+                            </div>
+
                             <h6 class="fw-bold text-primary mb-3"><i class="fas fa-user-circle me-2"></i> Basic Information</h6>
                             <div class="row g-3">
                                 <div class="col-md-6">
                                     <label for="username" class="form-label fw-semibold">Username</label>
-                                    <input type="text" name="username" id="username" class="form-control" value="{{ user.username }}" required>
+                                    <input type="text" id="username" class="form-control" 
+                                           value="{{ user.username }}" 
+                                           disabled readonly style="background-color: #f8f9fa; cursor: not-allowed;">
+                                    <!-- ✅ Removed name="username" so it's NOT submitted -->
+                                    <div class="form-text text-muted small">Username cannot be changed.</div>
                                 </div>
                                 <div class="col-md-6">
                                     <label for="email" class="form-label fw-semibold">Email</label>
@@ -102,14 +114,15 @@
                                     <input type="text" name="phone" id="phone" class="form-control" value="{{ profile.phone }}">
                                 </div>
 
-                                <!-- Employee ID (Read-Only) -->
+                                <!-- Employee ID (Read-Only, no name attribute) -->
                                 <div class="col-md-6">
                                     <label for="employee_id" class="form-label fw-semibold">
                                         <i class="fas fa-id-card text-primary me-1"></i> Employee ID
                                     </label>
-                                    <input type="text" id="employee_id" name="employee_id" class="form-control" 
+                                    <input type="text" id="employee_id" class="form-control" 
                                            value="{{ profile.employee_id|default:'Not set' }}" 
                                            disabled readonly style="background-color: #f8f9fa; cursor: not-allowed;">
+                                    <!-- ✅ Removed name="employee_id" so it's NOT submitted -->
                                     <div class="form-text text-muted small">Your employee ID is assigned by the admin and cannot be changed.</div>
                                 </div>
 
@@ -130,16 +143,40 @@
                                     <input type="text" name="department" id="department" class="form-control" value="{{ profile.department }}">
                                 </div>
 
-                                <!-- Shift Field (Disabled) -->
+                                <!-- Shift Field (Read-Only) -->
                                 <div class="col-md-6">
                                     <label for="shift" class="form-label fw-semibold">
                                         <i class="fas fa-clock text-primary me-1"></i> Assigned Shift
                                     </label>
-                                    <input type="text" id="shift" name="shift" class="form-control" 
+                                    <input type="text" id="shift" class="form-control" 
                                            value="{{ profile.shift.name|default:'Not assigned' }}" 
                                            disabled readonly style="background-color: #f8f9fa; cursor: not-allowed;">
+                                    <!-- ✅ Removed name="shift" so it's NOT submitted -->
                                     <div class="form-text text-muted small">Your shift is assigned by the admin and cannot be changed.</div>
                                 </div>
+
+                                <!-- Role & Manager Display (Read-Only) -->
+                                <div class="row g-3 mt-2">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">
+                                            <i class="fas fa-user-tag text-primary me-1"></i> Role
+                                        </label>
+                                        <input type="text" class="form-control" 
+                                            value="{{ profile.get_role_display|default:'Employee' }}" 
+                                            disabled readonly style="background-color: #f8f9fa; cursor: not-allowed;">
+                                        <div class="form-text text-muted small">Your role is assigned by HR.</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">
+                                            <i class="fas fa-user-tie text-primary me-1"></i> Manager
+                                        </label>
+                                        <input type="text" class="form-control" 
+                                            value="{% if profile.manager %}{{ profile.manager.full_name }} ({{ profile.manager.employee_id }}){% else %}None{% endif %}" 
+                                            disabled readonly style="background-color: #f8f9fa; cursor: not-allowed;">
+                                        <div class="form-text text-muted small">Your manager is assigned by HR.</div>
+                                    </div>
+                                </div>
+
 
                                 <div class="col-12">
                                     <label for="address" class="form-label fw-semibold">Address</label>

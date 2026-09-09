@@ -29,9 +29,10 @@
                                    value="{{ user.username|default:'' }}" required>
                         </div>
                         <div class="col-md-6">
-                            <label for="email" class="form-label fw-semibold">Email Address *</label>
+                            <label for="email" class="form-label fw-semibold">Email Address</label>
                             <input type="email" name="email" id="email" class="form-control" 
-                                   value="{{ user.email|default:'' }}" required>
+                                   value="{{ user.email|default:'' }}" placeholder="optional@example.com">
+                            <div class="form-text text-muted small">Optional – can be left blank.</div>
                         </div>
                     </div>
 
@@ -55,52 +56,50 @@
                     <!-- Employee Profile -->
                     <h6 class="fw-bold text-primary mb-3"><i class="fas fa-id-badge me-2"></i>Employee Profile</h6>
 
+                    <!-- Employee ID is AUTO-GENERATED, so we don't show it -->
+                    <div class="alert alert-info bg-light border-0 p-3 mb-3">
+                        <i class="fas fa-info-circle text-primary me-2"></i>
+                        <strong>Employee ID</strong> will be automatically generated based on your company prefix (e.g., <code>DML001</code>) after saving.
+                    </div>
+
                     <div class="row g-3">
-                        <div class="col-md-6">
-                            <label for="employee_id" class="form-label fw-semibold">Employee ID *</label>
-                            <input type="text" name="employee_id" id="employee_id" class="form-control" 
-                                   value="{{ profile.employee_id|default:'' }}" required>
-                        </div>
                         <div class="col-md-6">
                             <label for="full_name" class="form-label fw-semibold">Full Name *</label>
                             <input type="text" name="full_name" id="full_name" class="form-control" 
                                    value="{{ profile.full_name|default:'' }}" required>
                         </div>
-                    </div>
-
-                    <div class="row g-3 mt-2">
                         <div class="col-md-6">
                             <label for="date_of_birth" class="form-label fw-semibold">Date of Birth</label>
                             <input type="date" name="date_of_birth" id="date_of_birth" class="form-control" 
                                    value="{{ profile.date_of_birth|date:'Y-m-d'|default:'' }}">
                         </div>
+                    </div>
+
+                    <div class="row g-3 mt-2">
                         <div class="col-md-6">
                             <label for="date_of_joining" class="form-label fw-semibold">Date of Joining</label>
                             <input type="date" name="date_of_joining" id="date_of_joining" class="form-control" 
                                    value="{{ profile.date_of_joining|date:'Y-m-d'|default:'' }}">
                         </div>
-                    </div>
-
-                    <div class="row g-3 mt-2">
                         <div class="col-md-6">
                             <label for="designation" class="form-label fw-semibold">Designation</label>
                             <input type="text" name="designation" id="designation" class="form-control" 
                                    value="{{ profile.designation|default:'' }}" placeholder="e.g., Software Engineer">
                         </div>
+                    </div>
+
+                    <div class="row g-3 mt-2">
                         <div class="col-md-6">
                             <label for="department" class="form-label fw-semibold">Department</label>
                             <input type="text" name="department" id="department" class="form-control" 
                                    value="{{ profile.department|default:'' }}" placeholder="e.g., Engineering">
                         </div>
-                    </div>
-
-                    <div class="row g-3 mt-2">
                         <div class="col-md-6">
                             <label for="shift" class="form-label fw-semibold">
                                 <i class="fas fa-clock text-primary me-1"></i> Assigned Shift
                             </label>
-                            <select name="shift" id="shift" class="form-select">
-                                <option value="">-- No shift --</option>
+                            <select name="shift" id="shift" class="form-select" required>
+                                <option value="">-- Select a shift --</option>
                                 {% for shift in shifts %}
                                     <option value="{{ shift.id }}" 
                                         {% if profile.shift.id == shift.id %}selected{% endif %}>
@@ -108,9 +107,80 @@
                                     </option>
                                 {% endfor %}
                             </select>
-                            <div class="form-text text-muted small">Select a shift for this employee.</div>
+                            <div class="form-text text-muted small">Select a shift for this employee – required.</div>
                         </div>
                     </div>
+
+
+                    <!-- NEW: Attendance Type & Office Location -->
+                    <div class="row g-3 mt-2">
+                        <div class="col-md-6">
+                            <label for="attendance_type" class="form-label fw-semibold">
+                                <i class="fas fa-map-marker-alt text-primary me-1"></i> Attendance Type *
+                            </label>
+                            <select name="attendance_type" id="attendance_type" class="form-select" required>
+                                <option value="office" {% if profile.attendance_type == 'office' %}selected{% endif %}>Office</option>
+                                <option value="remote" {% if profile.attendance_type == 'remote' %}selected{% endif %}>Remote</option>
+                                <option value="flexible" {% if profile.attendance_type == 'flexible' %}selected{% endif %}>Flexible</option>
+                            </select>
+                            <div class="form-text text-muted small">
+                                Office: requires GPS location within office radius. Remote/Flexible: no location restriction.
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="office_location" class="form-label fw-semibold">
+                                <i class="fas fa-building text-primary me-1"></i> Office Location
+                            </label>
+                            <select name="office_location" id="office_location" class="form-select">
+                                <option value="">-- None --</option>
+                                {% for office in offices %}
+                                    <option value="{{ office.id }}" 
+                                        {% if profile.office_location.id == office.id %}selected{% endif %}>
+                                        {{ office.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text text-muted small">
+                                Required if Attendance Type is "Office".
+                            </div>
+                        </div>
+                    </div>
+
+                   <!-- Role & Manager -->
+                    <div class="row g-3 mt-2">
+                        <div class="col-md-6">
+                            <label for="role" class="form-label fw-semibold">
+                                <i class="fas fa-user-tag text-primary me-1"></i> Role *
+                            </label>
+                            <select name="role" id="role" class="form-select" required>
+                                <option value="employee" {% if profile.role == 'employee' %}selected{% endif %}>Employee</option>
+                                <option value="manager" {% if profile.role == 'manager' %}selected{% endif %}>Manager</option>
+                                <option value="hr_admin" {% if profile.role == 'hr_admin' %}selected{% endif %}>HR Admin</option>
+                            </select>
+                            <div class="form-text text-muted small">
+                                Manager: Can approve team requests. HR Admin: Full HR access.
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="manager" class="form-label fw-semibold">
+                                <i class="fas fa-user-tie text-primary me-1"></i> Manager
+                            </label>
+                            <select name="manager" id="manager" class="form-select">
+                                <option value="">-- None --</option>
+                                {% for emp in all_managers %}
+                                    <option value="{{ emp.id }}" 
+                                        {% if profile.manager.id == emp.id %}selected{% endif %}>
+                                        {{ emp.full_name }} ({{ emp.get_role_display }})
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text text-muted small">
+                                Only Managers and HR Admins can be assigned as managers.
+                            </div>
+                            <div class="form-text text-muted small">Select the manager this employee reports to.</div>
+                        </div>
+                    </div>
+
 
 
                     <div class="row g-3 mt-2">
