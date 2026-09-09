@@ -130,17 +130,14 @@ DATETIME_FORMAT = 'd M Y h:i:s A'
 # ---------- DEBUG & ALLOWED HOSTS ----------
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'   # Default False on Render
 
+
+
 ALLOWED_HOSTS = [
     '127.0.0.1',
     'localhost',
-    'https://hrms-1udd.onrender.com',
-
-    # 'hrms-1udd.onrender.com',        # Your Render domain
-    # 'yourdomain.com',                 # Keep for future
-    # 'www.yourdomain.com',
+    'hrms-1udd.onrender.com',
 ]
 
-# ---------- CSRF TRUSTED ORIGINS ----------
 CSRF_TRUSTED_ORIGINS = [
     'https://hrms-1udd.onrender.com',
 ]
