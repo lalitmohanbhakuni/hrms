@@ -1623,195 +1623,195 @@ def attendance_report(request):
     
 
     # ---------- PDF DOWNLOAD ----------
-if request.GET.get('download') == 'pdf':
-    from .utils import get_employee_attendance_for_pdf
-    from reportlab.lib.pagesizes import A4
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
-    from reportlab.lib import colors
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.units import inch, cm
-    from io import BytesIO
-    from django.http import FileResponse
+    if request.GET.get('download') == 'pdf':
+        from .utils import get_employee_attendance_for_pdf
+        from reportlab.lib.pagesizes import A4
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+        from reportlab.lib import colors
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch, cm
+        from io import BytesIO
+        from django.http import FileResponse
     
-    # ---- Use the already filtered employee_data ----
-    download_type = request.GET.get('download_type', 'all')
-    employee_id = request.GET.get('employee_id')
+        # ---- Use the already filtered employee_data ----
+        download_type = request.GET.get('download_type', 'all')
+        employee_id = request.GET.get('employee_id')
     
-    pdf_employee_data = employee_data
+        pdf_employee_data = employee_data
     
-    if download_type == 'single':
-        if not employee_id:
-            messages.error(request, 'Please select an employee.')
-            return redirect('attendance_report')
-        try:
-            emp = User.objects.get(id=employee_id)
-            pdf_employee_data = [item for item in employee_data if item['employee'].id == emp.id]
-            if not pdf_employee_data:
-                messages.error(request, 'Employee not found or you do not have access.')
+        if download_type == 'single':
+            if not employee_id:
+                messages.error(request, 'Please select an employee.')
                 return redirect('attendance_report')
-        except User.DoesNotExist:
-            messages.error(request, 'Employee not found.')
+            try:
+                emp = User.objects.get(id=employee_id)
+                pdf_employee_data = [item for item in employee_data if item['employee'].id == emp.id]
+                if not pdf_employee_data:
+                    messages.error(request, 'Employee not found or you do not have access.')
+                    return redirect('attendance_report')
+            except User.DoesNotExist:
+                messages.error(request, 'Employee not found.')
+                return redirect('attendance_report')
+    
+        if not pdf_employee_data:
+            messages.error(request, 'No data available for the selected filters.')
             return redirect('attendance_report')
     
-    if not pdf_employee_data:
-        messages.error(request, 'No data available for the selected filters.')
-        return redirect('attendance_report')
+        # --- Generate PDF ---
+        buffer = BytesIO()
+        first_day = date(year, month, 1)
+        _, last_day_num = monthrange(year, month)
+        last_day = date(year, month, last_day_num)
+        company = Company.objects.first()
+        company_name = company.name if company else 'HRMS'
     
-    # --- Generate PDF ---
-    buffer = BytesIO()
-    first_day = date(year, month, 1)
-    _, last_day_num = monthrange(year, month)
-    last_day = date(year, month, last_day_num)
-    company = Company.objects.first()
-    company_name = company.name if company else 'HRMS'
+        doc = SimpleDocTemplate(buffer, pagesize=A4,
+                                topMargin=0.5*inch, bottomMargin=0.5*inch,
+                                leftMargin=0.5*inch, rightMargin=0.5*inch)
+        styles = getSampleStyleSheet()
+        normal_style = styles['Normal']
+        heading_style = styles['Heading2']
     
-    doc = SimpleDocTemplate(buffer, pagesize=A4,
-                            topMargin=0.5*inch, bottomMargin=0.5*inch,
-                            leftMargin=0.5*inch, rightMargin=0.5*inch)
-    styles = getSampleStyleSheet()
-    normal_style = styles['Normal']
-    heading_style = styles['Heading2']
+        header_style = ParagraphStyle('HeaderStyle', parent=normal_style, fontSize=14, fontName='Helvetica-Bold', alignment=1, spaceAfter=6)
+        subheader_style = ParagraphStyle('SubHeaderStyle', parent=normal_style, fontSize=12, alignment=1, spaceAfter=12)
+        info_label_style = ParagraphStyle('InfoLabelStyle', parent=normal_style, fontSize=10, fontName='Helvetica-Bold')
+        info_value_style = ParagraphStyle('InfoValueStyle', parent=normal_style, fontSize=10)
+        summary_label_style = ParagraphStyle('SummaryLabelStyle', parent=normal_style, fontSize=9, fontName='Helvetica-Bold')
     
-    header_style = ParagraphStyle('HeaderStyle', parent=normal_style, fontSize=14, fontName='Helvetica-Bold', alignment=1, spaceAfter=6)
-    subheader_style = ParagraphStyle('SubHeaderStyle', parent=normal_style, fontSize=12, alignment=1, spaceAfter=12)
-    info_label_style = ParagraphStyle('InfoLabelStyle', parent=normal_style, fontSize=10, fontName='Helvetica-Bold')
-    info_value_style = ParagraphStyle('InfoValueStyle', parent=normal_style, fontSize=10)
-    summary_label_style = ParagraphStyle('SummaryLabelStyle', parent=normal_style, fontSize=9, fontName='Helvetica-Bold')
+        elements = []
     
-    elements = []
+        for idx, emp_data in enumerate(pdf_employee_data):
+            if idx > 0:
+                elements.append(PageBreak())
     
+            emp = emp_data['employee']
+            detailed = get_employee_attendance_for_pdf(emp, year, month, first_day, last_day)
+            profile = detailed['profile']
+            shift = detailed['shift']
+            daily = detailed['daily_data']
     
-    for idx, emp_data in enumerate(pdf_employee_data):
-        if idx > 0:
-            elements.append(PageBreak())    
-        emp = emp_data['employee']
-        detailed = get_employee_attendance_for_pdf(emp, year, month, first_day, last_day)
-        profile = detailed['profile']
-        shift = detailed['shift']
-        daily = detailed['daily_data']
-        
-        # Company header
-        elements.append(Paragraph(company_name, header_style))
-        elements.append(Paragraph("Attendance Report", subheader_style))
-        month_name = first_day.strftime('%B %Y')
-        elements.append(Paragraph(month_name, normal_style))
-        elements.append(Spacer(1, 0.3*inch))
-        
-        # Employee Info (3 columns, borderless)
-        info_data = [
-            [
-                Paragraph(f"<b>Employee:</b> {emp.username}", normal_style),
-                Paragraph(f"<b>Employee ID:</b> {profile.employee_id if profile else '—'}", normal_style),
-                Paragraph(f"<b>Department:</b> {profile.department if profile else '—'}", normal_style),
-            ],
-            [
-                Paragraph(f"<b>Designation:</b> {profile.designation if profile else '—'}", normal_style),
-                Paragraph(f"<b>Manager:</b> {profile.manager.full_name if profile and profile.manager else '—'}", normal_style),
-                Paragraph(f"<b>Shift:</b> {shift.name if shift else '—'}", normal_style),
-            ],
-            [
-                Paragraph(f"<b>Attendance Type:</b> {profile.get_attendance_type_display() if profile else '—'}", normal_style),
-                Paragraph("", normal_style),
-                Paragraph("", normal_style),
-            ],
-        ]
-        col_widths = [doc.width / 3.0] * 3
-        info_table = Table(info_data, colWidths=col_widths)
-        info_table.setStyle(TableStyle([
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('FONTSIZE', (0,0), (-1,-1), 9),
-            ('LEFTPADDING', (0,0), (-1,-1), 4),
-            ('RIGHTPADDING', (0,0), (-1,-1), 4),
-            ('TOPPADDING', (0,0), (-1,-1), 3),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 3),
-        ]))
-        elements.append(info_table)
-        elements.append(Spacer(1, 0.2*inch))
-        
-        # Daily Attendance
-        elements.append(Paragraph("Daily Attendance", heading_style))
-        table_data = [['Date', 'Day', 'Status', 'Check In', 'Check Out', 'Hours']]
-        for day in daily:
-            table_data.append([
-                day['date'].strftime('%d %b'),
-                day['day_name'],
-                day['status'],
-                day['check_in'] if day['check_in'] else '—',
-                day['check_out'] if day['check_out'] else '—',
-                day['working_hours'] if day['working_hours'] else '—'
-            ])
-        table = Table(table_data, colWidths=[1.8*cm, 1.8*cm, 2.2*cm, 2.5*cm, 2.5*cm, 2.5*cm])
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.grey),
-            ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0,0), (-1,0), 9),
-            ('FONTSIZE', (0,1), (-1,-1), 8),
-            ('BOTTOMPADDING', (0,0), (-1,0), 6),
-            ('TOPPADDING', (0,0), (-1,-1), 4),
-            ('BOTTOMPADDING', (0,1), (-1,-1), 4),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
-            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.lightgrey]),
-        ]))
-        elements.append(table)
-        elements.append(Spacer(1, 0.3*inch))
-        
-        # Monthly Summary
-        elements.append(Paragraph("Monthly Summary", heading_style))
-        ot_hours = int(detailed['overtime_minutes'] // 60)
-        ot_minutes = int(detailed['overtime_minutes'] % 60)
-        overtime_str = f"{ot_hours}h {ot_minutes}m" if ot_minutes > 0 or ot_hours > 0 else "0h"
-        
-        summary_data = [
-            [Paragraph("Working Days:", summary_label_style), str(detailed['working_days']),
-             Paragraph("Present:", summary_label_style), str(detailed['present'])],
-            [Paragraph("Absent:", summary_label_style), str(detailed['absent']),
-             Paragraph("Leave:", summary_label_style), str(detailed['leave'])],
-            [Paragraph("Half Day:", summary_label_style), str(detailed['half_day']),
-             Paragraph("Late Arrivals:", summary_label_style), str(detailed['late_arrivals'])],
-            [Paragraph("Overtime:", summary_label_style), overtime_str,
-             Paragraph("Total Working Hours:", summary_label_style), detailed['total_working_hours']],
-            [Paragraph("Average Working Hours:", summary_label_style), detailed['avg_working_hours'],
-             Paragraph("", summary_label_style), ""],
-        ]
-        summary_table = Table(summary_data, colWidths=[3*cm, 2.5*cm, 3*cm, 2.5*cm])
-        summary_table.setStyle(TableStyle([
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('FONTSIZE', (0,0), (-1,-1), 9),
-            ('LEFTPADDING', (0,0), (-1,-1), 4),
-            ('RIGHTPADDING', (0,0), (-1,-1), 4),
-            ('TOPPADDING', (0,0), (-1,-1), 3),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 3),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
-        ]))
-        elements.append(summary_table)
-        elements.append(Spacer(1, 0.5*inch))
-        
-        # ----- Footer (inside the loop) -----
-        local_now = timezone.localtime(timezone.now())
-        footer_text = f"Generated on {local_now.strftime('%d %B %Y, %I:%M %p')} · Employee ID: {profile.employee_id if profile else 'N/A'}"
-        elements.append(Paragraph(footer_text,
-                                  ParagraphStyle('Footer', parent=normal_style, fontSize=7, alignment=1)))
+            # Company header
+            elements.append(Paragraph(company_name, header_style))
+            elements.append(Paragraph("Attendance Report", subheader_style))
+            month_name = first_day.strftime('%B %Y')
+            elements.append(Paragraph(month_name, normal_style))
+            elements.append(Spacer(1, 0.3*inch))
     
-    # ----- Build the document (outside the loop) -----
-    doc.build(elements)
-    buffer.seek(0)
+            # Employee Info (3 columns, borderless)
+            info_data = [
+                [
+                    Paragraph(f"<b>Employee:</b> {emp.username}", normal_style),
+                    Paragraph(f"<b>Employee ID:</b> {profile.employee_id if profile else '—'}", normal_style),
+                    Paragraph(f"<b>Department:</b> {profile.department if profile else '—'}", normal_style),
+                ],
+                [
+                    Paragraph(f"<b>Designation:</b> {profile.designation if profile else '—'}", normal_style),
+                    Paragraph(f"<b>Manager:</b> {profile.manager.full_name if profile and profile.manager else '—'}", normal_style),
+                    Paragraph(f"<b>Shift:</b> {shift.name if shift else '—'}", normal_style),
+                ],
+                [
+                    Paragraph(f"<b>Attendance Type:</b> {profile.get_attendance_type_display() if profile else '—'}", normal_style),
+                    Paragraph("", normal_style),
+                    Paragraph("", normal_style),
+                ],
+            ]
+            col_widths = [doc.width / 3.0] * 3
+            info_table = Table(info_data, colWidths=col_widths)
+            info_table.setStyle(TableStyle([
+                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                ('FONTSIZE', (0,0), (-1,-1), 9),
+                ('LEFTPADDING', (0,0), (-1,-1), 4),
+                ('RIGHTPADDING', (0,0), (-1,-1), 4),
+                ('TOPPADDING', (0,0), (-1,-1), 3),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+            ]))
+            elements.append(info_table)
+            elements.append(Spacer(1, 0.2*inch))
     
-    month_name = first_day.strftime('%B_%Y')
-    if download_type == 'single' and len(pdf_employee_data) == 1:
-        emp = pdf_employee_data[0]['employee']
-        emp_id = emp.profile.employee_id if emp.profile else f"EMP{emp.id:04d}"
-        filename = f"attendance_{emp_id}_{month_name}.pdf"
-    else:
-        filename = f"attendance_{month_name}.pdf"
+            # Daily Attendance
+            elements.append(Paragraph("Daily Attendance", heading_style))
+            table_data = [['Date', 'Day', 'Status', 'Check In', 'Check Out', 'Hours']]
+            for day in daily:
+                table_data.append([
+                    day['date'].strftime('%d %b'),
+                    day['day_name'],
+                    day['status'],
+                    day['check_in'] if day['check_in'] else '—',
+                    day['check_out'] if day['check_out'] else '—',
+                    day['working_hours'] if day['working_hours'] else '—'
+                ])
+            table = Table(table_data, colWidths=[1.8*cm, 1.8*cm, 2.2*cm, 2.5*cm, 2.5*cm, 2.5*cm])
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.grey),
+                ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+                ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0,0), (-1,0), 9),
+                ('FONTSIZE', (0,1), (-1,-1), 8),
+                ('BOTTOMPADDING', (0,0), (-1,0), 6),
+                ('TOPPADDING', (0,0), (-1,-1), 4),
+                ('BOTTOMPADDING', (0,1), (-1,-1), 4),
+                ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+                ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.lightgrey]),
+            ]))
+            elements.append(table)
+            elements.append(Spacer(1, 0.3*inch))
     
-    return FileResponse(buffer, as_attachment=True, filename=filename)
+            # Monthly Summary
+            elements.append(Paragraph("Monthly Summary", heading_style))
+            ot_hours = int(detailed['overtime_minutes'] // 60)
+            ot_minutes = int(detailed['overtime_minutes'] % 60)
+            overtime_str = f"{ot_hours}h {ot_minutes}m" if ot_minutes > 0 or ot_hours > 0 else "0h"
+    
+            summary_data = [
+                [Paragraph("Working Days:", summary_label_style), str(detailed['working_days']),
+                 Paragraph("Present:", summary_label_style), str(detailed['present'])],
+                [Paragraph("Absent:", summary_label_style), str(detailed['absent']),
+                 Paragraph("Leave:", summary_label_style), str(detailed['leave'])],
+                [Paragraph("Half Day:", summary_label_style), str(detailed['half_day']),
+                 Paragraph("Late Arrivals:", summary_label_style), str(detailed['late_arrivals'])],
+                [Paragraph("Overtime:", summary_label_style), overtime_str,
+                 Paragraph("Total Working Hours:", summary_label_style), detailed['total_working_hours']],
+                [Paragraph("Average Working Hours:", summary_label_style), detailed['avg_working_hours'],
+                 Paragraph("", summary_label_style), ""],
+            ]
+            summary_table = Table(summary_data, colWidths=[3*cm, 2.5*cm, 3*cm, 2.5*cm])
+            summary_table.setStyle(TableStyle([
+                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                ('FONTSIZE', (0,0), (-1,-1), 9),
+                ('LEFTPADDING', (0,0), (-1,-1), 4),
+                ('RIGHTPADDING', (0,0), (-1,-1), 4),
+                ('TOPPADDING', (0,0), (-1,-1), 3),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+                ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+            ]))
+            elements.append(summary_table)
+            elements.append(Spacer(1, 0.5*inch))
+    
+            # ----- Footer (inside the loop) -----
+            local_now = timezone.localtime(timezone.now())
+            footer_text = f"Generated on {local_now.strftime('%d %B %Y, %I:%M %p')} · Employee ID: {profile.employee_id if profile else 'N/A'}"
+            elements.append(Paragraph(footer_text,
+                                      ParagraphStyle('Footer', parent=normal_style, fontSize=7, alignment=1)))
+    
+        # ----- Build the document (outside the loop) -----
+        doc.build(elements)
+        buffer.seek(0)
+    
+        month_name = first_day.strftime('%B_%Y')
+        if download_type == 'single' and len(pdf_employee_data) == 1:
+            emp = pdf_employee_data[0]['employee']
+            emp_id = emp.profile.employee_id if emp.profile else f"EMP{emp.id:04d}"
+            filename = f"attendance_{emp_id}_{month_name}.pdf"
+        else:
+            filename = f"attendance_{month_name}.pdf"
+    
+        return FileResponse(buffer, as_attachment=True, filename=filename)
 
-        
+
     # ---------- CSV DOWNLOAD ----------
     if request.GET.get('download') == 'csv':
-        download_type = request.GET.get('download_type', 'all')  # 'all' or 'single'
+        download_type = request.GET.get('download_type', 'all')
         employee_id = request.GET.get('employee_id')
         
         # --- Single employee mode ---
@@ -2876,25 +2876,28 @@ def attendance_report_pdf(request):
     elements = []
     
     for idx, emp in enumerate(employees):
-    if idx > 0:
-        elements.append(PageBreak())
-
-    emp_data = get_employee_attendance_for_pdf(emp, year, month, first_day, last_day)
-    profile = emp_data['profile']
-    shift = emp_data['shift']
-    daily_data = emp_data['daily_data']
-
-    # Header
-    elements.append(Paragraph(company_name, header_style))
-    elements.append(Paragraph("Attendance Report", subheader_style))
-    month_name = first_day.strftime('%B %Y')
-    elements.append(Paragraph(month_name, normal_style))
-    elements.append(Spacer(1, 0.3*inch))
-
-    # Employee Info
-    info_data = [
-        [Paragraph("Employee:", info_label_style), Paragraph(emp.username, info_value_style),
-         Paragraph("Employee ID:", info_label_style), Paragraph(profile.employee_id if profile else '—', info_value_style)],
+        if idx > 0:
+            elements.append(PageBreak())
+    
+        emp_data = get_employee_attendance_for_pdf(
+            emp, year, month, first_day, last_day
+        )
+    
+        profile = emp_data['profile']
+        shift = emp_data['shift']
+        daily_data = emp_data['daily_data']
+    
+        # Header
+        elements.append(Paragraph(company_name, header_style))
+        elements.append(Paragraph("Attendance Report", subheader_style))
+        month_name = first_day.strftime('%B %Y')
+        elements.append(Paragraph(month_name, normal_style))
+        elements.append(Spacer(1, 0.3*inch))
+    
+        # Employee Info
+        info_data = [
+            [Paragraph("Employee:", info_label_style), Paragraph(emp.username, info_value_style),
+             Paragraph("Employee ID:", info_label_style), Paragraph(profile.employee_id if profile else '—', info_value_style)],
         [Paragraph("Department:", info_label_style), Paragraph(profile.department if profile else '—', info_value_style),
          Paragraph("Designation:", info_label_style), Paragraph(profile.designation if profile else '—', info_value_style)],
         [Paragraph("Manager:", info_label_style), Paragraph(profile.manager.full_name if profile and profile.manager else '—', info_value_style),
@@ -2914,10 +2917,11 @@ def attendance_report_pdf(request):
     elements.append(info_table)
     elements.append(Spacer(1, 0.2*inch))
 
-    # Daily Attendance
+    # Daily Attendance (Full Width)
     elements.append(Paragraph("Daily Attendance", heading_style))
+
     table_data = [['Date', 'Day', 'Status', 'Check In', 'Check Out', 'Hours']]
-    for day in daily_data:
+    for day in daily:
         table_data.append([
             day['date'].strftime('%d %b'),
             day['day_name'],
@@ -2926,7 +2930,19 @@ def attendance_report_pdf(request):
             day['check_out'] if day['check_out'] else '—',
             day['working_hours'] if day['working_hours'] else '—'
         ])
-    table = Table(table_data, colWidths=[1.8*cm, 1.8*cm, 2.2*cm, 2.5*cm, 2.5*cm, 2.5*cm])
+
+    # Use full page width (available width = doc.width)
+    available_width = doc.width
+    col_widths = [
+        available_width * 0.12,  # Date (12%)
+        available_width * 0.10,  # Day (10%)
+        available_width * 0.18,  # Status (18%)
+        available_width * 0.18,  # Check In (18%)
+        available_width * 0.18,  # Check Out (18%)
+        available_width * 0.24,  # Hours (24%)
+    ]
+
+    table = Table(table_data, colWidths=col_widths)
     table.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.grey),
         ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
@@ -2941,7 +2957,7 @@ def attendance_report_pdf(request):
         ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.lightgrey]),
     ]))
     elements.append(table)
-    elements.append(Spacer(1, 0.3*inch))
+    elements.append(Spacer(1, 0.1*inch))
 
     # Monthly Summary
     elements.append(Paragraph("Monthly Summary", heading_style))
@@ -2981,21 +2997,10 @@ def attendance_report_pdf(request):
                               ParagraphStyle('Footer', parent=normal_style, fontSize=7, alignment=1)))
 
 # ----- Build the document (outside the loop) -----
-doc.build(elements)
-buffer.seek(0)
+    doc.build(elements)
+    buffer.seek(0)
 
-    
-    month_name = first_day.strftime('%B_%Y')
-    if download_type == 'single' and len(employees) == 1:
-        emp = employees[0]
-        emp_id = emp.profile.employee_id if emp.profile else f"EMP{emp.id:04d}"
-        filename = f"attendance_{emp_id}_{month_name}.pdf"
-    else:
-        filename = f"attendance_{month_name}.pdf"
-    
-    return FileResponse(buffer, as_attachment=True, filename=filename)
 
-        
-# ---------- Test View ----------
+    # **************texting 
 def test_view(request):
     return HttpResponse("Django is working!")
