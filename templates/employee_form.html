@@ -10,7 +10,7 @@
         <div class="card border-0 shadow-sm rounded-3">
             <div class="card-header bg-transparent border-0 pt-4 pb-0">
                 <h5 class="mb-0">
-                    <i class="fas fa-user-plus text-primary me-2"></i> 
+                    <i class="las la-user-plus text-primary me-2"></i> 
                     {% if action == 'Edit' %}Edit{% else %}Add New{% endif %} Employee
                 </h5>
                 <p class="text-muted small mt-1">Fill in the details below to {% if action == 'Edit' %}update{% else %}create{% endif %} an employee account.</p>
@@ -20,7 +20,7 @@
                     {% csrf_token %}
                     
                     <!-- User Account Info -->
-                    <h6 class="fw-bold text-primary mt-2 mb-3"><i class="fas fa-user-circle me-2"></i>Account Details</h6>
+                    <h6 class="fw-bold text-primary mt-2 mb-3"><i class="las la-user-circle me-2"></i>Account Details</h6>
                     
                     <div class="row g-3">
                         <div class="col-md-6">
@@ -96,7 +96,7 @@
                         </div>
                         <div class="col-md-6">
                             <label for="shift" class="form-label fw-semibold">
-                                <i class="fas fa-clock text-primary me-1"></i> Assigned Shift
+                                <i class="las la-clock text-primary me-1"></i> Assigned Shift
                             </label>
                             <select name="shift" id="shift" class="form-select" required>
                                 <option value="">-- Select a shift --</option>
@@ -129,7 +129,7 @@
                         </div>
                         <div class="col-md-6">
                             <label for="office_location" class="form-label fw-semibold">
-                                <i class="fas fa-building text-primary me-1"></i> Office Location
+                                <i class="las la-building text-primary me-1"></i> Office Location
                             </label>
                             <select name="office_location" id="office_location" class="form-select">
                                 <option value="">-- None --</option>
@@ -150,7 +150,7 @@
                     <div class="row g-3 mt-2">
                         <div class="col-md-6">
                             <label for="role" class="form-label fw-semibold">
-                                <i class="fas fa-user-tag text-primary me-1"></i> Role *
+                                <i class="las la-user-tag text-primary me-1"></i> Role *
                             </label>
                             <select name="role" id="role" class="form-select" required>
                                 <option value="employee" {% if profile.role == 'employee' %}selected{% endif %}>Employee</option>
@@ -163,7 +163,7 @@
                         </div>
                         <div class="col-md-6">
                             <label for="manager" class="form-label fw-semibold">
-                                <i class="fas fa-user-tie text-primary me-1"></i> Manager
+                                <i class="las la-user-tie text-primary me-1"></i> Manager
                             </label>
                             <select name="manager" id="manager" class="form-select">
                                 <option value="">-- None --</option>

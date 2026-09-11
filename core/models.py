@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
+from decimal import Decimal
 
 # ---------- Company Model ----------
 class Company(models.Model):
@@ -8,6 +9,7 @@ class Company(models.Model):
     subdomain = models.CharField(max_length=50, unique=True)
     code_prefix = models.CharField(max_length=10)
     created_at = models.DateTimeField(auto_now_add=True)
+    payroll_enabled = models.BooleanField(default=False)
 
     def __str__(self):
         return self.name
@@ -91,16 +93,22 @@ class Attendance(models.Model):
         super().save(*args, **kwargs)
 
 
+
 # ---------- Leave Type Model ----------
 class LeaveType(models.Model):
-    name = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=50)
     days_allowed = models.DecimalField(max_digits=5, decimal_places=1, default=0)
     is_active = models.BooleanField(default=True)
+    is_paid = models.BooleanField(default=True)  # ✅ NEW - distinguishes paid vs unpaid
     company = models.ForeignKey(Company, on_delete=models.CASCADE, null=True, blank=True)
-    
+
+    class Meta:
+        unique_together = ('company', 'name')
+
     def __str__(self):
         return self.name
 
+        
 
 # ---------- Holiday Model ----------
 class Holiday(models.Model):
@@ -118,7 +126,13 @@ class Holiday(models.Model):
 
 # ---------- Shift Model ----------
 class Shift(models.Model):
-    name = models.CharField(max_length=100, unique=True)
+    company = models.ForeignKey(
+        Company, 
+        on_delete=models.CASCADE, 
+        null=True, 
+        blank=True
+    )  # <-- ADD THIS
+    name = models.CharField(max_length=100)
     start_time = models.TimeField()
     end_time = models.TimeField()
     break_start = models.TimeField(null=True, blank=True)
@@ -324,3 +338,115 @@ class Notification(models.Model):
     
     def __str__(self):
         return f"{self.user.username} - {self.message[:30]}..."
+
+
+# ---------- Employee Salary Model ----------
+# ---------- Employee Salary Model ----------
+class EmployeeSalary(models.Model):
+    SALARY_TYPES = [
+        ('monthly', 'Monthly'),
+        ('daily', 'Daily'),
+        ('hourly', 'Hourly'),
+    ]
+
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('inactive', 'Inactive'),
+    ]
+
+    company = models.ForeignKey(Company, on_delete=models.CASCADE)
+    employee = models.ForeignKey(EmployeeProfile, on_delete=models.CASCADE)
+    salary_type = models.CharField(max_length=10, choices=SALARY_TYPES, default='monthly')
+    basic_salary = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    hra = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    allowance = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    overtime_rate = models.DecimalField(                    # ✅ NEW
+        max_digits=10, decimal_places=2, default=0,
+        help_text="Pay per overtime hour in ₹"
+    )
+    # ❌ REMOVED: deduction
+    gross_salary = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    net_salary = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    effective_from = models.DateField()
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('company', 'employee', 'effective_from')
+        ordering = ['-effective_from']
+
+    def __str__(self):
+        return f"{self.employee.full_name} - {self.effective_from}"
+
+    def save(self, *args, **kwargs):
+        basic = Decimal(str(self.basic_salary or 0))
+        hra = Decimal(str(self.hra or 0))
+        allowance = Decimal(str(self.allowance or 0))
+        self.gross_salary = basic + hra + allowance
+        self.net_salary = self.gross_salary   # Fixed salary has no deduction
+        super().save(*args, **kwargs)
+
+            
+
+
+# ---------- Payroll Model ----------
+class Payroll(models.Model):
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('processed', 'Processed'),
+        ('paid', 'Paid'),
+    ]
+
+    company = models.ForeignKey(Company, on_delete=models.CASCADE)
+    employee = models.ForeignKey(EmployeeProfile, on_delete=models.CASCADE)
+    month = models.PositiveSmallIntegerField()
+    year = models.PositiveSmallIntegerField()
+
+    # ── Salary snapshot ──
+    basic_salary = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    hra = models.DecimalField(max_digits=12, decimal_places=2, default=0)          # ✅ NEW
+    allowance = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    gross_salary = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+    # ── Attendance snapshot ──
+    working_days = models.PositiveIntegerField(default=0)
+    absent_days = models.PositiveIntegerField(default=0)                           # ✅ NEW
+    present_days = models.PositiveIntegerField(default=0)                          # ✅ NEW
+    paid_leave_days = models.DecimalField(max_digits=6, decimal_places=1, default=0)   # ✅ NEW
+    unpaid_leave_days = models.DecimalField(max_digits=6, decimal_places=1, default=0) # ✅ NEW
+
+    absent_deduction = models.DecimalField(max_digits=12, decimal_places=2, default=0) 
+    # ── Overtime snapshot ──
+    overtime_hours = models.DecimalField(max_digits=8, decimal_places=2, default=0)   # ✅ NEW
+    overtime_rate = models.DecimalField(max_digits=10, decimal_places=2, default=0)   # ✅ NEW
+    overtime_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0) # ✅ NEW
+
+    # ── Deductions ──
+    unpaid_leave_deduction = models.DecimalField(max_digits=12, decimal_places=2, default=0)  # ✅ NEW
+    other_deduction = models.DecimalField(max_digits=12, decimal_places=2, default=0)         # ✅ NEW
+    deduction = models.DecimalField(max_digits=12, decimal_places=2, default=0)               # old field — keep for migration, will mirror other_deduction
+
+    net_salary = models.DecimalField(max_digits=12, decimal_places=2, default=0)  # This is Net Payable
+
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='draft')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+    class Meta:
+        unique_together = ('company', 'employee', 'month', 'year')
+        ordering = ['-year', '-month']
+
+    def __str__(self):
+        return f"{self.employee.full_name} - {self.month}/{self.year} ({self.status})"
+        
+
+    # ✅ ADD THESE TWO PROPERTIES HERE
+    @property
+    def total_earnings(self):
+        return (self.gross_salary or 0) + (self.overtime_amount or 0)
+
+    @property
+    def total_deductions(self):
+        return (self.unpaid_leave_deduction or 0) + (self.other_deduction or 0)

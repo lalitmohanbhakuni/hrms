@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <div class="row">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+                    <li class="breadcrumb-item active">Payroll</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Payroll Sub-Navigation Tabs -->
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <ul class="nav nav-tabs">
+                <li class="nav-item">
+                    <a class="nav-link {% if request.path == '/payroll/' %}active{% endif %}" 
+                       href="{% url 'payroll_dashboard' %}">
+                        <i class="fas fa-chart-pie"></i> Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if 'salary' in request.path %}active{% endif %}" 
+                       href="{% url 'employee_salary_list' %}">
+                        <i class="fas fa-money-bill-wave"></i> Employee Salary
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if 'process' in request.path %}active{% endif %}" 
+                       href="{% url 'payroll_processing' %}">
+                        <i class="fas fa-cogs"></i> Payroll Processing
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if 'payslips' in request.path %}active{% endif %}" 
+                       href="{% url 'payroll_list' %}">
+                        <i class="fas fa-file-invoice"></i> Payslips
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Main Payroll Content -->
+    {% block payroll_content %}{% endblock %}
+</div>
+{% endblock %}

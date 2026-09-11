@@ -49,15 +49,18 @@ INSTALLED_APPS = [
     'core',  # Your HRMS app
 ]
 
+
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',  # Must be first
+    'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'core.middleware.CompanyMiddleware',   # <-- ADD HERE
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
 
 ROOT_URLCONF = 'hrms.urls'
 
@@ -73,6 +76,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'core.context_processors.notification_context',
+                'core.context_processors.company_context',
             ],
         },
     },
@@ -128,7 +132,9 @@ DATETIME_FORMAT = 'd M Y h:i:s A'
 # ============================================================
 
 # ---------- DEBUG & ALLOWED HOSTS ----------
-DEBUG = os.environ.get('DEBUG', 'False') == 'True'   # Default False on Render
+# DEBUG = os.environ.get('DEBUG', 'False') == 'True'   # Default False on Render
+
+DEBUG = True
 
 
 
@@ -147,21 +153,26 @@ SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'
 
-# ---------- HTTPS / SSL SETTINGS ----------
-SECURE_SSL_REDIRECT = True               # Force HTTPS
-SECURE_HSTS_SECONDS = 31536000           # 1 year
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_HSTS_PRELOAD = True
+
+
+# Detect if we are running on Render (Render sets the RENDER environment variable)
+RENDER = os.environ.get('RENDER', False)
+
+SECURE_SSL_REDIRECT = RENDER
+SECURE_HSTS_SECONDS = 31536000 if RENDER else 0
+SECURE_HSTS_INCLUDE_SUBDOMAINS = RENDER
+SECURE_HSTS_PRELOAD = RENDER
+
 
 # ---------- SESSION SECURITY ----------
-SESSION_COOKIE_SECURE = True             # HTTPS only
+SESSION_COOKIE_SECURE = RENDER              # Only secure on Render
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
-SESSION_COOKIE_AGE = 3600                # 1 hour
+SESSION_COOKIE_AGE = 3600              # 1 hour
 
 # ---------- CSRF SECURITY ----------
-CSRF_COOKIE_SECURE = True                # HTTPS only
+CSRF_COOKIE_SECURE = RENDER                 # Only secure on Render
 CSRF_COOKIE_HTTPONLY = True
 CSRF_COOKIE_SAMESITE = 'Lax'
 

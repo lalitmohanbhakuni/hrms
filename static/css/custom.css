@@ -91,12 +91,15 @@ color: #374151 !important;
     background: rgba(255,255,255,0.2);
     color: #fff;
 }
+
+
 .sidebar-nav .nav-item i {
-    width: 24px;
-    font-size: 1.1rem;
+    width: 30px;
+    font-size: 24px;
     margin-right: 14px;
     text-align: center;
 }
+
 .sidebar-nav .nav-item span {
     font-weight: 500;
 }

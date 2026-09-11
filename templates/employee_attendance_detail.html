@@ -41,20 +41,20 @@
                     <div>
                         <h4 class="fw-bold mb-0">{{ profile.full_name|default:employee.username }}</h4>
                         <p class="text-muted small mb-0">
-                            <i class="fas fa-id-card me-1"></i> ID: {{ profile.employee_id|default:"Not set" }}
+                            <i class="las la-id-card me-1"></i> ID: {{ profile.employee_id|default:"Not set" }}
                             <span class="mx-2">|</span>
-                            <i class="fas fa-building me-1"></i> {{ profile.department|default:"No department" }}
+                            <i class="las la-building me-1"></i> {{ profile.department|default:"No department" }}
                             <span class="mx-2">|</span>
-                            <i class="fas fa-user-tie me-1"></i> {{ profile.designation|default:"No designation" }}
+                            <i class="las la-user-tie me-1"></i> {{ profile.designation|default:"No designation" }}
                             <span class="mx-2">|</span>
-                            <i class="fas fa-clock me-1"></i> Shift: {{ shift }}
+                            <i class="las la-clock me-1"></i> Shift: {{ shift }}
                         </p>
                     </div>
                 </div>
             </div>
             <div class="col-md-4 text-md-end">
                 <span class="badge bg-primary rounded-pill px-3 py-2">
-                    <i class="fas fa-calendar-alt me-1"></i> {{ month_name }}
+                    <i class="las la-calendar-alt me-1"></i> {{ month_name }}
                 </span>
             </div>
         </div>
@@ -67,7 +67,7 @@
 <div class="card border-0 shadow-sm rounded-3 mb-4">
     <div class="card-body d-flex justify-content-between align-items-center flex-wrap">
         <div>
-            <i class="fas fa-calendar-alt text-primary me-2"></i>
+            <i class="las la-calendar-alt text-primary me-2"></i>
             <span class="fw-semibold">{{ month_name }}</span>
         </div>
         <div class="d-flex gap-1">
@@ -202,7 +202,7 @@
                     {% else %}
                         <tr>
                             <td colspan="6" class="text-center text-muted py-4">
-                                <i class="fas fa-inbox text-secondary" style="font-size: 2rem; display: block; margin-bottom: 0.5rem;"></i>
+                                <i class="las la-inbox text-secondary" style="font-size: 2rem; display: block; margin-bottom: 0.5rem;"></i>
                                 No attendance records for this month.
                             </td>
                         </tr>

@@ -6,6 +6,20 @@
 
 {% block content %}
 <div class="row justify-content-center">
+
+    {% if user.is_superuser and companies %}
+<div class="col-md-6">
+    <label for="company" class="form-label">Company</label>
+    <select name="company" id="company" class="form-select" required>
+        <option value="">-- Select Company --</option>
+        {% for c in companies %}
+            <option value="{{ c.id }}">{{ c.name }}</option>
+        {% endfor %}
+    </select>
+</div>
+{% endif %}
+
+
     <div class="col-md-6">
         <div class="card border-0 shadow-sm">
             <div class="card-body p-4">
@@ -34,4 +48,4 @@
         </div>
     </div>
 </div>
-{% endblock %}
+{% endblock %}  

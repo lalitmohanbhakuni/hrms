@@ -4,6 +4,7 @@ from django.contrib.auth.models import User
 from .models import Attendance, LeaveType, Holiday, LeaveRequest, Notification, RegularizationRequest, EmployeeProfile
 from .models import Shift
 from .models import OfficeLocation
+from .models import Company, EmployeeSalary, Payroll
 
 # Inline profile in User admin
 class EmployeeProfileInline(admin.StackedInline):
@@ -61,4 +62,31 @@ class ShiftAdmin(admin.ModelAdmin):
 class OfficeLocationAdmin(admin.ModelAdmin):
     list_display = ('name', 'latitude', 'longitude', 'allowed_radius', 'is_active')
     
+@admin.register(Company)
+class CompanyAdmin(admin.ModelAdmin):
+    list_display = ('name', 'subdomain', 'code_prefix', 'payroll_enabled')
+    list_editable = ('payroll_enabled',)  # Superuser can toggle here
+    list_filter = ('payroll_enabled',)
+    search_fields = ('name', 'subdomain')
+
+
+
+@admin.register(EmployeeSalary)
+class EmployeeSalaryAdmin(admin.ModelAdmin):
+    list_display = ('employee', 'company', 'basic_salary', 'gross_salary', 'net_salary', 'status')
+    list_filter = ('company', 'status', 'salary_type')
+    search_fields = ('employee__full_name', 'employee__employee_id')
+
+@admin.register(Payroll)
+class PayrollAdmin(admin.ModelAdmin):
+    list_display = ('employee', 'company', 'month', 'year', 'net_salary', 'status')
+    list_filter = ('company', 'status', 'month', 'year')
+    search_fields = ('employee__full_name', 'employee__employee_id')
+
+@admin.register(EmployeeProfile)
+class EmployeeProfileAdmin(admin.ModelAdmin):
+    list_display = ('full_name', 'employee_id', 'company', 'department', 'designation', 'role')
+    list_filter = ('company', 'department', 'role')
+    search_fields = ('full_name', 'employee_id', 'user__username', 'user__email')
+    # readonly_fields = ('user',)
     

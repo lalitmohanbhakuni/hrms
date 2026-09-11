@@ -2,6 +2,8 @@ from django.contrib.auth.decorators import user_passes_test
 from django.conf import settings
 from django.shortcuts import redirect
 from django.contrib import messages
+from django.shortcuts import redirect
+from .models import Company
 
 def is_admin_or_hr(user):
     """
@@ -46,3 +48,54 @@ def hr_admin_required(view_func):
         messages.error(request, 'You do not have permission to access this page.')
         return redirect('dashboard')
     return wrapper
+
+def payroll_required(view_func):
+    def wrapper(request, *args, **kwargs):
+        import logging
+        logger = logging.getLogger(__name__)
+
+        if not request.user.is_authenticated:
+            return redirect('login')
+
+        if request.user.is_superuser:
+            return view_func(request, *args, **kwargs)
+
+        company = None
+        try:
+            company = request.user.profile.company
+        except Exception as e:
+            logger.error(f'payroll_required: no company for {request.user.username}: {e}')
+
+        if company and company.payroll_enabled:
+            # ✅ View is OUTSIDE the try — real errors will now surface
+            return view_func(request, *args, **kwargs)
+
+        messages.error(request, 'Payroll module is not enabled for your company.')
+        return redirect('dashboard')
+    return wrapper
+
+def company_required(view_func):
+    """
+    Ensures the logged-in user has an associated company.
+    Superusers are allowed through (they see all companies).
+    """
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect('login')
+
+        # Superuser bypasses company check
+        if request.user.is_superuser:
+            return view_func(request, *args, **kwargs)
+
+        # Non-superuser needs a company
+        company = getattr(request, 'user_company', None)
+        if not company:
+            messages.error(
+                request,
+                'Your account is not linked to any company. Please contact the platform admin.'
+            )
+            return redirect('dashboard')
+
+        return view_func(request, *args, **kwargs)
+    return wrapper
+    

@@ -1,0 +1,228 @@
+{% extends 'payroll/base_payroll.html' %}
+
+{% block payroll_content %}
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-4">
+
+        <!-- Company Header -->
+        <div class="text-center mb-4 pb-3 border-bottom">
+            <h3 class="mb-1">
+                <i class="fas fa-building text-primary me-2"></i>
+                {{ payroll.company.name|default:"HRMS" }}
+            </h3>
+            <h5 class="text-muted mb-0">Payslip</h5>
+            <div class="text-muted small">
+                {{ payroll.month|stringformat:"02d" }}/{{ payroll.year }}
+            </div>
+        </div>
+
+        <!-- Employee Details -->
+        <h6 class="fw-bold text-primary mb-3">
+            <i class="fas fa-user me-1"></i> Employee Details
+        </h6>
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <table class="table table-sm table-borderless mb-0">
+                    <tr>
+                        <td class="text-muted" width="45%">Employee Name:</td>
+                        <td><strong>{{ payroll.employee.full_name|default:payroll.employee.user.username }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Employee ID:</td>
+                        <td><strong>{{ payroll.employee.employee_id }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Department:</td>
+                        <td>{{ payroll.employee.department|default:"—" }}</td>
+                    </tr>
+                </table>
+            </div>
+            <div class="col-md-6">
+                <table class="table table-sm table-borderless mb-0">
+                    <tr>
+                        <td class="text-muted" width="45%">Designation:</td>
+                        <td>{{ payroll.employee.designation|default:"—" }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Payroll Month:</td>
+                        <td><strong>{{ payroll.month|stringformat:"02d" }}/{{ payroll.year }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Status:</td>
+                        <td>
+                            {% if payroll.status == 'paid' %}
+                                <span class="badge bg-success">Paid</span>
+                            {% elif payroll.status == 'processed' %}
+                                <span class="badge bg-primary">Processed</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Draft</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <!-- Attendance & Leave Summary -->
+        <h6 class="fw-bold text-primary mb-3">
+            <i class="fas fa-calendar-alt me-1"></i> Attendance & Leave
+        </h6>
+        <div class="row mb-4 text-center">
+            <div class="col">
+                <div class="border rounded p-2">
+                    <div class="text-muted small">Working Days</div>
+                    <div class="fw-bold fs-5">{{ payroll.working_days }}</div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="border rounded p-2">
+                    <div class="text-muted small">Present</div>
+                    <div class="fw-bold fs-5 text-success">{{ payroll.present_days }}</div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="border rounded p-2">
+                    <div class="text-muted small">Absent</div>
+                    <div class="fw-bold fs-5 text-danger">{{ payroll.absent_days }}</div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="border rounded p-2">
+                    <div class="text-muted small">Paid Leave</div>
+                    <div class="fw-bold fs-5 text-info">{{ payroll.paid_leave_days }}</div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="border rounded p-2">
+                    <div class="text-muted small">Unpaid Leave</div>
+                    <div class="fw-bold fs-5 text-danger">{{ payroll.unpaid_leave_days }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Earnings & Deductions -->
+        <div class="row">
+            <!-- Earnings -->
+            <div class="col-md-6">
+                <h6 class="fw-bold text-success mb-3">
+                    <i class="fas fa-arrow-up me-1"></i> Earnings
+                </h6>
+                <table class="table table-sm">
+                    <tbody>
+                        <tr>
+                            <td>Basic Salary</td>
+                            <td class="text-end">₹{{ payroll.basic_salary|floatformat:2 }}</td>
+                        </tr>
+                        <tr>
+                            <td>HRA</td>
+                            <td class="text-end">₹{{ payroll.hra|floatformat:2 }}</td>
+                        </tr>
+                        <tr>
+                            <td>Allowance</td>
+                            <td class="text-end">₹{{ payroll.allowance|floatformat:2 }}</td>
+                        </tr>
+                        {% if payroll.overtime_amount and payroll.overtime_amount > 0 %}
+                        <tr>
+                            <td>
+                                Overtime Earnings
+                                <small class="text-muted">({{ payroll.overtime_hours|floatformat:2 }} hrs × ₹{{ payroll.overtime_rate|floatformat:2 }})</small>
+                            </td>
+                            <td class="text-end text-primary">₹{{ payroll.overtime_amount|floatformat:2 }}</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="fw-bold border-top">
+                            <td>Total Earnings</td>
+                            <td class="text-end text-success">
+                                ₹{{ payroll.gross_salary|add:payroll.overtime_amount|floatformat:2 }}
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <!-- Deductions -->
+            <div class="col-md-6">
+                <h6 class="fw-bold text-danger mb-3">
+                    <i class="fas fa-arrow-down me-1"></i> Deductions
+                </h6>
+                <table class="table table-sm">
+                    <tbody>
+                        {% if payroll.absent_deduction and payroll.absent_deduction > 0 %}
+                        <tr>
+                            <td>
+                                Absent Deduction
+                                <small class="text-muted">({{ payroll.absent_days }} days)</small>
+                            </td>
+                            <td class="text-end text-danger">₹{{ payroll.absent_deduction|floatformat:2 }}</td>
+                        </tr>
+                        {% endif %}
+
+                        {% if payroll.unpaid_leave_deduction and payroll.unpaid_leave_deduction > 0 %}
+                        <tr>
+                            <td>
+                                Unpaid Leave Deduction
+                                <small class="text-muted">({{ payroll.unpaid_leave_days }} days)</small>
+                            </td>
+                            <td class="text-end text-danger">₹{{ payroll.unpaid_leave_deduction|floatformat:2 }}</td>
+                        </tr>
+                        {% endif %}
+
+                        {% if payroll.other_deduction and payroll.other_deduction > 0 %}
+                        <tr>
+                            <td>Other Deduction</td>
+                            <td class="text-end text-danger">₹{{ payroll.other_deduction|floatformat:2 }}</td>
+                        </tr>
+                        {% endif %}
+
+                        {% if not payroll.absent_deduction and not payroll.unpaid_leave_deduction and not payroll.other_deduction %}
+                        <tr>
+                            <td colspan="2" class="text-muted text-center">No deductions</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="fw-bold border-top">
+                            <td>Total Deduction</td>
+                            <td class="text-end text-danger">
+                                ₹{{ payroll.absent_deduction|add:payroll.unpaid_leave_deduction|add:payroll.other_deduction|floatformat:2 }}
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+        <!-- Net Payable -->
+        <div class="border-top border-2 pt-3 mt-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">Net Payable</h4>
+                <h3 class="mb-0 text-success fw-bold">
+                    ₹{{ payroll.net_salary|floatformat:2 }}
+                </h3>
+            </div>
+            <div class="text-muted small mt-1">
+                Net Payable in words: <em>{{ net_in_words }}</em>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
+            <div class="text-muted small">
+                <i class="fas fa-clock me-1"></i>
+                Generated: {{ payroll.updated_at|date:"d M Y, H:i A" }}
+            </div>
+            <div>
+                <a href="{% url 'payslip_pdf' payroll.id %}" class="btn btn-danger btn-sm">
+                    <i class="fas fa-file-pdf me-1"></i> Download PDF
+                </a>
+                <a href="{% url 'payroll_list' %}" class="btn btn-outline-secondary btn-sm">
+                    <i class="fas fa-arrow-left me-1"></i> Back
+                </a>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

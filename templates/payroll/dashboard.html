@@ -1,0 +1,145 @@
+{% extends 'payroll/base_payroll.html' %}
+
+{% block payroll_content %}
+
+<!-- Top Stats Cards -->
+<div class="row g-4">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <h6 class="text-muted">Total Employees</h6>
+                <h3 class="fw-bold">{{ total_employees }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <h6 class="text-muted">With Salary</h6>
+                <h3 class="fw-bold text-success">{{ employees_with_salary }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <h6 class="text-muted">Without Salary</h6>
+                <h3 class="fw-bold text-warning">{{ employees_without_salary }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <h6 class="text-muted">Total Net Payable</h6>
+                <h3 class="fw-bold text-primary">₹{{ total_net|floatformat:0 }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4 g-4">
+    <!-- Salary Configuration Breakdown -->
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-transparent border-0 pt-3">
+                <h6 class="mb-0">
+                    <i class="fas fa-money-bill-wave text-primary me-2"></i>
+                    Salary Configuration
+                </h6>
+                <small class="text-muted">Based on active salaries</small>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between py-2 border-bottom">
+                    <span>Basic Salary</span>
+                    <span class="fw-bold">₹{{ total_basic|floatformat:0 }}</span>
+                </div>
+                <div class="d-flex justify-content-between py-2 border-bottom">
+                    <span>HRA</span>
+                    <span class="fw-bold">₹{{ total_hra|floatformat:0 }}</span>
+                </div>
+                <div class="d-flex justify-content-between py-2 border-bottom">
+                    <span>Allowance</span>
+                    <span class="fw-bold text-success">₹{{ total_allowance|floatformat:0 }}</span>
+                </div>
+                <div class="d-flex justify-content-between py-2">
+                    <span><strong>Gross Salary</strong></span>
+                    <span class="fw-bold text-primary" style="font-size:1.2rem;">
+                        ₹{{ total_gross|floatformat:0 }}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payroll Totals -->
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-transparent border-0 pt-3">
+                <h6 class="mb-0">
+                    <i class="fas fa-file-invoice-dollar text-success me-2"></i>
+                    Payroll Totals
+                </h6>
+                <small class="text-muted">Generated payrolls</small>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between py-2 border-bottom">
+                    <span>Overtime Earnings</span>
+                    <span class="fw-bold text-primary">₹{{ total_overtime|floatformat:0 }}</span>
+                </div>
+                <div class="d-flex justify-content-between py-2 border-bottom">
+                    <span>Unpaid Leave Deduction</span>
+                    <span class="fw-bold text-danger">₹{{ total_unpaid_leave_deduction|floatformat:0 }}</span>
+                </div>
+                <div class="d-flex justify-content-between py-2 border-bottom">
+                    <span>Other Deduction</span>
+                    <span class="fw-bold text-danger">₹{{ total_other_deduction|floatformat:0 }}</span>
+                </div>
+                <div class="d-flex justify-content-between py-2">
+                    <span><strong>Net Payable</strong></span>
+                    <span class="fw-bold text-success" style="font-size:1.2rem;">
+                        ₹{{ total_net|floatformat:0 }}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Payroll Status -->
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent border-0 pt-3">
+                <h6 class="mb-0">
+                    <i class="fas fa-tasks text-info me-2"></i>
+                    Payroll Status
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-4">
+                        <div class="border rounded p-3">
+                            <div class="text-muted small">Draft</div>
+                            <h3 class="mb-0 text-secondary">{{ draft_payroll }}</h3>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="border rounded p-3">
+                            <div class="text-muted small">Processed</div>
+                            <h3 class="mb-0 text-primary">{{ processed_payroll }}</h3>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="border rounded p-3">
+                            <div class="text-muted small">Paid</div>
+                            <h3 class="mb-0 text-success">{{ paid_payroll }}</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

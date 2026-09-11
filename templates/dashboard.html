@@ -17,15 +17,15 @@
                 <p class="opacity-75 mb-0">Here's your attendance overview for <strong>{{ today|date:"F Y" }}</strong></p>
                 <div class="mt-3 d-flex flex-wrap gap-2">
                     <span class="badge bg-white bg-opacity-20 text-white px-3 py-2 rounded-pill" style="font-weight:normal">
-                        <i class="fas fa-calendar-alt me-1"></i> {{ today|date:"l, d M Y" }}
+                        <i class="las la-calendar-alt me-1"></i> {{ today|date:"l, d M Y" }}
                     </span>
                     <span class="badge bg-white bg-opacity-20 text-white px-3 py-2 rounded-pill" id="liveTime" style="font-weight:normal">
-                        <i class="fas fa-clock me-1"></i> Loading...
+                        <i class="las la-clock me-1"></i> Loading...
                     </span>
                 </div>
             </div>
             <div class="col-md-4 text-end d-none d-md-block">
-                <i class="fas fa-chart-line" style="font-size: 4rem; opacity: 0.3;"></i>
+                <i class="las la-chart-line" style="font-size: 4rem; opacity: 0.3;"></i>
             </div>
         </div>
     </div>
@@ -35,12 +35,12 @@
 <div class="row g-4 mb-4">
 
     <!-- Admin Stats Cards (Superuser / HR Admin only) -->
-    {% if user.is_superuser or user.groups.filter.name == 'HR Admin' %}
+    {% if user.is_superuser or user|has_group:"HR Admin" %}
         <div class="col-6 col-lg-3">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body d-flex align-items-center">
                     <div class="rounded-circle bg-primary bg-opacity-10 p-3 me-3">
-                        <i class="fas fa-users text-primary fs-4"></i>
+                        <i class="las la-users text-primary fs-4"></i>
                     </div>
                     <div>
                         <h6 class="text-muted mb-0">Total Employees</h6>
@@ -53,7 +53,7 @@
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body d-flex align-items-center">
                     <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3">
-                        <i class="fas fa-check-circle text-success fs-4"></i>
+                        <i class="las la-check-circle text-success fs-4"></i>
                     </div>
                     <div>
                         <h6 class="text-muted mb-0">Present Today</h6>
@@ -66,7 +66,7 @@
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body d-flex align-items-center">
                     <div class="rounded-circle bg-warning bg-opacity-10 p-3 me-3">
-                        <i class="fas fa-user text-warning fs-4"></i>
+                        <i class="las la-user text-warning fs-4"></i>
                     </div>
                     <div>
                         <h6 class="text-muted mb-0">On Leave Today</h6>
@@ -79,7 +79,7 @@
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body d-flex align-items-center">
                     <div class="rounded-circle bg-warning bg-opacity-10 p-3 me-3">
-                        <i class="fas fa-clock text-warning fs-4"></i>
+                        <i class="las la-clock text-warning fs-4"></i>
                     </div>
                     <div>
                         <h6 class="text-muted mb-0">Pending Requests</h6>
@@ -96,7 +96,7 @@
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body d-flex align-items-center">
                     <div class="rounded-circle bg-primary bg-opacity-10 p-3 me-3">
-                        <i class="fas fa-users text-primary fs-4"></i>
+                        <i class="las la-users text-primary fs-4"></i>
                     </div>
                     <div>
                         <h6 class="text-muted mb-0">Total Team</h6>
@@ -109,7 +109,7 @@
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body d-flex align-items-center">
                     <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3">
-                        <i class="fas fa-check-circle text-success fs-4"></i>
+                        <i class="las la-check-circle text-success fs-4"></i>
                     </div>
                     <div>
                         <h6 class="text-muted mb-0">Present Today</h6>
@@ -122,7 +122,7 @@
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body d-flex align-items-center">
                     <div class="rounded-circle bg-warning bg-opacity-10 p-3 me-3">
-                        <i class="fas fa-user text-warning fs-4"></i>
+                        <i class="las la-user text-warning fs-4"></i>
                     </div>
                     <div>
                         <h6 class="text-muted mb-0">On Leave Today</h6>
@@ -135,7 +135,7 @@
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body d-flex align-items-center">
                     <div class="rounded-circle bg-warning bg-opacity-10 p-3 me-3">
-                        <i class="fas fa-clock text-warning fs-4"></i>
+                        <i class="las la-clock text-warning fs-4"></i>
                     </div>
                     <div>
                         <h6 class="text-muted mb-0">Pending Requests</h6>
@@ -161,7 +161,7 @@
                         <span class="text-muted small">Leave requests awaiting approval</span>
                     </div>
                     <div class="rounded-circle bg-warning bg-opacity-10 p-3">
-                        <i class="fas fa-clock text-warning fs-4"></i>
+                        <i class="las la-clock text-warning fs-4"></i>
                     </div>
                 </div>
             </div>
@@ -183,7 +183,7 @@
                         {% endif %}
                     </div>
                     <div class="rounded-circle bg-success bg-opacity-10 p-3">
-                        <i class="fas fa-calendar-alt text-success fs-4"></i>
+                        <i class="las la-calendar-alt text-success fs-4"></i>
                     </div>
                 </div>
             </div>
@@ -277,7 +277,7 @@
                 <div class="mt-3 d-flex flex-wrap align-items-center gap-3">
                     {% if not today_attendance or today_attendance.state == 'checked_out' %}
                         <button id="clock-in-btn" class="btn btn-success btn-lg rounded-pill px-5" onclick="getLocationAndClockIn()">
-                            <i class="fas fa-sign-in-alt me-2"></i> Clock In
+                            <i class="las la-sign-in-alt me-2"></i> Clock In
                         </button>
                         <span class="text-muted small">
                             <i class="fas fa-info-circle me-1"></i>
@@ -289,7 +289,7 @@
                         </span>
                     {% elif today_attendance and today_attendance.state == 'checked_in' %}
                         <a href="{% url 'clock_out' %}" class="btn btn-danger btn-lg rounded-pill px-5">
-                            <i class="fas fa-sign-out-alt me-2"></i> Clock Out
+                            <i class="las la-sign-out-alt me-2"></i> Clock Out
                         </a>
                         <span class="badge bg-warning text-dark d-flex align-items-center px-3 py-2 rounded-pill">
                             {% if late_minutes > 0 %}
@@ -314,7 +314,7 @@
         <div class="card border-0 shadow-sm rounded-3 h-100">
             <div class="card-body p-4">
                 <h5 class="card-title mb-3">
-                    <i class="fas fa-bolt text-primary me-2"></i> Quick Actions
+                    <i class="las la-bolt text-primary me-2"></i> Quick Actions
                 </h5>
                 <div class="d-flex flex-wrap gap-2">
                     <a href="{% url 'leave_apply' %}" class="btn btn-outline-primary rounded-pill px-4">
@@ -325,13 +325,13 @@
                     </a>
                     {% if user|is_admin_or_hr %}
                         <a href="{% url 'admin_leaves' %}" class="btn btn-outline-warning rounded-pill px-4">
-                            <i class="fas fa-check-double me-1"></i> Approvals
+                            <i class="las la-check-double me-1"></i> Approvals
                         </a>
                         <a href="{% url 'attendance_report' %}" class="btn btn-outline-info rounded-pill px-4">
-                            <i class="fas fa-chart-bar me-1"></i> Reports
+                            <i class="las la-chart-bar me-1"></i> Reports
                         </a>
                         <a href="{% url 'team_attendance' %}" class="btn btn-outline-success rounded-pill px-4">
-                            <i class="fas fa-users-cog me-1"></i> My Team
+                            <i class="las la-users-cog me-1"></i> My Team
                         </a>
                     {% endif %}
                 </div>
@@ -354,7 +354,7 @@
             <div class="card border-0 shadow-sm rounded-3 mb-4">
                 <div class="card-header bg-transparent border-0 pt-3">
                     <h5 class="mb-0">
-                        <i class="fas fa-calendar-week text-primary me-2"></i> This Week's Daily Attendance
+                        <i class="las la-calendar-week text-primary me-2"></i> This Week's Daily Attendance
                         <span class="badge bg-secondary ms-2">{{ week_start|date:"M d" }} – {{ week_end|date:"M d" }}</span>
                     </h5>
                 </div>
@@ -377,7 +377,7 @@
             <div class="card border-0 shadow-sm rounded-3 mb-4">
                 <div class="card-header bg-transparent border-0 pt-3">
                     <h5 class="mb-0">
-                        <i class="fas fa-calendar-week text-primary me-2"></i> Team Weekly Attendance
+                        <i class="las la-calendar-week text-primary me-2"></i> Team Weekly Attendance
                         <span class="badge bg-secondary ms-2">{{ week_start|date:"M d" }} – {{ week_end|date:"M d" }}</span>
                     </h5>
                 </div>
@@ -394,7 +394,7 @@
         <div class="card border-0 shadow-sm rounded-3 mb-4">
             <div class="card-header bg-transparent border-0 pt-3 d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
-                    <i class="fas fa-clock text-warning me-2"></i> Pending Leave Requests
+                    <i class="las la-clock text-warning me-2"></i> Pending Leave Requests
                     <span class="badge bg-warning ms-2">{{ pending_leave_requests|length }}</span>
                 </h5>
                 <a href="{% url 'admin_leaves' %}" class="btn btn-sm btn-outline-primary rounded-pill">
@@ -450,7 +450,7 @@
     <div class="card border-0 shadow-sm rounded-3">
         <div class="card-header bg-transparent border-0 pt-3 d-flex justify-content-between align-items-center">
             <h5 class="mb-0">
-                <i class="fas fa-calendar-check text-primary me-2"></i> Leave Balance
+                <i class="las la-calendar-check text-primary me-2"></i> Leave Balance
             </h5>
             <a href="{% url 'employee_leaves' %}" class="btn btn-sm btn-outline-primary rounded-pill">
                 View All <i class="fas fa-arrow-right ms-1"></i>
@@ -519,7 +519,7 @@
                                     <div class="d-flex justify-content-between small text-muted">
                                         <span>Available: <strong>{{ item.available }}</strong></span>
                                         {% if item.pending > 0 %}
-                                            <span class="text-warning"><i class="fas fa-clock me-1"></i>{{ item.pending }}</span>
+                                            <span class="text-warning"><i class="las la-clock me-1"></i>{{ item.pending }}</span>
                                         {% endif %}
                                     </div>
                                 </div>
@@ -529,7 +529,7 @@
                 </div>
             {% else %}
                 <div class="text-center py-3">
-                    <i class="fas fa-calendar-alt text-secondary mb-2 d-block" style="font-size: 2rem;"></i>
+                    <i class="las la-calendar-alt text-secondary mb-2 d-block" style="font-size: 2rem;"></i>
                     <p class="text-muted">No leave types configured yet.</p>
                 </div>
             {% endif %}
@@ -553,7 +553,7 @@
 <div class="card border-0 shadow-sm rounded-3 mb-4">
     <div class="card-header bg-transparent border-0 pt-3 d-flex flex-wrap justify-content-between align-items-center">
         <h5 class="mb-0">
-            <i class="fas fa-chart-line text-primary me-2"></i> Attendance Overview
+            <i class="las la-chart-line text-primary me-2"></i> Attendance Overview
         </h5>
         <div class="btn-group btn-group-sm" role="group">
             <button type="button" class="btn btn-outline-secondary period-btn active" data-period="week">This Week</button>
@@ -724,7 +724,7 @@
 <div class="card border-0 shadow-sm rounded-3 mb-4">
     <div class="card-header bg-transparent border-0 pt-3 d-flex flex-wrap justify-content-between align-items-center">
         <h5 class="mb-0">
-            <i class="fas fa-users text-primary me-2"></i> All Employees Attendance – {{ admin_selected_month_name }}
+            <i class="las la-users text-primary me-2"></i> All Employees Attendance – {{ admin_selected_month_name }}
             <span class="badge bg-primary ms-2">{{ all_employees_attendance|length }}</span>
         </h5>
         <div class="d-flex gap-1">
@@ -810,11 +810,11 @@
                             <td colspan="9" class="bg-light px-4 py-3">
                                 <div class="d-flex flex-wrap gap-2">
                                     {% if item.records %}
-                                        <span class="text-muted me-2"><i class="fas fa-clock me-1"></i> Attendance Records:</span>
+                                        <span class="text-muted me-2"><i class="las la-clock me-1"></i> Attendance Records:</span>
                                         {% for att in item.records %}
                                             <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-3 py-2">
-                                                <i class="fas fa-calendar-day me-1"></i> {{ att.date|date:"d M" }}
-                                                <i class="fas fa-clock ms-1 me-1"></i> {{ att.in_time }}
+                                                <i class="las la-calendar-day me-1"></i> {{ att.date|date:"d M" }}
+                                                <i class="las la-clock ms-1 me-1"></i> {{ att.in_time }}
                                                 {% if att.out_time != '--:--' %}
                                                     - {{ att.out_time }}
                                                 {% endif %}
@@ -831,7 +831,7 @@
                     {% empty %}
                         <tr>
                             <td colspan="9" class="text-center text-muted py-4">
-                                <i class="fas fa-inbox text-secondary" style="font-size: 2.5rem; display: block; margin-bottom: 0.5rem;"></i>
+                                <i class="las la-inbox text-secondary" style="font-size: 2.5rem; display: block; margin-bottom: 0.5rem;"></i>
                                 No attendance data available for this month.
                             </td>
                         </tr>
@@ -844,7 +844,7 @@
     <br>
     <div class="card-footer bg-transparent border-0 pt-0 pb-3 text-end">
         <a href="{% url 'team_attendance' %}" class="btn btn-sm btn-outline-primary rounded-pill">
-            <i class="fas fa-users-cog me-1"></i> View Full Team Summary
+            <i class="las la-users-cog me-1"></i> View Full Team Summary
         </a>
     </div>
 </div>
@@ -1015,7 +1015,7 @@ document.addEventListener('DOMContentLoaded', function() {
             hour12: true 
         });
         document.getElementById('current-time').textContent = timeStr;
-        document.getElementById('liveTime').innerHTML = '<i class="fas fa-clock me-1"></i> ' + timeStr;
+        document.getElementById('liveTime').innerHTML = '<i class="las la-clock me-1"></i> ' + timeStr;
     }
     setInterval(updateClock, 1000);
     updateClock();
@@ -1270,7 +1270,7 @@ function getLocationAndClockIn() {
 
 function resetButton(btn) {
     btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-sign-in-alt me-2"></i> Clock In';
+    btn.innerHTML = '<i class="las la-sign-in-alt me-2"></i> Clock In';
 }
 </script>
 

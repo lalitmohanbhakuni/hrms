@@ -10,6 +10,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href ="{% static 'css/custom.css' %}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/line-awesome/1.3.0/line-awesome/css/line-awesome.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
@@ -171,22 +172,22 @@
     <!-- SIDEBAR -->
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-brand">
-            <i class="fas fa-building"></i>
+            <i class="las la-building"></i>
             <span>HRMS</span>
         </div>
         <nav class="sidebar-nav">
             <a href="{% url 'dashboard' %}" class="nav-item {% if request.path == '/dashboard/' or request.path == '/' %}active{% endif %}">
-                <i class="fas fa-chart-pie"></i><span>Dashboard</span>
+                <i class="las la-chart-pie"></i><span>Dashboard</span>
             </a>
             <a href="{% url 'attendance_view' %}" class="nav-item {% if 'attendance' in request.path %}active{% endif %}">
-    <i class="fas fa-clock"></i><span>Attendance</span>
+    <i class="las la-clock"></i><span>Attendance</span>
 </a>
             {% if user.is_authenticated %}
                 <a href="{% url 'employee_leaves' %}" class="nav-item {% if 'employee-leaves' in request.path %}active{% endif %}">
-                    <i class="fas fa-calendar-check"></i><span>My Leaves</span>
+                    <i class="las la-calendar-check"></i><span>My Leaves</span>
                 </a>
                 <a href="{% url 'notification_list' %}" class="nav-item {% if 'notifications' in request.path %}active{% endif %}">
-                    <i class="fas fa-bell"></i><span>Notifications</span>
+                    <i class="las la-bell"></i><span>Notifications</span>
                 </a>
                 <!-- DEBUG: is_admin_or_hr = {{ user|is_admin_or_hr }} -->
                 {% if user|is_admin_or_hr %}
@@ -195,28 +196,38 @@
     padding: 8px 0 4px;
     margin-top: 10px; "> <small> Admin View </small> </div>
                     <a href="{% url 'team_attendance' %}" class="nav-item {% if 'team' in request.path %}active{% endif %}">
-                        <i class="fas fa-users-cog"></i><span>My Team</span>
+                        <i class="las la-users-cog"></i><span>My Team</span>
                     </a>    
                     
 
                     <a href="{% url 'admin_leaves' %}" class="nav-item {% if 'admin-leaves' in request.path %}active{% endif %}">
-                        <i class="fas fa-check-double"></i><span>Leave Approvals</span>
+                        <i class="las la-check-double"></i><span>Leave Approvals</span>
                     </a>
 
-                     {% if user.is_superuser or user.groups.filter.name == 'HR Admin' %}
+                   <!-- ===== PAYROLL MENU ===== -->
+                    {% if user.is_superuser or user|is_admin_or_hr %}
+                        {% if user.is_superuser or user.profile.company.payroll_enabled %}
+                            <a href="{% url 'payroll_dashboard' %}" class="nav-item {% if 'payroll' in request.path %}active{% endif %}">
+                                <i class="fas fa-coins"></i><span>Payroll</span>
+                            </a>
+                        {% endif %}
+                    {% endif %}
+
+
+                     {% if user.is_superuser or user|has_group:"HR Admin" %}
 
                         <a href="{% url 'leave_type_list' %}" class="nav-item {% if 'leave-types' in request.path %}active{% endif %}">
-                            <i class="fas fa-tags"></i><span>Leave Types</span>
+                            <i class="las la-tags"></i><span>Leave Types</span>
                         </a>
                         <a href="{% url 'holiday_list' %}" class="nav-item {% if 'holidays' in request.path %}active{% endif %}">
-                            <i class="fas fa-calendar-alt"></i><span>Holidays</span>
+                            <i class="las la-calendar-alt"></i><span>Holidays</span>
                         </a>
 
                         <a href="{% url 'employee_list' %}" class="nav-item {% if 'employees' in request.path %}active{% endif %}">
-                            <i class="fas fa-users"></i><span>Employees</span>
+                            <i class="las la-users"></i><span>Employees</span>
                         </a>
                         <a href="{% url 'attendance_report' %}" class="nav-item {% if 'attendance-report' in request.path %}active{% endif %}">
-                            <i class="fas fa-chart-bar"></i><span>Reports</span>
+                            <i class="las la-chart-bar"></i><span>Reports</span>
                         </a>
 
                     {% endif %}
@@ -238,14 +249,14 @@
                     <!-- NOTIFICATION BELL (Ajax enabled) -->
                     <div class="dropdown" data-bs-auto-close="outside" id="notificationDropdownWrapper">
                         <button class="bell-icon" id="notificationDropdownBtn" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="fas fa-bell"></i>
+                            <i class="las la-bell"></i>
                             {% if unread_count > 0 %}
                                 <span class="badge" id="notificationBadge">{{ unread_count }}</span>
                             {% endif %}
                         </button>
                         <div class="dropdown-menu dropdown-menu-end" id="notificationDropdownMenu">
                             <ul class="nav nav-tabs notification-tabs" id="notificationTabs">
-                                <li class="nav-item"><button class="nav-link active" id="notif-tab" data-bs-toggle="tab" data-bs-target="#notifPane" type="button"><i class="fas fa-bell me-1"></i> Notifications</button></li>
+                                <li class="nav-item"><button class="nav-link active" id="notif-tab" data-bs-toggle="tab" data-bs-target="#notifPane" type="button"><i class="las la-bell me-1"></i> Notifications</button></li>
                                 {% if user|is_admin_or_hr %}
                                 <li class="nav-item"><button class="nav-link" id="action-tab" data-bs-toggle="tab" data-bs-target="#actionPane" type="button"><i class="fas fa-tasks me-1"></i> Actions</button></li>
                                 {% endif %}
@@ -263,16 +274,16 @@
                                             </div>
                                         {% endfor %}
                                     {% else %}
-                                        <div class="text-center text-muted py-4"><i class="fas fa-inbox fa-2x mb-2 d-block"></i>No notifications</div>
+                                        <div class="text-center text-muted py-4"><i class="las la-inbox fa-2x mb-2 d-block"></i>No notifications</div>
                                     {% endif %}
                                 </div>
-                                {% if user|is_admin_or_hr and not user.groups.filter.name == 'HR Admin' %}
+                                {% if user|is_admin_or_hr and not user|has_group:"HR Admin" %}
                                     <div class="tab-pane" id="actionPane">
                                         <div id="pendingActionsList">
                                             {% if pending_actions %}
                                                 {% for leave in pending_actions %}
                                                     <div class="notification-item" data-leave-id="{{ leave.id }}">
-                                                        <div class="icon action"><i class="fas fa-clock"></i></div>
+                                                        <div class="icon action"><i class="las la-clock"></i></div>
                                                         <div class="content">
                                                             <div class="message">
                                                                 <strong>{{ leave.user.username }}</strong> requested 
@@ -289,7 +300,7 @@
                                                 {% endfor %}
                                             {% else %}
                                                 <div class="text-center text-muted py-4">
-                                                    <i class="fas fa-check-circle fa-2x mb-2 d-block"></i>No pending actions
+                                                    <i class="las la-check-circle fa-2x mb-2 d-block"></i>No pending actions
                                                 </div>
                                             {% endif %}
                                         </div>
@@ -334,22 +345,25 @@
                             <!-- START: Admin Setup Link -->
                             <!-- END: Admin Setup Link -->
                              
-                            <li><a class="dropdown-item" href="{% url 'profile' %}"><i class="fas fa-user"></i> Profile</a></li>
-                            <li><a class="dropdown-item" href="{% url 'setup' %}"><i class="fas fa-cog me-2"></i> Setup</a></li>
-                            <li><a class="dropdown-item" href="#"><i class="fas fa-cog"></i> Settings</a></li>
+                            <li><a class="dropdown-item" href="{% url 'profile' %}"><i class="las la-user"></i> Profile</a></li>
+                            {% if user.is_superuser or user|has_group:"HR Admin" %}
+
+                            <li><a class="dropdown-item" href="{% url 'setup' %}"><i class="las la-cog me-2"></i> Setup</a></li>
+                            {% endif %}
+                            <!-- <li><a class="dropdown-item" href="#"><i class="las la-cog"></i> Settings</a></li> -->
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <form method="post" action="{% url 'logout' %}" style="display:inline;">
                                     {% csrf_token %}
                                     <button type="submit" class="dropdown-item logout" style="border:none; background:none; width:100%; text-align:left;">
-                                        <i class="fas fa-sign-out-alt"></i> <span>Logout</span>
+                                        <i class="las la-sign-out-alt"></i> <span>Logout</span>
                                     </button>
                                 </form>
                             </li>
                         </ul>
                     </div>
                 {% else %}
-                    <a href="{% url 'login' %}" class="btn btn-primary btn-sm rounded-pill px-4"><i class="fas fa-sign-in-alt me-2"></i> Login</a>
+                    <a href="{% url 'login' %}" class="btn btn-primary btn-sm rounded-pill px-4"><i class="las la-sign-in-alt me-2"></i> Login</a>
                 {% endif %}
             </div>
         </header>

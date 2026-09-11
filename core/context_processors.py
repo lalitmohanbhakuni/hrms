@@ -16,3 +16,15 @@ def notification_context(request):
             'unread_count': notifications.count(),
         }
     return {}
+
+def company_context(request):
+    """
+    Makes current_company available to every template.
+    Useful for showing the company name in the header.
+    """
+    if request.user.is_authenticated:
+        return {
+            'current_company': getattr(request, 'user_company', None),
+            'is_platform_admin': request.user.is_superuser,
+        }
+    return {}

@@ -237,3 +237,255 @@ def can_approve_request(user, request_obj):
         return False
     
     return False
+
+def get_user_company(request):
+    """
+    Returns the current user's company.
+    Superuser → None (means "all companies").
+    """
+    if not request.user.is_authenticated:
+        return None
+    if request.user.is_superuser:
+        return None
+    return getattr(request, 'user_company', None)
+
+
+def get_company_filtered(request, queryset, company_field='company'):
+    """
+    Filter a queryset by the current user's company.
+
+    - Superuser → returns the queryset unchanged (sees all).
+    - HR Admin / Manager / Employee → filters by their company.
+    - No company → returns empty queryset.
+    """
+    if not request.user.is_authenticated:
+        return queryset.none()
+
+    # Superuser sees everything
+    if request.user.is_superuser:
+        return queryset
+
+    company = getattr(request, 'user_company', None)
+    if company is None:
+        return queryset.none()
+
+    # Apply company filter
+    return queryset.filter(**{company_field: company})
+
+
+def get_company_filtered(request, queryset, company_field=None):
+    """
+    Filter a queryset by the current user's company.
+    
+    - Superuser → returns queryset unchanged.
+    - HR Admin / Manager / Employee → filters by their company.
+    - No company → returns empty queryset.
+    
+    Auto-detects the company field:
+    - If model has 'company' FK → uses 'company'
+    - Otherwise (e.g., User) → uses 'profile__company'
+    """
+    if not request.user.is_authenticated:
+        return queryset.none()
+
+    # Superuser sees everything
+    if request.user.is_superuser:
+        return queryset
+
+    company = getattr(request, 'user_company', None)
+    if company is None:
+        return queryset.none()
+
+    # Auto-detect company field
+    if company_field is None:
+        model = queryset.model
+        try:
+            # Does the model have a direct 'company' field?
+            model._meta.get_field('company')
+            company_field = 'company'
+        except Exception:
+            # Assume User model (company via profile)
+            company_field = 'profile__company'
+
+    return queryset.filter(**{company_field: company})
+
+def calculate_monthly_payroll(employee, year, month, salary):
+    """
+    Calculate monthly payroll for one employee by REUSING
+    the existing overtime calculation from the Attendance module.
+
+    NOTE: `employee` here IS an EmployeeProfile (not a User).
+    """
+    from datetime import date, datetime, timedelta
+    from calendar import monthrange
+    from django.utils import timezone
+    from decimal import Decimal
+    from .models import Attendance, LeaveRequest, Holiday
+
+    first_day = date(year, month, 1)
+    _, last_day_num = monthrange(year, month)
+    last_day = date(year, month, last_day_num)
+
+    # ── Salary components ──
+    basic = Decimal(str(salary.basic_salary or 0))
+    hra = Decimal(str(salary.hra or 0))
+    allowance = Decimal(str(salary.allowance or 0))
+    gross = basic + hra + allowance
+    ot_rate = Decimal(str(salary.overtime_rate or 0))
+
+    # ✅ `employee` IS the profile — no `.profile`
+    company = employee.company
+    shift = employee.shift if employee.shift else None
+    user = employee.user
+
+    # ── Holidays ──
+    holidays = set(
+        Holiday.objects.filter(
+            company=company,
+            date__gte=first_day,
+            date__lte=last_day
+        ).values_list('date', flat=True)
+    )
+
+    # ── Working days ──
+    working_days = 0
+    for d in (first_day + timedelta(n) for n in range((last_day - first_day).days + 1)):
+        if d in holidays:
+            continue
+        if shift:
+            day_abbr = d.strftime('%a').lower()[:3]
+            if not getattr(shift, day_abbr, False):
+                continue
+        working_days += 1
+
+    # ── Attendance ──
+    attendances = Attendance.objects.filter(
+        user=user,
+        company=company,
+        date__year=year,
+        date__month=month
+    )
+
+    present_days = attendances.filter(status='Present').count()
+
+    # ── Overtime (reuses existing calculation) ──
+    overtime_minutes = 0
+    for att in attendances:
+        if att.check_in_time and att.check_out_time and shift:
+            if not shift.overtime_allowed:
+                continue
+            shift_end = timezone.make_aware(
+                datetime.combine(att.date, shift.end_time)
+            )
+            if att.check_out_time > shift_end:
+                ot_min = int((att.check_out_time - shift_end).total_seconds() // 60)
+                if shift.overtime_limit:
+                    limit_min = int(shift.overtime_limit * 60)
+                    if ot_min > limit_min:
+                        ot_min = limit_min
+                overtime_minutes += ot_min
+
+    overtime_hours = Decimal(str(round(overtime_minutes / 60, 2)))
+    overtime_amount = overtime_hours * ot_rate
+
+    # ── Leaves ──
+    leaves = LeaveRequest.objects.filter(
+        user=user,
+        company=company,
+        status='Approved',
+        start_date__lte=last_day,
+        end_date__gte=first_day
+    ).select_related('leave_type')
+
+    paid_leave_days = Decimal('0')
+    unpaid_leave_days = Decimal('0')
+
+    for leave in leaves:
+        start = max(leave.start_date, first_day)
+        end = min(leave.end_date, last_day)
+        duration = Decimal(str((end - start).days + 1))
+        if leave.is_half_day:
+            duration = Decimal('0.5')
+        is_paid = getattr(leave.leave_type, 'is_paid', True)
+        if is_paid:
+            paid_leave_days += duration
+        else:
+            unpaid_leave_days += duration
+
+    # ✅ MOVED OUTSIDE THE LOOP
+    # ── Absent days ──
+    absent_days = max(
+        0,
+        working_days - present_days - int(paid_leave_days) - int(unpaid_leave_days)
+    )
+
+    # ── Per-day salary ──
+    per_day = (gross / Decimal(str(working_days))) if working_days > 0 else Decimal('0')
+
+    # ── Deductions ──
+    absent_deduction = (per_day * Decimal(str(absent_days))).quantize(Decimal('0.01'))
+    unpaid_leave_deduction = (per_day * unpaid_leave_days).quantize(Decimal('0.01'))
+    other_deduction = Decimal('0')
+
+    total_deduction = absent_deduction + unpaid_leave_deduction + other_deduction
+    net_payable = gross + overtime_amount - total_deduction
+
+    return {
+        'basic_salary': basic,
+        'hra': hra,
+        'allowance': allowance,
+        'gross_salary': gross,
+        'working_days': working_days,
+        'present_days': present_days,
+        'absent_days': absent_days,
+        'paid_leave_days': paid_leave_days,
+        'unpaid_leave_days': unpaid_leave_days,
+        'overtime_hours': overtime_hours,
+        'overtime_rate': ot_rate,
+        'overtime_amount': overtime_amount,
+        'absent_deduction': absent_deduction,
+        'unpaid_leave_deduction': unpaid_leave_deduction,
+        'other_deduction': other_deduction,
+        'total_deduction': total_deduction,
+        'net_payable': net_payable,
+    }   
+
+
+def number_to_words(n):
+    """Convert a number to Indian-style words."""
+    n = int(n or 0)
+    ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+            'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
+            'Seventeen', 'Eighteen', 'Nineteen']
+    tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety']
+
+    if n == 0:
+        return 'Zero'
+
+    def two_digit(num):
+        if num < 20:
+            return ones[num]
+        return tens[num // 10] + ('' if num % 10 == 0 else ' ' + ones[num % 10])
+
+    def three_digit(num):
+        if num >= 100:
+            return ones[num // 100] + ' Hundred' + ('' if num % 100 == 0 else ' ' + two_digit(num % 100))
+        return two_digit(num)
+
+    parts = []
+    if n >= 10000000:
+        parts.append(two_digit(n // 10000000) + ' Crore')
+        n %= 10000000
+    if n >= 100000:
+        parts.append(two_digit(n // 100000) + ' Lakh')
+        n %= 100000
+    if n >= 1000:
+        parts.append(two_digit(n // 1000) + ' Thousand')
+        n %= 1000
+    if n > 0:
+        parts.append(three_digit(n))
+
+    return ' '.join(parts)
+    
+
+    

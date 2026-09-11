@@ -86,6 +86,29 @@ urlpatterns = [
 
     path('profile/', views.profile, name='profile'),
 
+
+
+    # ---------- Payroll URLs ----------
+    # Payroll Dashboard
+    path('payroll/', views.payroll_dashboard, name='payroll_dashboard'),
+
+    # Employee Salary
+    path('payroll/salary/', views.employee_salary_list, name='employee_salary_list'),
+    path('payroll/salary/add/', views.employee_salary_create, name='employee_salary_create'),
+    path('payroll/salary/edit/<int:pk>/', views.employee_salary_edit, name='employee_salary_edit'),
+
+    # Payroll Processing
+    path('payroll/process/', views.payroll_processing, name='payroll_processing'),
+    path('payroll/generate/', views.payroll_generate, name='payroll_generate'),
+    path('payroll/process/<int:pk>/', views.payroll_process, name='payroll_process'),
+    path('payroll/paid/<int:pk>/', views.payroll_paid, name='payroll_paid'),
+
+    # Payslips
+    path('payroll/payslips/', views.payroll_list, name='payroll_list'),
+    path('payroll/payslip/<int:pk>/', views.payslip_view, name='payslip_view'),
+    path('payroll/payslip/<int:pk>/pdf/', views.payslip_pdf, name='payslip_pdf'),
+
+
     
     # ---------- Password Reset ----------
     # ---------- Password Reset ----------

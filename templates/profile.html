@@ -13,7 +13,7 @@
                 <!-- Page Header -->
                 <div class="d-flex align-items-center gap-3 mb-4 pb-3 border-bottom">
                     <div class="rounded-circle bg-primary bg-opacity-10 p-3">
-                        <i class="fas fa-user-edit text-primary fs-3"></i>
+                        <i class="las la-user-edit text-primary fs-3"></i>
                     </div>
                     <div>
                         <h4 class="mb-0 fw-bold">Edit Profile</h4>
@@ -55,12 +55,12 @@
                                     </p>
                                     <!-- Quick Employee ID -->
                                     <p class="text-muted small mb-1">
-                                        <i class="fas fa-id-card me-1"></i> 
+                                        <i class="las la-id-card me-1"></i> 
                                         <strong>Employee ID:</strong> {{ profile.employee_id|default:"Not set" }}
                                     </p>
                                     <!-- Quick Shift Info -->
                                     <div class="mt-2 p-2 bg-light rounded-3">
-                                        <i class="fas fa-clock text-primary me-1"></i> 
+                                        <i class="las la-clock text-primary me-1"></i> 
                                         <strong>Shift:</strong> 
                                         <span class="text-muted">{{ profile.shift.name|default:"Not assigned" }}</span>
                                     </div>
@@ -77,7 +77,7 @@
                                 Contact your HR department if you need to update these.
                             </div>
 
-                            <h6 class="fw-bold text-primary mb-3"><i class="fas fa-user-circle me-2"></i> Basic Information</h6>
+                            <h6 class="fw-bold text-primary mb-3"><i class="las la-user-circle me-2"></i> Basic Information</h6>
                             <div class="row g-3">
                                 <div class="col-md-6">
                                     <label for="username" class="form-label fw-semibold">Username</label>
@@ -103,7 +103,7 @@
 
                             <hr class="my-4">
 
-                            <h6 class="fw-bold text-primary mb-3"><i class="fas fa-id-card me-2"></i> Personal Details</h6>
+                            <h6 class="fw-bold text-primary mb-3"><i class="las la-id-card me-2"></i> Personal Details</h6>
                             <div class="row g-3">
                                 <div class="col-md-6">
                                     <label for="full_name" class="form-label fw-semibold">Full Name</label>
@@ -117,7 +117,7 @@
                                 <!-- Employee ID (Read-Only, no name attribute) -->
                                 <div class="col-md-6">
                                     <label for="employee_id" class="form-label fw-semibold">
-                                        <i class="fas fa-id-card text-primary me-1"></i> Employee ID
+                                        <i class="las la-id-card text-primary me-1"></i> Employee ID
                                     </label>
                                     <input type="text" id="employee_id" class="form-control" 
                                            value="{{ profile.employee_id|default:'Not set' }}" 
@@ -146,7 +146,7 @@
                                 <!-- Shift Field (Read-Only) -->
                                 <div class="col-md-6">
                                     <label for="shift" class="form-label fw-semibold">
-                                        <i class="fas fa-clock text-primary me-1"></i> Assigned Shift
+                                        <i class="las la-clock text-primary me-1"></i> Assigned Shift
                                     </label>
                                     <input type="text" id="shift" class="form-control" 
                                            value="{{ profile.shift.name|default:'Not assigned' }}" 
@@ -159,7 +159,7 @@
                                 <div class="row g-3 mt-2">
                                     <div class="col-md-6">
                                         <label class="form-label fw-semibold">
-                                            <i class="fas fa-user-tag text-primary me-1"></i> Role
+                                            <i class="las la-user-tag text-primary me-1"></i> Role
                                         </label>
                                         <input type="text" class="form-control" 
                                             value="{{ profile.get_role_display|default:'Employee' }}" 
@@ -168,7 +168,7 @@
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label fw-semibold">
-                                            <i class="fas fa-user-tie text-primary me-1"></i> Manager
+                                            <i class="las la-user-tie text-primary me-1"></i> Manager
                                         </label>
                                         <input type="text" class="form-control" 
                                             value="{% if profile.manager %}{{ profile.manager.full_name }} ({{ profile.manager.employee_id }}){% else %}None{% endif %}" 

@@ -1,0 +1,97 @@
+{% extends 'payroll/base_payroll.html' %}
+
+{% block payroll_content %}
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        <h5 class="mb-3">{{ action }} Employee Salary</h5>
+        <form method="post">
+            {% csrf_token %}
+            <div class="row g-3">
+                {% if action == 'Add' %}
+                <div class="col-md-6">
+                    <label class="form-label">Employee</label>
+                    <select name="employee" class="form-select" required>
+                        <option value="">-- Select Employee --</option>
+                        {% for emp in employees %}
+                            <option value="{{ emp.id }}">
+                                {{ emp.full_name }} ({{ emp.employee_id }})
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% else %}
+                <div class="col-md-6">
+                    <label class="form-label">Employee</label>
+                    <input type="text" class="form-control" 
+                           value="{{ salary.employee.full_name }} ({{ salary.employee.employee_id }})" disabled>
+                </div>
+                {% endif %}
+                
+                <div class="col-md-6">
+                    <label class="form-label">Salary Type</label>
+                    <select name="salary_type" class="form-select" required>
+                        <option value="monthly" {% if salary.salary_type == 'monthly' %}selected{% endif %}>Monthly</option>
+                        <option value="daily" {% if salary.salary_type == 'daily' %}selected{% endif %}>Daily</option>
+                        <option value="hourly" {% if salary.salary_type == 'hourly' %}selected{% endif %}>Hourly</option>
+                    </select>
+                </div>
+                
+                <!-- Earnings -->
+                <div class="col-md-4">
+                    <label class="form-label">Basic Salary</label>
+                    <input type="number" name="basic_salary" step="0.01" class="form-control" 
+                           value="{{ salary.basic_salary|default:0 }}" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">HRA</label>
+                    <input type="number" name="hra" step="0.01" class="form-control" 
+                           value="{{ salary.hra|default:0 }}" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Allowance</label>
+                    <input type="number" name="allowance" step="0.01" class="form-control" 
+                           value="{{ salary.allowance|default:0 }}" required>
+                </div>
+
+                <!-- Overtime Rate (NEW) -->
+                <div class="col-md-4">
+                    <label class="form-label">
+                        Overtime Rate
+                        <small class="text-muted">(₹ per hour)</small>
+                    </label>
+                    <input type="number" name="overtime_rate" step="0.01" class="form-control" 
+                           value="{{ salary.overtime_rate|default:0 }}" required>
+                    <div class="form-text text-muted small">
+                        Amount paid per hour of approved overtime.
+                    </div>
+                </div>
+
+                <!-- ❌ REMOVED: Deduction field -->
+                
+                <div class="col-md-6">
+                    <label class="form-label">Effective From</label>
+                    <input type="date" name="effective_from" class="form-control" 
+                           value="{{ salary.effective_from|date:'Y-m-d'|default:'' }}" required>
+                </div>
+                
+                {% if action == 'Edit' %}
+                <div class="col-md-6">
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-select">
+                        <option value="active" {% if salary.status == 'active' %}selected{% endif %}>Active</option>
+                        <option value="inactive" {% if salary.status == 'inactive' %}selected{% endif %}>Inactive</option>
+                    </select>
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="mt-4 d-flex justify-content-end gap-2">
+                <a href="{% url 'employee_salary_list' %}" class="btn btn-outline-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-1"></i> {{ action }} Salary
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

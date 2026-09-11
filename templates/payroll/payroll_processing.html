@@ -1,0 +1,140 @@
+{% extends 'payroll/base_payroll.html' %}
+
+{% block payroll_content %}
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+        <h5>Payroll Processing</h5>
+        <p class="text-muted">Select month and year, review the calculation, then generate payroll.</p>
+
+        <form method="get" class="row g-3 mb-4">
+            <div class="col-md-3">
+                <label class="form-label">Month</label>
+                <select name="month" class="form-select">
+                    {% for m in months %}
+                        <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ m }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Year</label>
+                <select name="year" class="form-select">
+                    {% for y in years %}
+                        <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-search"></i> Load
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if payroll_data %}
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-transparent border-0 pt-3 d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">
+            <i class="fas fa-list text-primary me-2"></i>
+            Payroll Review — {{ month }}/{{ year }}
+            <span class="badge bg-secondary ms-2">{{ payroll_data|length }} employees</span>
+        </h6>
+        <form method="post" action="{% url 'payroll_generate' %}">
+            {% csrf_token %}
+            <input type="hidden" name="month" value="{{ month }}">
+            <input type="hidden" name="year" value="{{ year }}">
+            <button type="submit" class="btn btn-success btn-sm"
+                    onclick="return confirm('Generate payroll for {{ month }}/{{ year }}?')">
+                <i class="fas fa-cogs"></i> Generate Payroll
+            </button>
+        </form>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>#</th>
+                        <th>Employee</th>
+                        <th>ID</th>
+                        <th class="text-end">Basic</th>
+                        <th class="text-end">HRA</th>
+                        <th class="text-end">Allow.</th>
+                        <th class="text-end">Gross</th>
+                        <th class="text-center">WD</th>
+                        <th class="text-center">PD</th>
+                        <th class="text-center">PL</th>
+                        <th class="text-center">UL</th>
+                        <th class="text-center">OT hrs</th>
+                        <th class="text-end">OT Amt</th>
+                        <th class="text-end">UL Ded.</th>
+                        <th class="text-end">Net</th>
+                        <th class="text-center">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in payroll_data %}
+                        <tr>
+                            <td>{{ forloop.counter }}</td>
+                            <td><strong>{{ item.employee.full_name|default:item.employee.user.username }}</strong></td>
+                            <td>{{ item.employee.employee_id }}</td>
+                            <td class="text-end">₹{{ item.calc.basic_salary|floatformat:0 }}</td>
+                            <td class="text-end">₹{{ item.calc.hra|floatformat:0 }}</td>
+                            <td class="text-end">₹{{ item.calc.allowance|floatformat:0 }}</td>
+                            <td class="text-end fw-bold">₹{{ item.calc.gross_salary|floatformat:0 }}</td>
+                            <td class="text-center">{{ item.calc.working_days }}</td>
+                            <td class="text-center">{{ item.calc.present_days }}</td>
+                            <td class="text-center">{{ item.calc.paid_leave_days|floatformat:1 }}</td>
+                            <td class="text-center text-danger">{{ item.calc.unpaid_leave_days|floatformat:1 }}</td>
+                            <td class="text-center">
+                                {% if item.calc.overtime_hours > 0 %}
+                                    <span class="badge bg-info text-dark">{{ item.calc.overtime_hours }}h</span>
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                {% if item.calc.overtime_amount > 0 %}
+                                    ₹{{ item.calc.overtime_amount|floatformat:0 }}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+                            <td class="text-end text-danger">
+                                {% if item.calc.unpaid_leave_deduction > 0 %}
+                                    ₹{{ item.calc.unpaid_leave_deduction|floatformat:0 }}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+                            <td class="text-end fw-bold text-success">₹{{ item.calc.net_payable|floatformat:0 }}</td>
+                            <td class="text-center">
+                                {% if item.has_payroll %}
+                                    <span class="badge bg-success">Generated</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Draft</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% else %}
+<div class="card border-0 shadow-sm">
+    <div class="card-body text-center py-5">
+        <i class="fas fa-users fa-3x text-muted mb-3 d-block"></i>
+        <h5 class="text-muted">No employees with active salaries found</h5>
+        <p class="text-muted small">
+            Add employee salaries first from
+            <a href="{% url 'employee_salary_list' %}">Employee Salary</a>.
+        </p>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -1,43 +1,49 @@
-
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.contrib.auth.models import User
-from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.models import User, Group
 from django.contrib import messages
-from datetime import date, timedelta, datetime
-from django.http import HttpResponse, JsonResponse
-from calendar import monthrange
-from django.db.models import Q
-import calendar as cal
-from math import radians, sin, cos, sqrt, atan2
-
-from .models import Attendance, LeaveType, Holiday, LeaveRequest, Notification, RegularizationRequest, EmployeeProfile, Shift, Company, OfficeLocation
-from .forms import EmployeeForm
-from .decorators import admin_or_hr_required
-from .utils import get_approver, get_hr_admin, can_approve_request
-from django_ratelimit.decorators import ratelimit
-from django.contrib.auth.models import Group
-from .decorators import admin_or_hr_required, hr_admin_required
 from django.utils import timezone
+from django.http import HttpResponse, JsonResponse, FileResponse
+from django.db.models import Q, Sum, Count
+from datetime import date, timedelta, datetime
+from decimal import Decimal
+from calendar import monthrange
+from io import BytesIO
+from math import radians, sin, cos, sqrt, atan2
 import csv
-from datetime import datetime
 
-from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch, cm
-from reportlab.pdfgen import canvas
-from io import BytesIO
-from django.http import FileResponse
+
+from django_ratelimit.decorators import ratelimit
+
+from .models import (
+    Attendance, LeaveType, Holiday, LeaveRequest, Notification,
+    RegularizationRequest, EmployeeProfile, Shift, Company,
+    OfficeLocation, EmployeeSalary, Payroll
+)
+from .forms import EmployeeForm
+from .decorators import (
+    admin_or_hr_required, hr_admin_required,
+    company_required, payroll_required
+)
+from .utils import (
+    get_approver, get_hr_admin, can_approve_request,
+    get_company_filtered, get_user_company
+)
+
+
+
 
 
 
 
 def haversine(lat1, lon1, lat2, lon2):
-    """Returns distance in meters between two GPS coordinates."""
-    R = 6371000  # Earth's radius in meters
+    R = 6371000
     lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
     dlat = lat2 - lat1
     dlon = lon2 - lon1
@@ -46,7 +52,6 @@ def haversine(lat1, lon1, lat2, lon2):
     return R * c
 
 
-# ---------- Helper: Notification Functions ----------
 def create_notification(user, message, notification_type='info', related_object=None):
     Notification.objects.create(
         user=user,
@@ -56,44 +61,72 @@ def create_notification(user, message, notification_type='info', related_object=
         related_object_type=related_object._meta.model_name if related_object else None,
     )
 
+
 def notify_admins(message, notification_type='info', related_object=None):
     for admin in User.objects.filter(is_superuser=True):
         create_notification(admin, message, notification_type, related_object)
 
 
-# ---------- Login & Logout ----------
-@ratelimit(key='ip', rate='5/m', method='POST')  # 5 attempts per minute per IP
+
+@ratelimit(key='ip', rate='5/m', method='POST')
 def login_view(request):
     if request.method == 'POST':
-        # Check if rate limit exceeded
         if request.limited:
             messages.error(request, 'Too many login attempts. Please try again after 1 minute.')
             return render(request, 'login.html')
-        
-        username = request.POST.get('username')
-        password = request.POST.get('password')
-        user = authenticate(request, username=username, password=password)
-        
+
+        login_input = request.POST.get('username', '').strip()
+        password = request.POST.get('password', '')
+
+        # 1) Try username first
+        user = authenticate(request, username=login_input, password=password)
+
+        # 2) If that fails, try to find by employee_id
+        if user is None:
+            from .models import EmployeeProfile
+            try:
+                profile = EmployeeProfile.objects.get(employee_id__iexact=login_input)
+                user = authenticate(request, username=profile.user.username, password=password)
+            except EmployeeProfile.DoesNotExist:
+                user = None
+            except EmployeeProfile.MultipleObjectsReturned:
+                user = None
+
+        # 3) If that fails, try to find by email
+        if user is None:
+            try:
+                from django.contrib.auth.models import User
+                u = User.objects.get(email__iexact=login_input)
+                user = authenticate(request, username=u.username, password=password)
+            except Exception:
+                user = None
+
         if user is not None:
             login(request, user)
             return redirect('dashboard')
         else:
-            messages.error(request, 'Invalid username or password.')
-    
+            messages.error(request, 'Invalid credentials. Try your username, employee ID, or email.')
+
     return render(request, 'login.html')
 
 
+# ✅ ADD THIS RIGHT HERE
 def logout_view(request):
     logout(request)
     return redirect('login')
+
+
 
 
 # ---------- Dashboard ----------
 
 @login_required
 def dashboard(request):
+    from .utils import get_company_filtered, get_user_company
+    
     user = request.user
     today = date.today()
+    current_company = get_user_company(request)   # ✅ NEW
 
     month_str = request.GET.get('month', '')
     year_str = request.GET.get('year', '')
@@ -186,7 +219,8 @@ def dashboard(request):
     pending_leaves = LeaveRequest.objects.filter(user=user, status='Pending').count()
 
     # ---------- Leave Balance ----------
-    leave_types = LeaveType.objects.filter(is_active=True)
+    # ✅ Company-filtered leave types
+    leave_types = get_company_filtered(request, LeaveType.objects.filter(is_active=True))
     leave_balance = []
     total_available = 0
     total_used = 0
@@ -217,11 +251,14 @@ def dashboard(request):
             pass
 
     # ---------- Pending Actions Count & List (Team-based) ----------
-    # Superuser & HR Admin: only see manager‑less employees
+    # ✅ Company-scoped for superuser & HR Admin
     if user.is_superuser or user.groups.filter(name='HR Admin').exists():
-        admin_requests = LeaveRequest.objects.filter(
-            status='Pending',
-            user__profile__manager__isnull=True
+        admin_requests = get_company_filtered(
+            request,
+            LeaveRequest.objects.filter(
+                status='Pending',
+                user__profile__manager__isnull=True
+            )
         )
         pending_actions_count = admin_requests.count()
         pending_leave_requests = admin_requests.order_by('-applied_on')[:10]
@@ -235,9 +272,20 @@ def dashboard(request):
                 date__month=admin_month
             ).select_related('user').order_by('user__username', 'date')
         else:
-            all_today_attendance = None
-            all_employees = None
-            all_employees_attendance = None
+            # ✅ HR Admin: scoped to their company
+            all_today_attendance = get_company_filtered(
+                request, Attendance.objects.filter(date=today)
+            ).select_related('user')
+            all_employees = User.objects.filter(
+                is_superuser=False, profile__company=current_company
+            ).order_by('username')
+            all_employees_attendance = get_company_filtered(
+                request,
+                Attendance.objects.filter(
+                    date__year=admin_year,
+                    date__month=admin_month
+                )
+            ).select_related('user').order_by('user__username', 'date')
 
     elif user.groups.filter(name='Manager').exists():
         # Manager → see only their team's pending requests
@@ -310,8 +358,12 @@ def dashboard(request):
     attendance_chart_absent = []
     attendance_chart_half = []
 
-    if user.is_superuser:
-        year_attendances = Attendance.objects.filter(date__year=today.year)
+    if user.is_superuser or user.groups.filter(name='HR Admin').exists():
+        # ✅ Company-filtered attendance base
+        year_attendances = get_company_filtered(
+            request,
+            Attendance.objects.filter(date__year=today.year)
+        )
         for month_num in range(1, 13):
             month_attendances = year_attendances.filter(date__month=month_num)
             month_name = date(today.year, month_num, 1).strftime('%b')
@@ -339,9 +391,12 @@ def dashboard(request):
     manager_weekly_day_half = [0, 0, 0, 0, 0, 0, 0]
     manager_weekly_day_onleave = [0, 0, 0, 0, 0, 0, 0]
 
-    # ---------- ADMIN CHART (Superuser only) ----------
-    if user.is_superuser:
-        total_employees = User.objects.filter(is_superuser=False).count()
+    # ---------- ADMIN CHART (Superuser / HR Admin) ----------
+    if user.is_superuser or user.groups.filter(name='HR Admin').exists():
+        total_employees = get_company_filtered(
+            request,
+            User.objects.filter(is_superuser=False)
+        ).count()
         weekly_days = []
         weekly_day_present = []
         weekly_day_absent = []
@@ -351,21 +406,30 @@ def dashboard(request):
         for i in range(7):
             day = start_of_week + timedelta(days=i)
             if day <= today:
-                present = Attendance.objects.filter(
-                    date=day,
-                    status='Present',
-                    user__is_superuser=False
+                present = get_company_filtered(
+                    request,
+                    Attendance.objects.filter(
+                        date=day,
+                        status='Present',
+                        user__is_superuser=False
+                    )
                 ).values('user').distinct().count()
-                half = Attendance.objects.filter(
-                    date=day,
-                    status='Half-Day',
-                    user__is_superuser=False
+                half = get_company_filtered(
+                    request,
+                    Attendance.objects.filter(
+                        date=day,
+                        status='Half-Day',
+                        user__is_superuser=False
+                    )
                 ).values('user').distinct().count()
-                on_leave = LeaveRequest.objects.filter(
-                    status='Approved',
-                    start_date__lte=day,
-                    end_date__gte=day,
-                    user__is_superuser=False
+                on_leave = get_company_filtered(
+                    request,
+                    LeaveRequest.objects.filter(
+                        status='Approved',
+                        start_date__lte=day,
+                        end_date__gte=day,
+                        user__is_superuser=False
+                    )
                 ).values('user').distinct().count()
                 absent = total_employees - present - on_leave
             else:
@@ -429,7 +493,10 @@ def dashboard(request):
 
     # ---------- TOTAL EMPLOYEES (for non-superuser) ----------
     if not user.is_superuser:
-        total_employees = User.objects.filter(is_superuser=False).count()
+        total_employees = get_company_filtered(
+            request,
+            User.objects.filter(is_superuser=False)
+        ).count()
 
     # ---- Month navigation ----
     prev_month = month - 1 if month > 1 else 12
@@ -449,20 +516,32 @@ def dashboard(request):
     admin_base_params = f"admin_month={admin_month}&admin_year={admin_year}"
 
     # ---------- Dashboard Stats ----------
-    present_today = Attendance.objects.filter(
-        date=today,
-        status='Present',
-        user__is_superuser=False
+    # ✅ Company-filtered
+    present_today = get_company_filtered(
+        request,
+        Attendance.objects.filter(
+            date=today,
+            status='Present',
+            user__is_superuser=False
+        )
     ).values('user').distinct().count()
 
     absent_today = total_employees - present_today
 
-    next_holiday = Holiday.objects.filter(date__gte=today).order_by('date').first()
+    # ✅ Company-filtered holiday
+    next_holiday = get_company_filtered(
+        request,
+        Holiday.objects.filter(date__gte=today)
+    ).order_by('date').first()
 
-    on_leave_today = LeaveRequest.objects.filter(
-        status='Approved',
-        start_date__lte=today,
-        end_date__gte=today
+    # ✅ Company-filtered on-leave count
+    on_leave_today = get_company_filtered(
+        request,
+        LeaveRequest.objects.filter(
+            status='Approved',
+            start_date__lte=today,
+            end_date__gte=today
+        )
     ).values('user').distinct().count()
 
     today_total_seconds = 0
@@ -474,11 +553,19 @@ def dashboard(request):
     employee_data = []
 
     if user.is_superuser or user.groups.filter(name='HR Admin').exists():
-        # Get all employees (non-superuser)
-        employees = User.objects.filter(is_superuser=False).order_by('username')
-        attendances = Attendance.objects.filter(
-            date__year=admin_year,
-            date__month=admin_month
+        # ✅ Company-scoped employees
+        employees = get_company_filtered(
+            request,
+            User.objects.filter(is_superuser=False)
+        ).order_by('username')
+        
+        # ✅ Company-scoped attendances
+        attendances = get_company_filtered(
+            request,
+            Attendance.objects.filter(
+                date__year=admin_year,
+                date__month=admin_month
+            )
         ).select_related('user')
         
         for emp in employees:
@@ -596,6 +683,8 @@ def dashboard(request):
 
 @login_required
 def clock_in(request):
+    from .utils import get_user_company
+    
     if request.method == 'POST':
         user = request.user
         today = date.today()
@@ -612,6 +701,9 @@ def clock_in(request):
         if not profile:
             messages.error(request, 'Employee profile not found.')
             return redirect('dashboard')
+        
+        # ✅ Auto-assign company from the employee's profile
+        company = profile.company
         
         attendance_type = profile.attendance_type
         check_in_lat = None
@@ -666,14 +758,16 @@ def clock_in(request):
             # Re-check-in after being checked out
             attendance.check_in_time = timezone.now()
             attendance.state = 'checked_in'
+            attendance.company = company                # ✅ ensure company is set
             attendance.check_in_latitude = check_in_lat
             attendance.check_in_longitude = check_in_lng
             attendance.check_in_distance = check_in_dist
             attendance.save()
         else:
-            # New check-in
+            # New check-in – ✅ assign company
             attendance = Attendance.objects.create(
                 user=request.user,
+                company=company,                        # ✅ auto-assign
                 check_in_time=timezone.now(),
                 state='checked_in',
                 total_working_time=timedelta(0),
@@ -682,7 +776,6 @@ def clock_in(request):
                 check_in_distance=check_in_dist,
             )
         
-        # ----- FIX: Indent these lines correctly -----
         local_time = timezone.localtime(attendance.check_in_time)
         messages.success(request, f'Clocked in at {local_time.strftime("%I:%M:%S %p")}')
         return redirect('dashboard')
@@ -739,33 +832,46 @@ def is_admin(user):
 # ---------- Employee Management ----------
 
 @login_required
-@hr_admin_required   # <-- Changed from @admin_or_hr_required
+@hr_admin_required
+@company_required
 def employee_list(request):
-    employees = User.objects.all().order_by('username')
+    employees = get_company_filtered(
+        request,
+        User.objects.filter(is_superuser=False)
+    ).order_by('username')
     return render(request, 'employee_list.html', {'employees': employees})
 
 
 
 @login_required
 @hr_admin_required
+@company_required
 def employee_create(request):
+    from .utils import get_user_company
+    
     if request.method == 'POST':
         form = EmployeeForm(request.POST)
         if form.is_valid():
-            # ---- Step 1: Create the User ----
             username = form.cleaned_data['username']
             email = form.cleaned_data['email']
             password = form.cleaned_data['password1']
             
             user = User.objects.create_user(
-                username=username,
-                email=email,
-                password=password
+                username=username, email=email, password=password
             )
             
-            # ---- Step 2: Create the Profile (without employee_id yet) ----
+            # ✅ Auto-assign company from HR Admin's company
+            company = get_user_company(request)
+            if not company and request.user.is_superuser:
+                # Superuser must pick a company from form
+                company_id = request.POST.get('company')
+                if company_id:
+                    from .models import Company
+                    company = Company.objects.filter(id=company_id).first()
+            
             profile = EmployeeProfile(
                 user=user,
+                company=company,   # ✅ company assigned here
                 full_name=form.cleaned_data['full_name'],
                 date_of_birth=form.cleaned_data.get('date_of_birth'),
                 date_of_joining=form.cleaned_data.get('date_of_joining'),
@@ -778,77 +884,50 @@ def employee_create(request):
                 role=form.cleaned_data.get('role', 'employee'),
             )
             
-            # ---- Step 3: Auto‑generate employee_id (FIXED) ----
-            if hasattr(request.user, 'profile') and request.user.profile and request.user.profile.company:
-                company = request.user.profile.company
-            else:
-                company = Company.objects.first()
-            
+            # Auto-generate employee_id within the company
             if company:
                 prefix = company.code_prefix
-                # ✅ Get the maximum numeric value from existing employee_ids
                 existing_ids = EmployeeProfile.objects.filter(
-                    company=company,
-                    employee_id__startswith=prefix
+                    company=company, employee_id__startswith=prefix
                 ).values_list('employee_id', flat=True)
-                
                 max_num = 0
                 for emp_id in existing_ids:
                     try:
                         num = int(emp_id[len(prefix):])
-                        if num > max_num:
-                            max_num = num
+                        if num > max_num: max_num = num
                     except ValueError:
                         continue
-                
-                next_num = max_num + 1
-                profile.employee_id = f"{prefix}{next_num:03d}"
-                profile.company = company
+                profile.employee_id = f"{prefix}{max_num + 1:03d}"
             else:
-                # Fallback: no company
-                existing_ids = EmployeeProfile.objects.values_list('employee_id', flat=True)
-                max_num = 0
-                for emp_id in existing_ids:
-                    if emp_id.startswith('EMP'):
-                        try:
-                            num = int(emp_id[3:])
-                            if num > max_num:
-                                max_num = num
-                        except ValueError:
-                            continue
-                next_num = max_num + 1
-                profile.employee_id = f"EMP{next_num:04d}"
+                profile.employee_id = f"EMP{EmployeeProfile.objects.count() + 1:04d}"
             
-            # ---- Step 4: Save the profile ----
             profile.save()
-
-            # ---- Assign manager if provided ----
+            
+            # Manager assignment
             manager_id = request.POST.get('manager')
             if manager_id:
                 profile.manager_id = manager_id
                 profile.save(update_fields=['manager_id'])
             
-            # ---- Step 5: Assign shift if provided ----
+            # Shift assignment
             shift_id = request.POST.get('shift')
             if shift_id:
                 profile.shift_id = shift_id
                 profile.save(update_fields=['shift_id'])
             
-            # ---- Step 6: Assign role and add to group ----
+            # Role → group
             from django.contrib.auth.models import Group
-            
             role = request.POST.get('role', 'employee')
             if role == 'manager':
-                group, _ = Group.objects.get_or_create(name='Manager')
-                user.groups.add(group)
+                grp, _ = Group.objects.get_or_create(name='Manager')
+                user.groups.add(grp)
             elif role == 'hr_admin':
-                group, _ = Group.objects.get_or_create(name='HR Admin')
-                user.groups.add(group)
+                grp, _ = Group.objects.get_or_create(name='HR Admin')
+                user.groups.add(grp)
             else:
-                # Employee – remove from all admin groups
                 user.groups.clear()
             
-            messages.success(request, f'Employee {profile.full_name} created successfully! Employee ID: {profile.employee_id}')
+            messages.success(request, f'Employee {profile.full_name} created. ID: {profile.employee_id}')
             return redirect('employee_list')
         else:
             for field, errors in form.errors.items():
@@ -857,10 +936,13 @@ def employee_create(request):
     else:
         form = EmployeeForm()
     
-    shifts = Shift.objects.all().order_by('name')
-    offices = OfficeLocation.objects.filter(is_active=True)
-    all_managers = EmployeeProfile.objects.filter(
-        role__in=['manager', 'hr_admin']
+    # Filter dropdowns by company
+    from .utils import get_company_filtered
+    shifts = get_company_filtered(request, Shift.objects.all()).order_by('name')
+    offices = get_company_filtered(request, OfficeLocation.objects.all()).filter(is_active=True)
+    all_managers = get_company_filtered(
+        request,
+        EmployeeProfile.objects.filter(role__in=['manager', 'hr_admin'])
     ).order_by('full_name')
     
     context = {
@@ -871,16 +953,23 @@ def employee_create(request):
         'all_managers': all_managers,
     }
     return render(request, 'employee_form.html', context)
-
-    
     
 
 
 @login_required
 @hr_admin_required
+@company_required
 def employee_edit(request, user_id):
-    user = get_object_or_404(User, id=user_id)
-
+    from .utils import get_user_company, get_company_filtered
+    
+    # ─── Security: ownership check ───
+    if request.user.is_superuser:
+        user = get_object_or_404(User, id=user_id)
+    else:
+        company = get_user_company(request)
+        # Only allow editing users whose profile belongs to the same company
+        user = get_object_or_404(User, id=user_id, profile__company=company)
+    
     try:
         profile = EmployeeProfile.objects.get(user=user)
     except EmployeeProfile.DoesNotExist:
@@ -888,6 +977,7 @@ def employee_edit(request, user_id):
             user=user,
             employee_id=f"EMP{user.id:04d}",
             full_name=user.username,
+            company=get_user_company(request),   # ← assign company
         )
         messages.info(request, f'Profile was missing – created a default profile for {user.username}.')
 
@@ -904,7 +994,6 @@ def employee_edit(request, user_id):
                 return redirect('employee_edit', user_id=user.id)
         user.save()
 
-        # Employee ID should NEVER change – REMOVED that line
         profile.full_name = request.POST.get('full_name')
         profile.date_of_birth = request.POST.get('date_of_birth') or None
         profile.date_of_joining = request.POST.get('date_of_joining') or None
@@ -912,56 +1001,62 @@ def employee_edit(request, user_id):
         profile.department = request.POST.get('department', '')
         profile.phone = request.POST.get('phone', '')
         profile.address = request.POST.get('address', '')
-        
-        # NEW FIELDS for location check-in
         profile.attendance_type = request.POST.get('attendance_type')
         profile.office_location_id = request.POST.get('office_location') or None
-        
-        # ----- NEW: Role Field -----
         profile.role = request.POST.get('role', 'employee')
         
-        # ----- NEW: Manager Field -----
-        profile.manager_id = request.POST.get('manager') or None
+        # ─── Security: validate manager belongs to same company ───
+        manager_id = request.POST.get('manager')
+        if manager_id:
+            if request.user.is_superuser:
+                manager_ok = EmployeeProfile.objects.filter(id=manager_id).exists()
+            else:
+                manager_ok = EmployeeProfile.objects.filter(
+                    id=manager_id, company=get_user_company(request)
+                ).exists()
+            profile.manager_id = manager_id if manager_ok else None
+        else:
+            profile.manager_id = None
         
-        # Update shift if provided
+        # ─── Security: validate shift belongs to same company ───
         shift_id = request.POST.get('shift')
         if shift_id:
-            profile.shift_id = shift_id
+            if request.user.is_superuser:
+                shift_ok = Shift.objects.filter(id=shift_id).exists()
+            else:
+                shift_ok = Shift.objects.filter(
+                    id=shift_id, company=get_user_company(request)
+                ).exists()
+            profile.shift_id = shift_id if shift_ok else None
         else:
             profile.shift = None
+        
         profile.save()
 
-        # ---- NEW: Update role and groups ----
+        # ─── Role → Group sync ───
         from django.contrib.auth.models import Group
-        
         role = request.POST.get('role', 'employee')
+        user.groups.clear()   # clean slate
         if role == 'manager':
-            group, _ = Group.objects.get_or_create(name='Manager')
-            user.groups.add(group)
-            # Remove from HR Admin if it was there
-            hr_group = Group.objects.filter(name='HR Admin').first()
-            if hr_group:
-                user.groups.remove(hr_group)
+            grp, _ = Group.objects.get_or_create(name='Manager')
+            user.groups.add(grp)
         elif role == 'hr_admin':
-            group, _ = Group.objects.get_or_create(name='HR Admin')
-            user.groups.add(group)
-            # Remove from Manager if it was there
-            mgr_group = Group.objects.filter(name='Manager').first()
-            if mgr_group:
-                user.groups.remove(mgr_group)
-        else:
-            # Employee – remove from all admin groups
-            user.groups.clear()
+            grp, _ = Group.objects.get_or_create(name='HR Admin')
+            user.groups.add(grp)
 
         messages.success(request, f'Employee {profile.full_name} updated successfully.')
         return redirect('employee_list')
 
-    shifts = Shift.objects.all().order_by('name')
-    offices = OfficeLocation.objects.filter(is_active=True)
-
-    # Only Managers and HR Admins can be assigned as managers
-    all_managers = EmployeeProfile.objects.filter(
-        role__in=['manager', 'hr_admin']
+    # ─── Company-scoped dropdown data ───
+    shifts = get_company_filtered(request, Shift.objects.all()).order_by('name')
+    offices = get_company_filtered(
+        request, OfficeLocation.objects.all()
+    ).filter(is_active=True)
+    
+    # Only managers from the SAME company can be assigned
+    all_managers = get_company_filtered(
+        request,
+        EmployeeProfile.objects.filter(role__in=['manager', 'hr_admin'])
     ).order_by('full_name')
     
     context = {
@@ -971,10 +1066,8 @@ def employee_edit(request, user_id):
         'shifts': shifts,
         'offices': offices,
         'all_managers': all_managers,
-        
     }
     return render(request, 'employee_form.html', context)
-
 
         
 
@@ -982,35 +1075,42 @@ def employee_edit(request, user_id):
 
 @login_required
 @hr_admin_required
+@company_required
 def employee_delete(request, user_id):
-    employee = get_object_or_404(User, id=user_id)
+    from .utils import get_user_company
+    
+    if request.user.is_superuser:
+        employee = get_object_or_404(User, id=user_id)
+    else:
+        company = get_user_company(request)
+        employee = get_object_or_404(User, id=user_id, profile__company=company)
+    
     if request.method == 'POST':
         if request.user == employee:
             messages.error(request, 'You cannot delete your own account!')
         else:
             employee.delete()
-            messages.success(request, 'Employee deleted successfully!')
+            messages.success(request, 'Employee deleted successfully.')
         return redirect('employee_list')
+    
     return render(request, 'employee_confirm_delete.html', {'employee': employee})
 
 # ---------- Employee Detail ----------
 @login_required
 @hr_admin_required
+@company_required
 def employee_detail(request, user_id):
-    employee_user = get_object_or_404(User, id=user_id)
-
-    try:
-        profile = EmployeeProfile.objects.get(user=employee_user)
-    except EmployeeProfile.DoesNotExist:
-        profile = EmployeeProfile.objects.create(
-            user=employee_user,
-            employee_id=f"EMP{employee_user.id:04d}",
-            full_name=employee_user.username,
-        )
-        messages.info(request, f'Profile was missing – created a default profile for {employee_user.username}.')
-
+    from .utils import get_user_company
+    
+    if request.user.is_superuser:
+        employee_user = get_object_or_404(User, id=user_id)
+    else:
+        company = get_user_company(request)
+        employee_user = get_object_or_404(User, id=user_id, profile__company=company)
+    
+    profile = get_object_or_404(EmployeeProfile, user=employee_user)
+    
     today = date.today()
-
     attendances = Attendance.objects.filter(
         user=employee_user,
         date__year=today.year,
@@ -1020,23 +1120,22 @@ def employee_detail(request, user_id):
     present = attendances.filter(status='Present').count()
     absent = attendances.filter(status='Absent').count()
     half_day = attendances.filter(status='Half-Day').count()
-
-    leave_types = LeaveType.objects.filter(is_active=True)
+    
+    leave_types = LeaveType.objects.filter(is_active=True, company=profile.company)
     leave_balance = []
     for lt in leave_types:
         approved = LeaveRequest.objects.filter(user=employee_user, leave_type=lt, status='Approved')
         used = sum(req.get_duration() for req in approved)
         pending = LeaveRequest.objects.filter(user=employee_user, leave_type=lt, status='Pending')
         pending_days = sum(req.get_duration() for req in pending)
-        available = lt.days_allowed - used
         leave_balance.append({
             'leave_type': lt,
             'total': lt.days_allowed,
             'used': used,
             'pending': pending_days,
-            'available': available,
+            'available': lt.days_allowed - used,
         })
-
+    
     context = {
         'employee_user': employee_user,
         'profile': profile,
@@ -1051,30 +1150,79 @@ def employee_detail(request, user_id):
 
 
 # ---------- Leave Types ----------
-@login_required
-@hr_admin_required
-def leave_type_list(request):
-    types = LeaveType.objects.all().order_by('name')
-    return render(request, 'leave_type_list.html', {'leave_types': types})
+
+
 
 @login_required
 @hr_admin_required
+@company_required
+def leave_type_list(request):
+    from .utils import get_company_filtered
+    
+    types = get_company_filtered(
+        request,
+        LeaveType.objects.all()
+    ).order_by('name')
+    
+    return render(request, 'leave_type_list.html', {'leave_types': types})
+        
+    
+
+
+@login_required
+@hr_admin_required
+@company_required
 def leave_type_create(request):
+    from .utils import get_user_company
+    
     if request.method == 'POST':
         name = request.POST.get('name')
         days = request.POST.get('days_allowed')
+        
         if name and days:
-            LeaveType.objects.create(name=name, days_allowed=days)
+            # Get the current user's company
+            company = get_user_company(request)
+            
+            # Superuser must select a company explicitly
+            if request.user.is_superuser and not company:
+                company_id = request.POST.get('company')
+                if company_id:
+                    from .models import Company
+                    company = Company.objects.filter(id=company_id).first()
+            
+            LeaveType.objects.create(
+                name=name,
+                days_allowed=days,
+                company=company,   # ✅ Auto-assign company
+            )
             messages.success(request, 'Leave type created.')
             return redirect('leave_type_list')
         else:
             messages.error(request, 'All fields required.')
-    return render(request, 'leave_type_form.html', {'action': 'Create'})
+    
+    # For superuser, pass the company list so they can choose
+    context = {'action': 'Create'}
+    if request.user.is_superuser:
+        from .models import Company
+        context['companies'] = Company.objects.all()
+    
+    return render(request, 'leave_type_form.html', context)
+
 
 @login_required
 @hr_admin_required
+@company_required
 def leave_type_edit(request, pk):
+    from .utils import get_company_filtered
+    
     leave_type = get_object_or_404(LeaveType, id=pk)
+    
+    # Security: verify ownership
+    if not request.user.is_superuser:
+        if leave_type.company != request.user_company:
+            messages.error(request, 'You do not have permission to edit this leave type.')
+            return redirect('leave_type_list')
+    
     if request.method == 'POST':
         leave_type.name = request.POST.get('name')
         leave_type.days_allowed = request.POST.get('days_allowed')
@@ -1084,10 +1232,21 @@ def leave_type_edit(request, pk):
         return redirect('leave_type_list')
     return render(request, 'leave_type_form.html', {'action': 'Edit', 'leave_type': leave_type})
 
+
 @login_required
 @hr_admin_required
+@company_required
 def leave_type_delete(request, pk):
-    leave_type = get_object_or_404(LeaveType, id=pk)
+    from .utils import get_user_company
+    
+    # Ownership check
+    if request.user.is_superuser:
+        leave_type = get_object_or_404(LeaveType, id=pk)
+    else:
+        leave_type = get_object_or_404(
+            LeaveType, id=pk, company=get_user_company(request)
+        )
+    
     if request.method == 'POST':
         leave_type.delete()
         messages.success(request, 'Leave type deleted.')
@@ -1098,28 +1257,53 @@ def leave_type_delete(request, pk):
 # ---------- Holidays ----------
 @login_required
 @hr_admin_required
+@company_required
 def holiday_list(request):
-    holidays = Holiday.objects.all().order_by('date')
+    from .utils import get_company_filtered
+    from .models import Holiday
+    
+    holidays = get_company_filtered(
+        request, 
+        Holiday.objects.all()
+    ).order_by('date')
+    
     return render(request, 'holiday_list.html', {'holidays': holidays})
 
+
 @login_required
-@admin_or_hr_required
+@hr_admin_required
+@company_required
 def holiday_create(request):
+    from .utils import get_user_company
+    
     if request.method == 'POST':
         name = request.POST.get('name')
         date_str = request.POST.get('date')
         if name and date_str:
-            Holiday.objects.create(name=name, date=date_str)
+            Holiday.objects.create(
+                name=name, 
+                date=date_str,
+                company=get_user_company(request)   # <-- auto-assign
+            )
             messages.success(request, 'Holiday added.')
             return redirect('holiday_list')
         else:
             messages.error(request, 'All fields required.')
     return render(request, 'holiday_form.html', {'action': 'Add'})
 
+
 @login_required
 @admin_or_hr_required
+@company_required
 def holiday_edit(request, pk):
     holiday = get_object_or_404(Holiday, id=pk)
+    
+    # Security: verify the holiday belongs to the user's company
+    if not request.user.is_superuser:
+        if holiday.company != request.user_company:
+            messages.error(request, 'You do not have permission to edit this holiday.')
+            return redirect('holiday_list')
+    
     if request.method == 'POST':
         holiday.name = request.POST.get('name')
         holiday.date = request.POST.get('date')
@@ -1128,10 +1312,19 @@ def holiday_edit(request, pk):
         return redirect('holiday_list')
     return render(request, 'holiday_form.html', {'action': 'Edit', 'holiday': holiday})
 
+
 @login_required
 @admin_or_hr_required
+@company_required
 def holiday_delete(request, pk):
     holiday = get_object_or_404(Holiday, id=pk)
+    
+    # Security: verify the holiday belongs to the user's company
+    if not request.user.is_superuser:
+        if holiday.company != request.user_company:
+            messages.error(request, 'You do not have permission to delete this holiday.')
+            return redirect('holiday_list')
+    
     if request.method == 'POST':
         holiday.delete()
         messages.success(request, 'Holiday deleted.')
@@ -1139,13 +1332,15 @@ def holiday_delete(request, pk):
     return render(request, 'holiday_confirm_delete.html', {'holiday': holiday})
 
 
-# ---------- Employee Leave Dashboard ----------
-@login_required
+# ---------- Employee Leave Dashboard ----------@login_required
 def employee_leaves(request):
     user = request.user
     tab = request.GET.get('tab', 'status')
 
-    leave_types = LeaveType.objects.filter(is_active=True)
+    leave_types = get_company_filtered(
+        request,
+        LeaveType.objects.filter(is_active=True)
+    )
     leave_balance = []
     for lt in leave_types:
         total = lt.days_allowed
@@ -1168,7 +1363,7 @@ def employee_leaves(request):
     else:
         requests = LeaveRequest.objects.filter(user=user, status=filter_status).order_by('-applied_on')
 
-    holidays = Holiday.objects.all().order_by('date')
+    holidays = get_company_filtered(request, Holiday.objects.all()).order_by('date')
 
     context = {
         'tab': tab,
@@ -1221,8 +1416,15 @@ def leave_apply(request):
             messages.error(request, 'You already have a pending or approved leave in this period.')
             return redirect('leave_apply')
 
+        # ✅ FIX: Get company from user profile
+        company = get_user_company(request)
+        if not company:
+            messages.error(request, 'Your account is not linked to a company. Please contact HR.')
+            return redirect('dashboard')
+
         leave_request = LeaveRequest.objects.create(
             user=request.user,
+            company=company,   # ✅ Now defined
             leave_type=leave_type,
             is_half_day=is_half_day,
             half_day_session=half_day_session if is_half_day else '',
@@ -1234,8 +1436,6 @@ def leave_apply(request):
         )
         messages.success(request, 'Leave request submitted successfully.')
 
-        # ---- Send notification ONLY to the approver ----
-        # get_approver() always returns a user (manager or HR Admin), so no fallback is needed.
         approver = get_approver(request.user)
         if approver:
             create_notification(
@@ -1247,36 +1447,59 @@ def leave_apply(request):
 
         return redirect('employee_leaves')
 
-    leave_types = LeaveType.objects.filter(is_active=True)
+    # ✅ Company-filtered leave types
+    leave_types = get_company_filtered(
+        request,
+        LeaveType.objects.filter(is_active=True)
+    )
     return render(request, 'leave_apply.html', {'leave_types': leave_types})
 
 
 # ---------- Admin Leave Approvals ----------
+
 @login_required
 @admin_or_hr_required
+@company_required
 def admin_leaves(request):
+    from .utils import get_company_filtered
+    
     user = request.user
     
-    # ---- Scope filtering based on user role ----
-    # Superuser and HR Admin see only manager‑less employees
+    # ─── Superuser and HR Admin ───
     if user.is_superuser or user.groups.filter(name='HR Admin').exists():
-        pending = LeaveRequest.objects.filter(
-            status='Pending',
-            user__profile__manager__isnull=True
+        # ✅ Company-filtered (superuser sees all, HR Admin sees own company)
+        pending = get_company_filtered(
+            request,
+            LeaveRequest.objects.filter(
+                status='Pending',
+                user__profile__manager__isnull=True
+            )
         ).order_by('-applied_on')
-        approved = LeaveRequest.objects.filter(
-            status='Approved',
-            user__profile__manager__isnull=True
+        
+        approved = get_company_filtered(
+            request,
+            LeaveRequest.objects.filter(
+                status='Approved',
+                user__profile__manager__isnull=True
+            )
         ).order_by('-applied_on')
-        rejected = LeaveRequest.objects.filter(
-            status='Rejected',
-            user__profile__manager__isnull=True
+        
+        rejected = get_company_filtered(
+            request,
+            LeaveRequest.objects.filter(
+                status='Rejected',
+                user__profile__manager__isnull=True
+            )
         ).order_by('-applied_on')
+    
+    # ─── Manager (team only) ───
     else:
-        # Manager → see only their team's requests
         try:
             profile = user.profile
-            team_members = EmployeeProfile.objects.filter(manager=profile).values_list('user_id', flat=True)
+            team_members = EmployeeProfile.objects.filter(
+                manager=profile
+            ).values_list('user_id', flat=True)
+            
             pending = LeaveRequest.objects.filter(
                 status='Pending',
                 user_id__in=team_members
@@ -1304,14 +1527,24 @@ def admin_leaves(request):
 
 @login_required
 @admin_or_hr_required
+@company_required
 def leave_approve(request, leave_id):
-    leave = get_object_or_404(LeaveRequest, id=leave_id)
-
-    # ---- NEW: Authorization Check ----
+    from .utils import get_user_company
+    
+    # ✅ Company-scoped fetch
+    if request.user.is_superuser:
+        leave = get_object_or_404(LeaveRequest, id=leave_id)
+    else:
+        leave = get_object_or_404(
+            LeaveRequest, 
+            id=leave_id, 
+            company=get_user_company(request)
+        )
+    
     if not can_approve_request(request.user, leave):
         messages.error(request, 'You are not authorized to approve this request.')
         return redirect('admin_leaves')
-
+    
     if request.method == 'POST':
         comment = request.POST.get('admin_comment', '')
         leave.status = 'Approved'
@@ -1328,17 +1561,25 @@ def leave_approve(request, leave_id):
     return render(request, 'leave_approve.html', {'leave': leave})
 
 
-
 @login_required
 @admin_or_hr_required
+@company_required
 def leave_reject(request, leave_id):
-    leave = get_object_or_404(LeaveRequest, id=leave_id)
-
-    # ---- NEW: Authorization Check ----
+    from .utils import get_user_company
+    
+    if request.user.is_superuser:
+        leave = get_object_or_404(LeaveRequest, id=leave_id)
+    else:
+        leave = get_object_or_404(
+            LeaveRequest, 
+            id=leave_id, 
+            company=get_user_company(request)
+        )
+    
     if not can_approve_request(request.user, leave):
         messages.error(request, 'You are not authorized to reject this request.')
         return redirect('admin_leaves')
-
+    
     if request.method == 'POST':
         reason = request.POST.get('rejection_reason')
         if not reason:
@@ -1357,38 +1598,44 @@ def leave_reject(request, leave_id):
         return redirect('admin_leaves')
     return render(request, 'leave_reject.html', {'leave': leave})
 
-
 # ---------- Team Attendance (Admin only) ----------
 
 @login_required
 @admin_or_hr_required
+@company_required
 def team_attendance(request):
+    from .utils import get_company_filtered, get_user_company
+    
     today = date.today()
     month = int(request.GET.get('month', today.month))
     year = int(request.GET.get('year', today.year))
     if month < 1 or month > 12: month = today.month
     if year < 2000 or year > 2100: year = today.year
-    selected_date = date(year, month, 1)
     
     user = request.user
     
-    # ---- Get the employees based on user role ----
-    if user.is_superuser or user.groups.filter(name='HR Admin').exists():
-        # Superuser or HR Admin → see ALL employees
+    # Base: company-scoped employees
+    if user.is_superuser:
         employees = User.objects.filter(is_superuser=False).order_by('username')
+    elif user.groups.filter(name='HR Admin').exists():
+        company = get_user_company(request)
+        employees = User.objects.filter(
+            is_superuser=False, profile__company=company
+        ).order_by('username')
     else:
-        # Manager → see only their team
+        # Manager: only their team
         try:
             profile = user.profile
-            # Get all employees who report to this manager
-            team_members = EmployeeProfile.objects.filter(manager=profile).values_list('user_id', flat=True)
-            employees = User.objects.filter(id__in=team_members).order_by('username')
+            team_ids = EmployeeProfile.objects.filter(
+                manager=profile
+            ).values_list('user_id', flat=True)
+            employees = User.objects.filter(id__in=team_ids).order_by('username')
         except EmployeeProfile.DoesNotExist:
             employees = User.objects.none()
     
-    attendances = Attendance.objects.filter(
-        date__year=year,
-        date__month=month
+    attendances = get_company_filtered(
+        request,
+        Attendance.objects.filter(date__year=year, date__month=month)
     ).select_related('user')
     
     employee_data = []
@@ -1400,7 +1647,6 @@ def team_attendance(request):
         half_day = len([r for r in emp_records if r.status == 'Half-Day'])
         percentage = int((present / total_days) * 100) if total_days > 0 else 0
         
-        # Get shift information
         profile = getattr(emp, 'profile', None)
         shift_name = profile.shift.name if profile and profile.shift else '—'
         shift_timing = ''
@@ -1421,15 +1667,15 @@ def team_attendance(request):
             'shift_timing': shift_timing,
         })
     
-    prev_month = month-1 if month>1 else 12
-    prev_year = year if month>1 else year-1
-    next_month = month+1 if month<12 else 1
-    next_year = year if month<12 else year+1
-    next_disabled = (year==today.year and month==today.month)
+    prev_month = month - 1 if month > 1 else 12
+    prev_year = year if month > 1 else year - 1
+    next_month = month + 1 if month < 12 else 1
+    next_year = year if month < 12 else year + 1
+    next_disabled = (year == today.year and month == today.month)
     
     context = {
         'employee_data': employee_data,
-        'selected_month_name': selected_date.strftime('%B %Y'),
+        'selected_month_name': date(year, month, 1).strftime('%B %Y'),
         'month': month,
         'year': year,
         'prev_month': prev_month,
@@ -1442,62 +1688,81 @@ def team_attendance(request):
     return render(request, 'team_attendance.html', context)
 
 
-
-
 @login_required
 @hr_admin_required
+@company_required
 def attendance_report(request):
-    today = date.today()
-    employees = User.objects.filter(is_superuser=False).order_by('username')
+    from .utils import get_company_filtered
+    from django.contrib.auth.models import User
     
+    today = date.today()
+
+    # Filter employees by company (superuser sees all, HR Admin sees own company)
+    employees = get_company_filtered(
+        request,
+        User.objects.filter(is_superuser=False)
+    ).order_by('username')
+
     month = int(request.GET.get('month', today.month))
     year = int(request.GET.get('year', today.year))
 
     if month < 1 or month > 12: month = today.month
     if year < 2000 or year > 2100: year = today.year
-    
+
     # --- Determine end date for current month ---
     first_day = date(year, month, 1)
     _, last_day_num = monthrange(year, month)
     last_day_of_month = date(year, month, last_day_num)
-    
+
     if year == today.year and month == today.month:
         end_date = today
     else:
         end_date = last_day_of_month
-    
+
     # --- Filters ---
     department_filter = request.GET.get('department', '')
     employee_search = request.GET.get('employee', '')
     status_filter = request.GET.get('status', '')
     shift_filter = request.GET.get('shift', '')
-    
+
     if department_filter:
         employees = employees.filter(profile__department__icontains=department_filter)
     if employee_search:
         employees = employees.filter(
-            Q(username__icontains=employee_search) | 
+            Q(username__icontains=employee_search) |
             Q(profile__full_name__icontains=employee_search)
         )
-    
-    # --- Get attendances (limited to end_date) ---
-    attendances = Attendance.objects.filter(
-        date__year=year,
-        date__month=month,
-        date__lte=end_date
+
+    # --- Get attendances (limited to end_date) — COMPANY FILTERED ---
+    attendances = get_company_filtered(
+        request,
+        Attendance.objects.filter(
+            date__year=year,
+            date__month=month,
+            date__lte=end_date
+        )
     ).select_related('user')
-    
-    # --- Get leaves (limited to end_date) ---
-    all_leaves = LeaveRequest.objects.filter(
-        status='Approved',
-        start_date__lte=end_date,
-        end_date__gte=first_day
+
+    # --- Get leaves (limited to end_date) — COMPANY FILTERED ---
+    all_leaves = get_company_filtered(
+        request,
+        LeaveRequest.objects.filter(
+            status='Approved',
+            start_date__lte=end_date,
+            end_date__gte=first_day
+        )
     ).select_related('user')
-    
-    all_shifts = Shift.objects.all().order_by('name')
-    distinct_departments = EmployeeProfile.objects.values_list('department', flat=True).distinct().order_by('department')
+
+    # --- Shifts (company filtered) ---
+    all_shifts = get_company_filtered(request, Shift.objects.all()).order_by('name')
+
+    # --- Departments (company filtered) ---
+    distinct_departments = get_company_filtered(
+        request,
+        EmployeeProfile.objects.all()
+    ).values_list('department', flat=True).distinct().order_by('department')
     departments = [d for d in distinct_departments if d]
-    
+
     employee_data = []
     total_working_days = 0
     total_present = 0
@@ -1505,81 +1770,81 @@ def attendance_report(request):
     total_leave = 0
     total_late = 0
     total_overtime_minutes = 0
-    
+
     for emp in employees:
         emp_records = attendances.filter(user=emp)
         emp_leaves = [l for l in all_leaves if l.user == emp]
-        
+
         present = emp_records.filter(status='Present').count()
         absent = emp_records.filter(status='Absent').count()
         half_day = emp_records.filter(status='Half-Day').count()
-        
+
         leave_days = 0
         for leave in emp_leaves:
             start = max(leave.start_date, first_day)
             end = min(leave.end_date, end_date)
             leave_days += (end - start).days + 1
-        
+
         profile = getattr(emp, 'profile', None)
         shift = profile.shift if profile else None
-        
+
         if shift_filter and shift_filter != 'all':
             if not shift or shift.id != int(shift_filter):
                 continue
-        
+
         late_days = 0
         early_out_days = 0
         overtime_minutes = 0
-        
+
         daily_records = []
-        
+
         for att in emp_records.order_by('date'):
             status_label = 'Present'
             if att.status == 'Absent':
                 status_label = 'Absent'
             elif att.status == 'Half-Day':
                 status_label = 'Half Day'
-            
+
             if any(start <= att.date <= end for l in emp_leaves for start, end in [(max(l.start_date, first_day), min(l.end_date, end_date))]):
                 status_label = 'On Leave'
-            
+
             if att.check_in_time and att.check_out_time and shift:
                 shift_start = timezone.make_aware(datetime.combine(att.date, shift.start_time))
                 shift_end = timezone.make_aware(datetime.combine(att.date, shift.end_time))
-                
+
                 if att.check_in_time > shift_start:
                     late_days += 1
                     if status_label == 'Present':
                         status_label = 'Late'
-                
+
                 if att.check_out_time < shift_end:
                     early_out_days += 1
                     if status_label == 'Present':
                         status_label = 'Early Out'
-                
+
                 if att.check_out_time > shift_end:
                     overtime_seconds = (att.check_out_time - shift_end).total_seconds()
                     ot_minutes = int(overtime_seconds // 60)
-                    
+
                     if shift.overtime_allowed and shift.overtime_limit:
                         limit_minutes = shift.overtime_limit * 60
                         if ot_minutes > limit_minutes:
                             ot_minutes = limit_minutes
                 else:
                     ot_minutes = 0
-                
+
                 overtime_minutes += ot_minutes
-            
+
             hours_str = '--'
             if att.check_in_time and att.check_out_time:
                 diff = att.check_out_time - att.check_in_time
                 h = diff.seconds // 3600
                 m = (diff.seconds % 3600) // 60
                 hours_str = f"{h}h {m}m"
-            
+
             if status_filter and status_filter != 'all' and status_filter != status_label:
                 continue
-            
+
             daily_records.append({
                 'date': att.date,
                 'shift': shift.name if shift else '—',
@@ -1588,20 +1853,20 @@ def attendance_report(request):
                 'hours': hours_str,
                 'status': status_label,
             })
-        
+
         if status_filter == 'On Leave' and leave_days == 0:
             continue
-        
+
         working_days = present + half_day + leave_days
         rate = round((present / working_days) * 100, 1) if working_days > 0 else 0
-        
+
         total_working_days += working_days
         total_present += present
         total_absent += absent
         total_leave += leave_days
         total_late += late_days
         total_overtime_minutes += overtime_minutes
-        
+
         employee_data.append({
             'employee': emp,
             'records': daily_records,
@@ -1616,11 +1881,10 @@ def attendance_report(request):
             'shift': shift.name if shift else '—',
             'department': profile.department if profile else '—',
         })
-    
+
     total_ot_hours = total_overtime_minutes // 60
     total_ot_minutes = total_overtime_minutes % 60
     total_ot_formatted = f"{total_ot_hours}h {total_ot_minutes}m" if total_overtime_minutes > 0 else "0h 0m"
-    
 
     # ---------- PDF DOWNLOAD ----------
     if request.GET.get('download') == 'pdf':
@@ -1632,71 +1896,82 @@ def attendance_report(request):
         from reportlab.lib.units import inch, cm
         from io import BytesIO
         from django.http import FileResponse
-    
-        # ---- Use the already filtered employee_data ----
+
         download_type = request.GET.get('download_type', 'all')
         employee_id = request.GET.get('employee_id')
-    
+
         pdf_employee_data = employee_data
-    
+
         if download_type == 'single':
             if not employee_id:
                 messages.error(request, 'Please select an employee.')
                 return redirect('attendance_report')
             try:
-                emp = User.objects.get(id=employee_id)
+                # Security: verify employee is in the current user's scope
+                emp = get_company_filtered(
+                    request,
+                    User.objects.filter(id=employee_id)
+                ).first()
+                if not emp:
+                    messages.error(request, 'Employee not found or you do not have access.')
+                    return redirect('attendance_report')
                 pdf_employee_data = [item for item in employee_data if item['employee'].id == emp.id]
                 if not pdf_employee_data:
                     messages.error(request, 'Employee not found or you do not have access.')
                     return redirect('attendance_report')
-            except User.DoesNotExist:
+            except Exception:
                 messages.error(request, 'Employee not found.')
                 return redirect('attendance_report')
-    
+
         if not pdf_employee_data:
             messages.error(request, 'No data available for the selected filters.')
             return redirect('attendance_report')
-    
+
         # --- Generate PDF ---
         buffer = BytesIO()
         first_day = date(year, month, 1)
         _, last_day_num = monthrange(year, month)
         last_day = date(year, month, last_day_num)
-        company = Company.objects.first()
+
+        # Company name from the current user's company
+        if request.user.is_superuser:
+            company = Company.objects.first()
+        else:
+            company = getattr(request, 'user_company', None)
         company_name = company.name if company else 'HRMS'
-    
+
         doc = SimpleDocTemplate(buffer, pagesize=A4,
                                 topMargin=0.5*inch, bottomMargin=0.5*inch,
                                 leftMargin=0.5*inch, rightMargin=0.5*inch)
         styles = getSampleStyleSheet()
         normal_style = styles['Normal']
         heading_style = styles['Heading2']
-    
+
         header_style = ParagraphStyle('HeaderStyle', parent=normal_style, fontSize=14, fontName='Helvetica-Bold', alignment=1, spaceAfter=6)
         subheader_style = ParagraphStyle('SubHeaderStyle', parent=normal_style, fontSize=12, alignment=1, spaceAfter=12)
         info_label_style = ParagraphStyle('InfoLabelStyle', parent=normal_style, fontSize=10, fontName='Helvetica-Bold')
         info_value_style = ParagraphStyle('InfoValueStyle', parent=normal_style, fontSize=10)
         summary_label_style = ParagraphStyle('SummaryLabelStyle', parent=normal_style, fontSize=9, fontName='Helvetica-Bold')
-    
+
         elements = []
-    
+
         for idx, emp_data in enumerate(pdf_employee_data):
             if idx > 0:
                 elements.append(PageBreak())
-    
+
             emp = emp_data['employee']
             detailed = get_employee_attendance_for_pdf(emp, year, month, first_day, last_day)
             profile = detailed['profile']
             shift = detailed['shift']
             daily = detailed['daily_data']
-    
+
             # Company header
             elements.append(Paragraph(company_name, header_style))
             elements.append(Paragraph("Attendance Report", subheader_style))
             month_name = first_day.strftime('%B %Y')
             elements.append(Paragraph(month_name, normal_style))
             elements.append(Spacer(1, 0.3*inch))
-    
+
             # Employee Info (3 columns, borderless)
             info_data = [
                 [
@@ -1727,7 +2002,7 @@ def attendance_report(request):
             ]))
             elements.append(info_table)
             elements.append(Spacer(1, 0.2*inch))
-    
+
             # Daily Attendance
             elements.append(Paragraph("Daily Attendance", heading_style))
             table_data = [['Date', 'Day', 'Status', 'Check In', 'Check Out', 'Hours']]
@@ -1756,13 +2031,13 @@ def attendance_report(request):
             ]))
             elements.append(table)
             elements.append(Spacer(1, 0.3*inch))
-    
+
             # Monthly Summary
             elements.append(Paragraph("Monthly Summary", heading_style))
             ot_hours = int(detailed['overtime_minutes'] // 60)
             ot_minutes = int(detailed['overtime_minutes'] % 60)
             overtime_str = f"{ot_hours}h {ot_minutes}m" if ot_minutes > 0 or ot_hours > 0 else "0h"
-    
+
             summary_data = [
                 [Paragraph("Working Days:", summary_label_style), str(detailed['working_days']),
                  Paragraph("Present:", summary_label_style), str(detailed['present'])],
@@ -1787,17 +2062,17 @@ def attendance_report(request):
             ]))
             elements.append(summary_table)
             elements.append(Spacer(1, 0.5*inch))
-    
+
             # ----- Footer (inside the loop) -----
             local_now = timezone.localtime(timezone.now())
             footer_text = f"Generated on {local_now.strftime('%d %B %Y, %I:%M %p')} · Employee ID: {profile.employee_id if profile else 'N/A'}"
             elements.append(Paragraph(footer_text,
                                       ParagraphStyle('Footer', parent=normal_style, fontSize=7, alignment=1)))
-    
+
         # ----- Build the document (outside the loop) -----
         doc.build(elements)
         buffer.seek(0)
-    
+
         month_name = first_day.strftime('%B_%Y')
         if download_type == 'single' and len(pdf_employee_data) == 1:
             emp = pdf_employee_data[0]['employee']
@@ -1805,70 +2080,75 @@ def attendance_report(request):
             filename = f"attendance_{emp_id}_{month_name}.pdf"
         else:
             filename = f"attendance_{month_name}.pdf"
-    
-        return FileResponse(buffer, as_attachment=True, filename=filename)
 
+        return FileResponse(buffer, as_attachment=True, filename=filename)
 
     # ---------- CSV DOWNLOAD ----------
     if request.GET.get('download') == 'csv':
         download_type = request.GET.get('download_type', 'all')
         employee_id = request.GET.get('employee_id')
-        
+
         # --- Single employee mode ---
         if download_type == 'single':
             if not employee_id:
                 messages.error(request, 'Please select an employee.')
                 return redirect('attendance_report')
-            
-            try:
-                single_user = User.objects.get(id=employee_id)
-                # Filter employee_data to only this employee (and check access)
-                filtered_data = [item for item in employee_data if item['employee'].id == single_user.id]
-                if not filtered_data:
-                    messages.error(request, 'Employee not found or you do not have access.')
-                    return redirect('attendance_report')
-                employee_data = filtered_data  # Replace with single employee
-            except User.DoesNotExist:
-                messages.error(request, 'Employee not found.')
+
+            # Security: verify employee is in the user's company scope
+            single_user = get_company_filtered(
+                request,
+                User.objects.filter(id=employee_id)
+            ).first()
+            if not single_user:
+                messages.error(request, 'Employee not found or you do not have access.')
                 return redirect('attendance_report')
-        
+
+            filtered_data = [item for item in employee_data if item['employee'].id == single_user.id]
+            if not filtered_data:
+                messages.error(request, 'Employee not found or you do not have access.')
+                return redirect('attendance_report')
+            employee_data = filtered_data
+
         if not employee_data:
             messages.error(request, 'No attendance data available for the selected month.')
             return redirect('attendance_report')
-        
+
         # --- Generate CSV ---
         month_name = date(year, month, 1).strftime('%B_%Y')
-        
+
         # Build date columns
         dates = [first_day + timedelta(days=i) for i in range((end_date - first_day).days + 1)]
         date_headers = [d.strftime('%b %d') for d in dates]
-        
+
         # CSV filename
         if download_type == 'single' and len(employee_data) == 1:
             emp = employee_data[0]['employee']
-            emp_id = emp.profile.employee_id if hasattr(emp, 'profile') and emp.profile else f"EMP{emp.id:04d}"
+            emp_id = emp.employee_id if emp.employee_id else f"EMP{emp.id:04d}"
             filename = f"attendance_{emp_id}_{month_name}.csv"
         else:
             filename = f"attendance_{month_name}.csv"
-        
+
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
-        
+
         writer = csv.writer(response)
-        
+
         # Header
         header = ['Employee ID', 'Employee Name', 'Department', 'Designation', 'Shift'] + date_headers + ['Present', 'Absent', 'Leave', 'Half Day', 'Late Arrivals', 'Overtime']
         writer.writerow(header)
-        
-        # Get all holidays and weekly off patterns for the month
-        holidays = Holiday.objects.filter(date__gte=first_day, date__lte=end_date).values_list('date', flat=True)
+
+        # Company-filtered holidays
+        holidays = get_company_filtered(
+            request,
+            Holiday.objects.filter(date__gte=first_day, date__lte=end_date)
+        ).values_list('date', flat=True)
         holidays = set(holidays)
-        
+
         for emp_data in employee_data:
             emp = emp_data['employee']
             profile = emp.profile
             shift = emp.profile.shift if emp.profile and emp.profile.shift else None
-            
+
             # Build status dict for each date
             status_dict = {}
             for d in dates:
@@ -1876,30 +2156,36 @@ def attendance_report(request):
                     status_dict[d] = 'H'
                 elif shift:
                     day_name = d.strftime('%a').lower()[:3]
-                    # Check if day is a working day (mon, tue, wed, thu, fri, sat, sun)
                     if not getattr(shift, day_name, False):
                         status_dict[d] = 'WO'
                 else:
-                    # No shift – assume working day (will be filled later)
                     status_dict[d] = ''
-            
-            # Fill from attendance records
-            emp_att_records = Attendance.objects.filter(user=emp, date__gte=first_day, date__lte=end_date)
+
+            # Attendance records (company filtered)
+            emp_att_records = get_company_filtered(
+                request,
+                Attendance.objects.filter(user=emp, date__gte=first_day, date__lte=end_date)
+            )
             for att in emp_att_records:
                 if att.status == 'Present':
                     status_dict[att.date] = 'P'
                 elif att.status == 'Half-Day':
                     status_dict[att.date] = 'HD'
-                # 'Absent' is handled by default later
-            
-            # Fill from approved leaves (override)
-            emp_leave_requests = LeaveRequest.objects.filter(user=emp, status='Approved', start_date__lte=end_date, end_date__gte=first_day)
+
+            # Leave requests (company filtered)
+            emp_leave_requests = get_company_filtered(
+                request,
+                LeaveRequest.objects.filter(
+                    user=emp, status='Approved',
+                    start_date__lte=end_date, end_date__gte=first_day
+                )
+            )
             for leave in emp_leave_requests:
                 start = max(leave.start_date, first_day)
                 end = min(leave.end_date, end_date)
                 for d in (start + timedelta(n) for n in range((end - start).days + 1)):
                     status_dict[d] = 'L'
-            
+
             # Build row
             row = [
                 profile.employee_id if profile else '',
@@ -1908,26 +2194,23 @@ def attendance_report(request):
                 profile.designation if profile else '',
                 shift.name if shift else '',
             ]
-            
-            # For each date, get status; default to 'A' if not set (working day with no attendance)
+
+            # For each date, get status; default 'A' if not set
             for d in dates:
                 status = status_dict.get(d)
                 if status is None or status == '':
-                    # If it's a working day (not holiday, not WO), mark Absent
-                    # (Holiday and WO are already set)
                     status = 'A'
                 row.append(status)
-            
-            # Compute totals from the row data (excluding first 5 columns)
+
+            # Compute totals
             daily_statuses = row[5:]
             present_count = sum(1 for s in daily_statuses if s == 'P')
             absent_count = sum(1 for s in daily_statuses if s == 'A')
             leave_count = sum(1 for s in daily_statuses if s == 'L')
             half_count = sum(1 for s in daily_statuses if s == 'HD')
-            # Late arrivals and overtime from the already computed data
             late_count = emp_data.get('late_days', 0)
+
             ot_minutes_total = 0
-            # Overtime from attendance records (recompute or use existing)
             for att in emp_att_records.filter(status='Present'):
                 if shift and att.check_in_time and att.check_out_time:
                     shift_end = timezone.make_aware(datetime.combine(att.date, shift.end_time))
@@ -1936,19 +2219,22 @@ def attendance_report(request):
                         if shift.overtime_allowed and shift.overtime_limit:
                             ot = min(ot, shift.overtime_limit * 60)
                         ot_minutes_total += ot
-            
-            row.extend([present_count, absent_count, leave_count, half_count, late_count, f"{int(ot_minutes_total//60)}h {int(ot_minutes_total%60)}m" if ot_minutes_total else "0h"])
+
+            row.extend([
+                present_count, absent_count, leave_count, half_count, late_count,
+                f"{int(ot_minutes_total//60)}h {int(ot_minutes_total%60)}m" if ot_minutes_total else "0h"
+            ])
             writer.writerow(row)
-        
+
         return response
-    
+
     # ---------- Normal page rendering ----------
     prev_month = month-1 if month>1 else 12
     prev_year = year if month>1 else year-1
     next_month = month+1 if month<12 else 1
     next_year = year if month<12 else year+1
     next_disabled = (year==today.year and month==today.month)
-    
+
     context = {
         'employee_data': employee_data,
         'today': today,
@@ -1978,32 +2264,38 @@ def attendance_report(request):
 
 
 # ---------- Employee Attendance Detail ----------
+
 @login_required
 @hr_admin_required
+@company_required
 def employee_attendance_detail(request, user_id):
-
-    # If search parameter is provided, redirect to that employee
+    from .utils import get_user_company, get_company_filtered
+    
+    # ─── Search redirect (company-scoped) ───
     search_query = request.GET.get('search')
     if search_query:
-        try:
-            # Try to find employee by username or full name
-            employee = User.objects.filter(
-                is_superuser=False
-            ).filter(
-                Q(username__icontains=search_query) | 
-                Q(profile__full_name__icontains=search_query)
-            ).first()
-            if employee:
-                return redirect('employee_attendance_detail', user_id=employee.id)
-            else:
-                messages.warning(request, 'Employee not found.')
-        except:
-            pass
+        employees_qs = get_company_filtered(
+            request,
+            User.objects.filter(is_superuser=False)
+        )
+        employee = employees_qs.filter(
+            Q(username__icontains=search_query) |
+            Q(profile__full_name__icontains=search_query)
+        ).first()
+        if employee:
+            return redirect('employee_attendance_detail', user_id=employee.id)
+        else:
+            messages.warning(request, 'Employee not found.')
     
-    employee = get_object_or_404(User, id=user_id)
-    profile = get_object_or_404(EmployeeProfile, user=employee)
-
-    employee = get_object_or_404(User, id=user_id)
+    # ─── Security: ownership check ───
+    if request.user.is_superuser:
+        employee = get_object_or_404(User, id=user_id)
+    else:
+        company = get_user_company(request)
+        employee = get_object_or_404(
+            User, id=user_id, profile__company=company
+        )
+    
     profile = get_object_or_404(EmployeeProfile, user=employee)
     
     today = date.today()
@@ -2016,37 +2308,40 @@ def employee_attendance_detail(request, user_id):
     _, last_day_num = monthrange(year, month)
     last_day = date(year, month, last_day_num)
     
-    # Get attendance records
-    attendances = Attendance.objects.filter(
-        user=employee,
-        date__year=year,
-        date__month=month
+    # ─── Attendance (company-filtered) ───
+    attendances = get_company_filtered(
+        request,
+        Attendance.objects.filter(
+            user=employee,
+            date__year=year,
+            date__month=month
+        )
     ).order_by('date')
     
-    # Get approved leaves
-    leaves = LeaveRequest.objects.filter(
-        user=employee,
-        status='Approved',
-        start_date__lte=last_day,
-        end_date__gte=first_day
+    # ─── Leaves (company-filtered) ───
+    leaves = get_company_filtered(
+        request,
+        LeaveRequest.objects.filter(
+            user=employee,
+            status='Approved',
+            start_date__lte=last_day,
+            end_date__gte=first_day
+        )
     )
     
-    # Calculate stats
+    # ─── Stats ───
     present = attendances.filter(status='Present').count()
     absent = attendances.filter(status='Absent').count()
     half_day = attendances.filter(status='Half-Day').count()
     
-    # Leave days
     leave_days = 0
     for leave in leaves:
         start = max(leave.start_date, first_day)
         end = min(leave.end_date, last_day)
         leave_days += (end - start).days + 1
     
-    # Shift
     shift = profile.shift if profile else None
     
-    # Calculate Late, Early Out, OT
     late_days = 0
     early_out_days = 0
     total_overtime_minutes = 0
@@ -2059,11 +2354,10 @@ def employee_attendance_detail(request, user_id):
         elif att.status == 'Half-Day':
             status_label = 'Half Day'
         
-        # Check if on leave
-        if any(start <= att.date <= end for l in leaves for start, end in [(max(l.start_date, first_day), min(l.end_date, last_day))]):
+        if any(start <= att.date <= end for l in leaves
+               for start, end in [(max(l.start_date, first_day), min(l.end_date, last_day))]):
             status_label = 'On Leave'
         
-        # Late/Early/OT calculation
         if att.check_in_time and att.check_out_time and shift:
             shift_start = timezone.make_aware(datetime.combine(att.date, shift.start_time))
             shift_end = timezone.make_aware(datetime.combine(att.date, shift.end_time))
@@ -2082,7 +2376,6 @@ def employee_attendance_detail(request, user_id):
                 overtime_seconds = (att.check_out_time - shift_end).total_seconds()
                 total_overtime_minutes += int(overtime_seconds // 60)
         
-        # Calculate hours
         hours_str = '--'
         if att.check_in_time and att.check_out_time:
             diff = att.check_out_time - att.check_in_time
@@ -2093,8 +2386,8 @@ def employee_attendance_detail(request, user_id):
         daily_records.append({
             'date': att.date,
             'shift': shift.name if shift else '—',
-            'in_time': att.check_in_time.strftime('%I:%M %p') if att.check_in_time else '--:--',
-            'out_time': att.check_out_time.strftime('%I:%M %p') if att.check_out_time else '--:--',
+            'in_time': timezone.localtime(att.check_in_time).strftime('%I:%M %p') if att.check_in_time else '--:--',
+            'out_time': timezone.localtime(att.check_out_time).strftime('%I:%M %p') if att.check_out_time else '--:--',
             'hours': hours_str,
             'status': status_label,
         })
@@ -2102,25 +2395,22 @@ def employee_attendance_detail(request, user_id):
     working_days = present + half_day + leave_days
     rate = round((present / working_days) * 100, 1) if working_days > 0 else 0
     
-    # Format overtime
     ot_hours = total_overtime_minutes // 60
     ot_minutes = total_overtime_minutes % 60
     ot_formatted = f"{ot_hours}h {ot_minutes}m" if total_overtime_minutes > 0 else "—"
     
-    # Month navigation
-    prev_month = month-1 if month>1 else 12
-    prev_year = year if month>1 else year-1
-    next_month = month+1 if month<12 else 1
-    next_year = year if month<12 else year+1
+    # ─── Month navigation ───
+    prev_month = month - 1 if month > 1 else 12
+    prev_year = year if month > 1 else year - 1
+    next_month = month + 1 if month < 12 else 1
+    next_year = year if month < 12 else year + 1
     next_disabled = (year == today.year and month == today.month)
-
-    # Get all employees for dropdown
-    all_employees = User.objects.filter(is_superuser=False).select_related('profile').order_by('username')
-
-
-    # Get all employees for search suggestions
-    all_employees = User.objects.filter(is_superuser=False).select_related('profile').order_by('username')
-
+    
+    # ─── All employees (company-scoped, single assignment) ───
+    all_employees = get_company_filtered(
+        request,
+        User.objects.filter(is_superuser=False)
+    ).select_related('profile').order_by('username')
     
     context = {
         'employee': employee,
@@ -2145,10 +2435,8 @@ def employee_attendance_detail(request, user_id):
         'next_disabled': next_disabled,
         'shift': shift.name if shift else 'Not assigned',
         'today': today,
-
         'all_employees': all_employees,
         'search_query': search_query or '',
-
     }
     return render(request, 'employee_attendance_detail.html', context)
     
@@ -2162,6 +2450,8 @@ def minutes_to_time(minutes):
     mins = int(minutes % 60)
     return f"{hours:02d}:{mins:02d}"
 
+
+
 @login_required
 def attendance_view(request):
     user = request.user
@@ -2172,17 +2462,13 @@ def attendance_view(request):
     if month < 1 or month > 12: month = today.month
     if year < 2000 or year > 2100: year = today.year
 
-    from calendar import monthrange
     _, last_day = monthrange(year, month)
     first_date = date(year, month, 1)
     last_date = date(year, month, last_day)
 
     attendances = Attendance.objects.filter(
-        user=user,
-        date__gte=first_date,
-        date__lte=last_date
+        user=user, date__gte=first_date, date__lte=last_date
     ).order_by('date')
-
     att_dict = {att.date: att for att in attendances}
 
     all_dates = []
@@ -2207,25 +2493,10 @@ def attendance_view(request):
                 total_in_minutes += check_in.hour * 60 + check_in.minute
                 total_out_minutes += check_out.hour * 60 + check_out.minute
         else:
-            status = 'Absent'
-            check_in = None
-            check_out = None
-            work_seconds = 0
-            overtime_seconds = 0
+            status, check_in, check_out, work_seconds, overtime_seconds = 'Absent', None, None, 0, 0
 
-        
-        if check_in:
-            local_check_in = timezone.localtime(check_in)
-            check_in_display = local_check_in.strftime('%I:%M %p')
-        else:
-            check_in_display = '--:--'
-
-        if check_out:
-            local_check_out = timezone.localtime(check_out)
-            check_out_display = local_check_out.strftime('%I:%M %p')
-        else:
-            check_out_display = '--:--'
-            
+        check_in_display = timezone.localtime(check_in).strftime('%I:%M %p') if check_in else '--:--'
+        check_out_display = timezone.localtime(check_out).strftime('%I:%M %p') if check_out else '--:--'
         work_hours = f"{int(work_seconds // 3600):02d}:{int((work_seconds % 3600) // 60):02d}" if work_seconds else '--:--'
         overtime_display = f"{int(overtime_seconds // 3600):02d}:{int((overtime_seconds % 3600) // 60):02d}" if overtime_seconds else '--:--'
         can_regularize = (status in ['Absent', 'Incomplete'])
@@ -2241,15 +2512,14 @@ def attendance_view(request):
             'attendance_id': att.id if att else None,
             'is_weekend': current_date.weekday() >= 5,
         })
-        all_dates.sort(key=lambda x: x['date'], reverse=True)
+
+    # ✅ Sort ONCE outside the loop
+    all_dates.sort(key=lambda x: x['date'], reverse=True)
 
     avg_working_hours = round(total_working_hours / complete_count, 2) if complete_count > 0 else 0
     avg_in_time = minutes_to_time(total_in_minutes / complete_count) if complete_count > 0 else "--:--"
     avg_out_time = minutes_to_time(total_out_minutes / complete_count) if complete_count > 0 else "--:--"
-
-    pending_regularization = RegularizationRequest.objects.filter(
-        user=user, status='Pending'
-    ).exists()
+    pending_regularization = RegularizationRequest.objects.filter(user=user, status='Pending').exists()
 
     context = {
         'all_dates': all_dates,
@@ -2258,8 +2528,7 @@ def attendance_view(request):
         'avg_out_time': avg_out_time,
         'total_days': last_day,
         'completed_days': complete_count,
-        'month': month,
-        'year': year,
+        'month': month, 'year': year,
         'month_name': first_date.strftime('%B %Y'),
         'pending_regularization': pending_regularization,
         'today': today,
@@ -2268,7 +2537,6 @@ def attendance_view(request):
 
 
 # ---------- Regularization ----------
-
 @login_required
 def regularize_request(request):
     if request.method == 'POST':
@@ -2291,8 +2559,14 @@ def regularize_request(request):
                 messages.error(request, 'Attendance already exists for this date.')
                 return redirect('regularize_request')
 
-            # Create the regularization request
+            # ✅ FIX: Get company from user profile
+            company = get_user_company(request)
+            if not company:
+                messages.error(request, 'Your account is not linked to a company.')
+                return redirect('dashboard')
+
             reg_req = RegularizationRequest.objects.create(
+                company=company,   # ✅ Now defined
                 user=request.user,
                 date=date_str,
                 check_in_time=check_in if check_in else None,
@@ -2302,7 +2576,6 @@ def regularize_request(request):
             )
             messages.success(request, 'Regularization request submitted successfully.')
 
-            # ---- NEW: Get the approver and send notification ----
             approver = get_approver(request.user)
             if approver:
                 create_notification(
@@ -2312,7 +2585,6 @@ def regularize_request(request):
                     related_object=reg_req
                 )
             else:
-                # Fallback: notify all admins if no approver found
                 notify_admins(
                     f"{request.user.username} has submitted a regularization request for {date_str}.",
                     notification_type='action',
@@ -2326,47 +2598,38 @@ def regularize_request(request):
     return render(request, 'attendance/regularize_request.html')
 
 
-
 @login_required
 def regularize_request_list(request):
-    user = request.user
-    if user.is_superuser:
+    from .utils import get_company_filtered
+    
+    if request.user.is_superuser:
         requests = RegularizationRequest.objects.all().order_by('-requested_at')
+    elif request.user.groups.filter(name='HR Admin').exists():
+        requests = get_company_filtered(
+            request, RegularizationRequest.objects.all()
+        ).order_by('-requested_at')
     else:
-        requests = RegularizationRequest.objects.filter(user=user).order_by('-requested_at')
+        requests = RegularizationRequest.objects.filter(
+            user=request.user
+        ).order_by('-requested_at')
+    
     return render(request, 'attendance/regularize_request_list.html', {'requests': requests})
 
 
 @login_required
-@admin_or_hr_required
-def regularize_approve(request, req_id):
-    reg_req = get_object_or_404(RegularizationRequest, id=req_id)
-    if request.method == 'POST':
-        comment = request.POST.get('admin_comment', '')
-        reg_req.status = 'Approved'
-        reg_req.admin_comment = comment
-        reg_req.save()
-
-        if reg_req.check_in_time:
-            from datetime import datetime
-            check_in_dt = datetime.combine(reg_req.date, reg_req.check_in_time)
-            check_out_dt = datetime.combine(reg_req.date, reg_req.check_out_time) if reg_req.check_out_time else None
-            Attendance.objects.create(
-                user=reg_req.user,
-                date=reg_req.date,
-                check_in_time=check_in_dt,
-                check_out_time=check_out_dt,
-                status='Present'
-            )
-        messages.success(request, f'Regularization approved for {reg_req.user.username}.')
-        return redirect('regularize_request_list')
-    return render(request, 'attendance/regularize_approve.html', {'reg_req': reg_req})
-
-
-@login_required
-@admin_or_hr_required
+@hr_admin_required
+@company_required
 def regularize_reject(request, req_id):
-    reg_req = get_object_or_404(RegularizationRequest, id=req_id)
+    from .utils import get_user_company
+    
+    if request.user.is_superuser:
+        reg_req = get_object_or_404(RegularizationRequest, id=req_id)
+    else:
+        reg_req = get_object_or_404(
+            RegularizationRequest, id=req_id, company=get_user_company(request)
+        )
+    # ❌ Make sure there's NO second `reg_req = get_object_or_404(...)` after this
+    
     if request.method == 'POST':
         reason = request.POST.get('rejection_reason')
         if not reason:
@@ -2377,7 +2640,77 @@ def regularize_reject(request, req_id):
         reg_req.save()
         messages.success(request, f'Regularization rejected for {reg_req.user.username}.')
         return redirect('regularize_request_list')
+    
     return render(request, 'attendance/regularize_reject.html', {'reg_req': reg_req})
+
+
+@login_required
+@hr_admin_required
+@company_required
+def regularize_reject(request, req_id):
+    if request.user.is_superuser:
+        reg_req = get_object_or_404(RegularizationRequest, id=req_id)
+    else:
+        reg_req = get_object_or_404(
+            RegularizationRequest, id=req_id, company=get_user_company(request)
+        )
+    
+    if request.method == 'POST':
+        reason = request.POST.get('rejection_reason')
+        if not reason:
+            messages.error(request, 'Please provide a rejection reason.')
+            return redirect('regularize_reject', req_id=reg_req.id)
+        reg_req.status = 'Rejected'
+        reg_req.admin_comment = reason
+        reg_req.save()
+        messages.success(request, f'Regularization rejected for {reg_req.user.username}.')
+        return redirect('regularize_request_list')
+    
+    return render(request, 'attendance/regularize_reject.html', {'reg_req': reg_req})
+
+
+@login_required
+@hr_admin_required
+@company_required
+def regularize_approve(request, req_id):
+    from datetime import datetime
+    
+    if request.user.is_superuser:
+        reg_req = get_object_or_404(RegularizationRequest, id=req_id)
+    else:
+        reg_req = get_object_or_404(
+            RegularizationRequest, id=req_id, company=get_user_company(request)
+        )
+    
+    if request.method == 'POST':
+        comment = request.POST.get('admin_comment', '')
+        reg_req.status = 'Approved'
+        reg_req.admin_comment = comment
+        reg_req.save()
+        
+        if reg_req.check_in_time:
+            check_in_dt = timezone.make_aware(
+                datetime.combine(reg_req.date, reg_req.check_in_time)
+            )
+            check_out_dt = None
+            if reg_req.check_out_time:
+                check_out_dt = timezone.make_aware(
+                    datetime.combine(reg_req.date, reg_req.check_out_time)
+                )
+            Attendance.objects.create(
+                user=reg_req.user,
+                company=reg_req.company,
+                date=reg_req.date,
+                check_in_time=check_in_dt,
+                check_out_time=check_out_dt,
+                status='Present',
+                state='checked_out' if check_out_dt else 'checked_in',
+            )
+        messages.success(request, f'Regularization approved for {reg_req.user.username}.')
+        return redirect('regularize_request_list')
+    
+    return render(request, 'attendance/regularize_approve.html', {'reg_req': reg_req})
+
 
 
 # ---------- Notification List ----------
@@ -2439,58 +2772,59 @@ def profile(request):
 
 
 # ---------- Attendance Overview Data ----------
-
+@login_required
 def attendance_overview_data(request):
-    """Return JSON data for attendance overview chart (period: week, month, last_month)."""
+    """Return JSON data for attendance overview chart."""
+    from .utils import get_company_filtered
+    
     period = request.GET.get('period', 'week')
     today = date.today()
 
     if period == 'week':
         start_date = today - timedelta(days=today.weekday())
         end_date = today
-        date_range = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
     elif period == 'month':
         start_date = date(today.year, today.month, 1)
         end_date = today
-        date_range = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
     elif period == 'last_month':
         last_month = today.replace(day=1) - timedelta(days=1)
         start_date = date(last_month.year, last_month.month, 1)
         end_date = date(last_month.year, last_month.month, last_month.day)
-        date_range = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
     else:
         return JsonResponse({'error': 'Invalid period'}, status=400)
 
-    total_employees = User.objects.filter(is_superuser=False).count()
-    if total_employees == 0:
-        return JsonResponse({'labels': [], 'present': [], 'on_leave': [], 'absent': [], 'total_employees': 0})
+    date_range = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
 
-    labels = []
-    present_pct = []
-    on_leave_pct = []
-    absent_pct = []
+    # ✅ Company-filtered employee count (no redirect)
+    total_employees = get_company_filtered(
+        request, User.objects.filter(is_superuser=False)
+    ).count()
+
+    if total_employees == 0:
+        return JsonResponse({
+            'labels': [], 'present': [], 'on_leave': [],
+            'absent': [], 'total_employees': 0
+        })
+
+    labels, present_pct, on_leave_pct, absent_pct = [], [], [], []
 
     for d in date_range:
-        # Present employees
-        present = Attendance.objects.filter(
-            date=d,
-            status='Present',
-            user__is_superuser=False
+        present = get_company_filtered(
+            request,
+            Attendance.objects.filter(date=d, status='Present', user__is_superuser=False)
         ).values('user').distinct().count()
 
-        # On Leave employees (approved leave covering this day)
-        on_leave = LeaveRequest.objects.filter(
-            status='Approved',
-            start_date__lte=d,
-            end_date__gte=d,
-            user__is_superuser=False
+        on_leave = get_company_filtered(
+            request,
+            LeaveRequest.objects.filter(
+                status='Approved', start_date__lte=d, end_date__gte=d, user__is_superuser=False
+            )
         ).values('user').distinct().count()
 
-        # Absent = total - present - on_leave (on_leave employees are not present)
         absent = total_employees - present - on_leave
 
-        present_pct_val = round((present / total_employees) * 100, 1) if total_employees > 0 else 0
-        on_leave_pct_val = round((on_leave / total_employees) * 100, 1) if total_employees > 0 else 0
+        present_pct_val = round((present / total_employees) * 100, 1) if total_employees else 0
+        on_leave_pct_val = round((on_leave / total_employees) * 100, 1) if total_employees else 0
         absent_pct_val = 100 - present_pct_val - on_leave_pct_val
 
         labels.append(d.strftime('%a' if period == 'week' else '%d %b'))
@@ -2510,70 +2844,68 @@ def attendance_overview_data(request):
 # ---------- Setup Page ----------
 @login_required
 @hr_admin_required
+@company_required
 def setup(request):
-    shifts = Shift.objects.all().order_by('start_time')
-    context = {
-        'shifts': shifts,
-    }
+    shifts = get_company_filtered(request, Shift.objects.all()).order_by('start_time')
+    context = {'shifts': shifts}
     return render(request, 'setup.html', context)
 
 
 # ---------- Shift Management (Admin only) ----------
-# ---------- Shift Management (Admin only) ----------
 
 @login_required
 @hr_admin_required
+@company_required
 def shift_list(request):
-    shifts = Shift.objects.all().order_by('start_time')
+    from .utils import get_company_filtered
+    shifts = get_company_filtered(request, Shift.objects.all()).order_by('start_time')
     return render(request, 'shift_list.html', {'shifts': shifts})
-
+    
 @login_required
 @hr_admin_required
+@company_required
 def shift_create(request):
+    from .utils import get_user_company   # ✅ Added local import
+    
     if request.method == 'POST':
-        name = request.POST.get('name')
-        start_time = request.POST.get('start_time')
-        end_time = request.POST.get('end_time')
-        break_start = request.POST.get('break_start') or None
-        break_end = request.POST.get('break_end') or None
-        grace_period = int(request.POST.get('grace_period', 0))
-        min_working_hours = int(request.POST.get('min_working_hours', 480))
-        overtime_allowed = request.POST.get('overtime_allowed') == 'on'
-        overtime_limit = float(request.POST.get('overtime_limit', 2))
-        mon = request.POST.get('mon') == 'on'
-        tue = request.POST.get('tue') == 'on'
-        wed = request.POST.get('wed') == 'on'
-        thu = request.POST.get('thu') == 'on'
-        fri = request.POST.get('fri') == 'on'
-        sat = request.POST.get('sat') == 'on'
-        sun = request.POST.get('sun') == 'on'
-
         Shift.objects.create(
-            name=name,
-            start_time=start_time,
-            end_time=end_time,
-            break_start=break_start,
-            break_end=break_end,
-            grace_period=grace_period,
-            min_working_hours=min_working_hours,
-            overtime_allowed=overtime_allowed,
-            overtime_limit=overtime_limit,
-            mon=mon,
-            tue=tue,
-            wed=wed,
-            thu=thu,
-            fri=fri,
-            sat=sat,
-            sun=sun
+            company=get_user_company(request),
+            name=request.POST.get('name'),
+            start_time=request.POST.get('start_time'),
+            end_time=request.POST.get('end_time'),
+            break_start=request.POST.get('break_start') or None,
+            break_end=request.POST.get('break_end') or None,
+            grace_period=int(request.POST.get('grace_period', 0)),
+            min_working_hours=int(request.POST.get('min_working_hours', 480)),
+            overtime_allowed=request.POST.get('overtime_allowed') == 'on',
+            overtime_limit=float(request.POST.get('overtime_limit', 2)),
+            mon=request.POST.get('mon') == 'on',
+            tue=request.POST.get('tue') == 'on',
+            wed=request.POST.get('wed') == 'on',
+            thu=request.POST.get('thu') == 'on',
+            fri=request.POST.get('fri') == 'on',
+            sat=request.POST.get('sat') == 'on',
+            sun=request.POST.get('sun') == 'on',
         )
         messages.success(request, 'Shift created successfully.')
         return redirect('shift_list')
     return render(request, 'shift_form.html', {'action': 'Create'})
 
+
+
 @login_required
 @hr_admin_required
+@company_required
 def shift_edit(request, pk):
-    shift = get_object_or_404(Shift, id=pk)
+    from .utils import get_user_company
+    
+    # ─── Security: ownership check ───
+    if request.user.is_superuser:
+        shift = get_object_or_404(Shift, id=pk)
+    else:
+        company = get_user_company(request)
+        shift = get_object_or_404(Shift, id=pk, company=company)
+    
     if request.method == 'POST':
         shift.name = request.POST.get('name')
         shift.start_time = request.POST.get('start_time')
@@ -2594,12 +2926,20 @@ def shift_edit(request, pk):
         shift.save()
         messages.success(request, 'Shift updated successfully.')
         return redirect('shift_list')
+    
     return render(request, 'shift_form.html', {'action': 'Edit', 'shift': shift})
 
 @login_required
 @hr_admin_required
+@company_required
 def shift_delete(request, pk):
-    shift = get_object_or_404(Shift, id=pk)
+    from .utils import get_user_company   # ✅ Added
+    
+    if request.user.is_superuser:
+        shift = get_object_or_404(Shift, id=pk)
+    else:
+        shift = get_object_or_404(Shift, id=pk, company=get_user_company(request))
+    
     if request.method == 'POST':
         shift.delete()
         messages.success(request, 'Shift deleted successfully.')
@@ -2608,10 +2948,12 @@ def shift_delete(request, pk):
 
 # ---------- Bulk Shift Assignment (Admin only) ----------
 
-# ---------- Bulk Shift Assignment (Admin only) ----------
 @login_required
 @admin_or_hr_required
+@company_required
 def assign_shift(request):
+    from .utils import get_user_company, get_company_filtered
+    
     user = request.user
 
     if request.method == 'POST':
@@ -2623,43 +2965,68 @@ def assign_shift(request):
             messages.error(request, 'Please select at least one employee and a shift.')
             return redirect('assign_shift')
 
-        shift = get_object_or_404(Shift, id=shift_id)
+        # ─── Security: shift must belong to user's company ───
+        if user.is_superuser:
+            shift = get_object_or_404(Shift, id=shift_id)
+        else:
+            company = get_user_company(request)
+            shift = get_object_or_404(Shift, id=shift_id, company=company)
 
-        # ----- Filter employee_ids for managers (only their team) -----
-        if not (user.is_superuser or user.groups.filter(name='HR Admin').exists()):
-            # Manager: only allow updating employees in their team
+        # ─── Filter employee_ids by role and company ───
+        if user.is_superuser:
+            # Superuser can assign any employee
+            allowed_profiles = EmployeeProfile.objects.filter(user_id__in=employee_ids)
+        elif user.groups.filter(name='HR Admin').exists():
+            # HR Admin: only own company employees
+            company = get_user_company(request)
+            allowed_profiles = EmployeeProfile.objects.filter(
+                user_id__in=employee_ids, company=company
+            )
+        else:
+            # Manager: only their team
             try:
                 profile = user.profile
-                team_members = EmployeeProfile.objects.filter(manager=profile).values_list('user_id', flat=True)
-                # Keep only IDs that are in the manager's team
-                employee_ids = [int(eid) for eid in employee_ids if int(eid) in team_members]
+                team_members = EmployeeProfile.objects.filter(
+                    manager=profile
+                ).values_list('user_id', flat=True)
+                allowed_profiles = EmployeeProfile.objects.filter(
+                    user_id__in=employee_ids
+                ).filter(user_id__in=team_members)   # ✅ Chained filter (was commented out)
             except EmployeeProfile.DoesNotExist:
-                employee_ids = []
+                allowed_profiles = EmployeeProfile.objects.none()
 
-        if not employee_ids:
+        allowed_ids = list(allowed_profiles.values_list('user_id', flat=True))
+        
+        if not allowed_ids:
             messages.error(request, 'No valid employees selected for shift assignment.')
             return redirect('assign_shift')
 
-        updated = EmployeeProfile.objects.filter(user_id__in=employee_ids).update(
+        updated = EmployeeProfile.objects.filter(user_id__in=allowed_ids).update(
             shift=shift,
             shift_effective_from=effective_from if effective_from else None
         )
         messages.success(request, f'Shift "{shift.name}" assigned to {updated} employee(s).')
         return redirect('assign_shift')
 
-    # GET – show the form with filters
-    shifts = Shift.objects.all().order_by('name')
+    # ─── GET – filter everything by company ───
+    shifts = get_company_filtered(request, Shift.objects.all()).order_by('name')
 
-    # ----- Filter employees based on user role -----
-    if user.is_superuser or user.groups.filter(name='HR Admin').exists():
-        # Superuser/HR Admin → see ALL employees
+    # Filter employees based on role
+    if user.is_superuser:
         employees = User.objects.filter(is_superuser=False).select_related('profile').order_by('username')
+    elif user.groups.filter(name='HR Admin').exists():
+        company = get_user_company(request)
+        employees = User.objects.filter(
+            is_superuser=False, profile__company=company
+        ).select_related('profile').order_by('username')
     else:
-        # Manager → see only their team
+        # Manager: only their team
         try:
             profile = user.profile
-            team_members = EmployeeProfile.objects.filter(manager=profile).values_list('user_id', flat=True)
-            employees = User.objects.filter(id__in=team_members).select_related('profile').order_by('username')
+            team_ids = EmployeeProfile.objects.filter(
+                manager=profile
+            ).values_list('user_id', flat=True)
+            employees = User.objects.filter(id__in=team_ids).select_related('profile').order_by('username')
         except EmployeeProfile.DoesNotExist:
             employees = User.objects.none()
 
@@ -2669,7 +3036,7 @@ def assign_shift(request):
     location_filter = request.GET.get('location', '')
     team_filter = request.GET.get('team', '')
 
-    # Filter employees
+    # Apply filters
     filtered_employees = employees
     if department_filter:
         filtered_employees = filtered_employees.filter(profile__department__icontains=department_filter)
@@ -2695,9 +3062,14 @@ def assign_shift(request):
             'team': getattr(profile, 'team', ''),
         })
 
-    # Get distinct departments and designations for filters
-    distinct_departments = EmployeeProfile.objects.values_list('department', flat=True).distinct().order_by('department')
-    distinct_designations = EmployeeProfile.objects.values_list('designation', flat=True).distinct().order_by('designation')
+    # ─── Distinct departments/designations from the SAME company only ───
+    distinct_departments = get_company_filtered(
+        request, EmployeeProfile.objects.all()
+    ).values_list('department', flat=True).distinct().order_by('department')
+    
+    distinct_designations = get_company_filtered(
+        request, EmployeeProfile.objects.all()
+    ).values_list('designation', flat=True).distinct().order_by('designation')
 
     context = {
         'employees': employee_list,
@@ -2714,20 +3086,24 @@ def assign_shift(request):
 
 
 # ---------- Employee Search API (for autocomplete) ----------
+
+
 @login_required
-@admin_or_hr_required
 def employee_search_api(request):
+    from .utils import get_company_filtered
+    
     query = request.GET.get('q', '')
     if len(query) < 1:
         return JsonResponse([], safe=False)
-    
-    employees = User.objects.filter(
-        is_superuser=False
+
+    employees = get_company_filtered(
+        request,
+        User.objects.filter(is_superuser=False)
     ).filter(
         Q(username__icontains=query) |
         Q(profile__full_name__icontains=query)
     )[:10].select_related('profile')
-    
+
     results = []
     for emp in employees:
         profile = getattr(emp, 'profile', None)
@@ -2738,6 +3114,10 @@ def employee_search_api(request):
             'employee_id': profile.employee_id if profile else '',
         })
     return JsonResponse(results, safe=False)
+
+
+
+    
 
 def error_404(request, exception):
     return render(request, '404.html', status=404)
@@ -2756,250 +3136,794 @@ def error_400(request, exception):
     
     # ---------- Attendance Report PDF ----------
     # ---------- Attendance Report PDF ----------
+    
 @login_required
 @hr_admin_required
+@company_required
 def attendance_report_pdf(request):
     from .utils import get_employee_attendance_for_pdf
-    from reportlab.lib.pagesizes import A4
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
-    from reportlab.lib import colors
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.units import inch, cm
-    from io import BytesIO
-    from django.http import FileResponse
-    from django.db.models import Q
-    from django.utils import timezone
-    
+
     today = date.today()
     month = int(request.GET.get('month', today.month))
     year = int(request.GET.get('year', today.year))
     download_type = request.GET.get('download_type', 'all')
     employee_id = request.GET.get('employee_id')
-    
-    # --- Filter employees based on user role ---
-    user = request.user
-    if user.is_superuser or user.groups.filter(name='HR Admin').exists():
+
+    # ✅ Company-scoped employees
+    if request.user.is_superuser:
         employees = User.objects.filter(is_superuser=False).order_by('username')
+    elif request.user.groups.filter(name='HR Admin').exists():
+        company = get_user_company(request)
+        employees = User.objects.filter(is_superuser=False, profile__company=company).order_by('username')
     else:
-        # Manager → only their team
         try:
-            profile = user.profile
-            team_members = EmployeeProfile.objects.filter(manager=profile).values_list('user_id', flat=True)
-            employees = User.objects.filter(id__in=team_members).order_by('username')
+            profile = request.user.profile
+            team_ids = EmployeeProfile.objects.filter(manager=profile).values_list('user_id', flat=True)
+            employees = User.objects.filter(id__in=team_ids).order_by('username')
         except EmployeeProfile.DoesNotExist:
             employees = User.objects.none()
-    
+
     # Apply filters
     department_filter = request.GET.get('department', '')
     employee_search = request.GET.get('employee', '')
     shift_filter = request.GET.get('shift', '')
-    
     if department_filter:
         employees = employees.filter(profile__department__icontains=department_filter)
     if employee_search:
         employees = employees.filter(
-            Q(username__icontains=employee_search) | 
+            Q(username__icontains=employee_search) |
             Q(profile__full_name__icontains=employee_search)
         )
     if shift_filter and shift_filter != 'all':
         employees = employees.filter(profile__shift_id=shift_filter)
-    
-    # Single employee mode
+
     if download_type == 'single':
         if not employee_id:
             messages.error(request, 'Please select an employee.')
             return redirect('attendance_report')
         try:
-            emp = User.objects.get(id=employee_id)
-            if emp not in employees:
+            # Security: employee must be in scope
+            emp = employees.filter(id=employee_id).first()
+            if not emp:
                 messages.error(request, 'Employee not found or you do not have access.')
                 return redirect('attendance_report')
             employees = [emp]
-        except User.DoesNotExist:
+        except Exception:
             messages.error(request, 'Employee not found.')
             return redirect('attendance_report')
-    
+
     if not employees:
         messages.error(request, 'No employees found for the selected filters.')
         return redirect('attendance_report')
-    
-    # --- Generate PDF ---
+
     buffer = BytesIO()
     first_day = date(year, month, 1)
     _, last_day_num = monthrange(year, month)
     last_day = date(year, month, last_day_num)
-    
-    company = Company.objects.first()
+
+    if request.user.is_superuser:
+        company = Company.objects.first()
+    else:
+        company = get_user_company(request)
     company_name = company.name if company else 'HRMS'
-    
+
     doc = SimpleDocTemplate(buffer, pagesize=A4,
                             topMargin=0.5*inch, bottomMargin=0.5*inch,
                             leftMargin=0.5*inch, rightMargin=0.5*inch)
-    
     styles = getSampleStyleSheet()
-    heading_style = styles['Heading2']
     normal_style = styles['Normal']
-    
-    header_style = ParagraphStyle(
-        'HeaderStyle',
-        parent=normal_style,
-        fontSize=14,
-        fontName='Helvetica-Bold',
-        alignment=1,
-        spaceAfter=6
-    )
-    subheader_style = ParagraphStyle(
-        'SubHeaderStyle',
-        parent=normal_style,
-        fontSize=12,
-        alignment=1,
-        spaceAfter=12
-    )
-    info_label_style = ParagraphStyle(
-        'InfoLabelStyle',
-        parent=normal_style,
-        fontSize=10,
-        fontName='Helvetica-Bold'
-    )
-    info_value_style = ParagraphStyle(
-        'InfoValueStyle',
-        parent=normal_style,
-        fontSize=10
-    )
-    summary_label_style = ParagraphStyle(
-        'SummaryLabelStyle',
-        parent=normal_style,
-        fontSize=9,
-        fontName='Helvetica-Bold'
-    )
-    
+    heading_style = styles['Heading2']
+
+    header_style = ParagraphStyle('HeaderStyle', parent=normal_style, fontSize=14, fontName='Helvetica-Bold', alignment=1, spaceAfter=6)
+    subheader_style = ParagraphStyle('SubHeaderStyle', parent=normal_style, fontSize=12, alignment=1, spaceAfter=12)
+    info_label_style = ParagraphStyle('InfoLabelStyle', parent=normal_style, fontSize=10, fontName='Helvetica-Bold')
+    info_value_style = ParagraphStyle('InfoValueStyle', parent=normal_style, fontSize=10)
+    summary_label_style = ParagraphStyle('SummaryLabelStyle', parent=normal_style, fontSize=9, fontName='Helvetica-Bold')
+    footer_style = ParagraphStyle('Footer', parent=normal_style, fontSize=7, alignment=1)
+
     elements = []
-    
+
     for idx, emp in enumerate(employees):
         if idx > 0:
             elements.append(PageBreak())
-    
-        emp_data = get_employee_attendance_for_pdf(
-            emp, year, month, first_day, last_day
-        )
-    
+
+        emp_data = get_employee_attendance_for_pdf(emp, year, month, first_day, last_day)
         profile = emp_data['profile']
         shift = emp_data['shift']
-        daily_data = emp_data['daily_data']
-    
-        # Header
+        daily = emp_data['daily_data']
+
         elements.append(Paragraph(company_name, header_style))
         elements.append(Paragraph("Attendance Report", subheader_style))
-        month_name = first_day.strftime('%B %Y')
-        elements.append(Paragraph(month_name, normal_style))
+        elements.append(Paragraph(first_day.strftime('%B %Y'), normal_style))
         elements.append(Spacer(1, 0.3*inch))
-    
-        # Employee Info
+
+        # Employee Info (2-column table, all fields)
         info_data = [
             [Paragraph("Employee:", info_label_style), Paragraph(emp.username, info_value_style),
              Paragraph("Employee ID:", info_label_style), Paragraph(profile.employee_id if profile else '—', info_value_style)],
-        [Paragraph("Department:", info_label_style), Paragraph(profile.department if profile else '—', info_value_style),
-         Paragraph("Designation:", info_label_style), Paragraph(profile.designation if profile else '—', info_value_style)],
-        [Paragraph("Manager:", info_label_style), Paragraph(profile.manager.full_name if profile and profile.manager else '—', info_value_style),
-         Paragraph("Shift:", info_label_style), Paragraph(shift.name if shift else '—', info_value_style)],
-        [Paragraph("Attendance Type:", info_label_style), Paragraph(profile.get_attendance_type_display() if profile else '—', info_value_style),
-         Paragraph("", info_label_style), Paragraph("", info_value_style)],
-    ]
-    info_table = Table(info_data, colWidths=[1.2*cm, 4*cm, 1.2*cm, 4*cm])
-    info_table.setStyle(TableStyle([
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('FONTSIZE', (0,0), (-1,-1), 10),
-        ('LEFTPADDING', (0,0), (-1,-1), 2),
-        ('RIGHTPADDING', (0,0), (-1,-1), 2),
-        ('TOPPADDING', (0,0), (-1,-1), 3),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
-    ]))
-    elements.append(info_table)
+            [Paragraph("Department:", info_label_style), Paragraph(profile.department if profile else '—', info_value_style),
+             Paragraph("Designation:", info_label_style), Paragraph(profile.designation if profile else '—', info_value_style)],
+            [Paragraph("Manager:", info_label_style), Paragraph(profile.manager.full_name if profile and profile.manager else '—', info_value_style),
+             Paragraph("Shift:", info_label_style), Paragraph(shift.name if shift else '—', info_value_style)],
+            [Paragraph("Attendance Type:", info_label_style), Paragraph(profile.get_attendance_type_display() if profile else '—', info_value_style),
+             Paragraph("", info_label_style), Paragraph("", info_value_style)],
+        ]
+        info_table = Table(info_data, colWidths=[1.2*cm, 4*cm, 1.2*cm, 4*cm])
+        info_table.setStyle(TableStyle([
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('FONTSIZE', (0,0), (-1,-1), 10),
+            ('LEFTPADDING', (0,0), (-1,-1), 2),
+            ('RIGHTPADDING', (0,0), (-1,-1), 2),
+            ('TOPPADDING', (0,0), (-1,-1), 3),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+        ]))
+        elements.append(info_table)
+        elements.append(Spacer(1, 0.2*inch))
+
+        # Daily Attendance
+        elements.append(Paragraph("Daily Attendance", heading_style))
+        table_data = [['Date', 'Day', 'Status', 'Check In', 'Check Out', 'Hours']]
+        for day in daily:
+            table_data.append([
+                day['date'].strftime('%d %b'),
+                day['day_name'],
+                day['status'],
+                day['check_in'] if day['check_in'] else '—',
+                day['check_out'] if day['check_out'] else '—',
+                day['working_hours'] if day['working_hours'] else '—'
+            ])
+        available_width = doc.width
+        col_widths = [available_width * 0.12, available_width * 0.10,
+                      available_width * 0.18, available_width * 0.18,
+                      available_width * 0.18, available_width * 0.24]
+        table = Table(table_data, colWidths=col_widths)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.grey),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0,0), (-1,0), 9),
+            ('FONTSIZE', (0,1), (-1,-1), 8),
+            ('BOTTOMPADDING', (0,0), (-1,0), 6),
+            ('TOPPADDING', (0,0), (-1,-1), 4),
+            ('BOTTOMPADDING', (0,1), (-1,-1), 4),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.lightgrey]),
+        ]))
+        elements.append(table)
+        elements.append(Spacer(1, 0.3*inch))
+
+        # Monthly Summary
+        elements.append(Paragraph("Monthly Summary", heading_style))
+        ot_hours = int(emp_data['overtime_minutes'] // 60)
+        ot_minutes = int(emp_data['overtime_minutes'] % 60)
+        overtime_str = f"{ot_hours}h {ot_minutes}m" if ot_minutes or ot_hours else "0h"
+        summary_data = [
+            [Paragraph("Working Days:", summary_label_style), str(emp_data['working_days']),
+             Paragraph("Present:", summary_label_style), str(emp_data['present'])],
+            [Paragraph("Absent:", summary_label_style), str(emp_data['absent']),
+             Paragraph("Leave:", summary_label_style), str(emp_data['leave'])],
+            [Paragraph("Half Day:", summary_label_style), str(emp_data['half_day']),
+             Paragraph("Late Arrivals:", summary_label_style), str(emp_data['late_arrivals'])],
+            [Paragraph("Overtime:", summary_label_style), overtime_str,
+             Paragraph("Total Working Hours:", summary_label_style), emp_data['total_working_hours']],
+            [Paragraph("Average Working Hours:", summary_label_style), emp_data['avg_working_hours'],
+             Paragraph("", summary_label_style), ""],
+        ]
+        summary_table = Table(summary_data, colWidths=[3*cm, 2.5*cm, 3*cm, 2.5*cm])
+        summary_table.setStyle(TableStyle([
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('FONTSIZE', (0,0), (-1,-1), 9),
+            ('LEFTPADDING', (0,0), (-1,-1), 4),
+            ('RIGHTPADDING', (0,0), (-1,-1), 4),
+            ('TOPPADDING', (0,0), (-1,-1), 3),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+        ]))
+        elements.append(summary_table)
+        elements.append(Spacer(1, 0.5*inch))
+
+        local_now = timezone.localtime(timezone.now())
+        footer_text = f"Generated on {local_now.strftime('%d %B %Y, %I:%M %p')} · Employee ID: {profile.employee_id if profile else 'N/A'}"
+        elements.append(Paragraph(footer_text, footer_style))
+
+    # ✅ Build outside the loop
+    doc.build(elements)
+    buffer.seek(0)
+
+    month_name = first_day.strftime('%B_%Y')
+    if download_type == 'single' and len(employees) == 1:
+        emp = employees[0]
+        emp_id = emp.profile.employee_id if hasattr(emp, 'profile') and emp.profile else f"EMP{emp.id:04d}"
+        filename = f"attendance_{emp_id}_{month_name}.pdf"
+    else:
+        filename = f"attendance_{month_name}.pdf"
+
+    return FileResponse(buffer, as_attachment=True, filename=filename)
+    
+
+# *********************payroll
+
+
+@login_required
+@hr_admin_required
+@payroll_required
+@company_required
+def payroll_dashboard(request):
+    from .utils import get_user_company
+    from django.db.models import Sum, Count, Q
+
+    if request.user.is_superuser:
+        company = Company.objects.first()
+    else:
+        company = get_user_company(request)
+
+    # ── Employee counts ──
+    total_employees = EmployeeProfile.objects.filter(company=company).count()
+    employees_with_salary = EmployeeSalary.objects.filter(
+        company=company, status='active'
+    ).values('employee').distinct().count()
+
+    # ── Salary config totals ──
+    salary_agg = EmployeeSalary.objects.filter(
+        company=company, status='active'
+    ).aggregate(
+        total_basic=Sum('basic_salary'),
+        total_hra=Sum('hra'),
+        total_allowance=Sum('allowance'),
+        total_gross=Sum('gross_salary'),
+    )
+
+    # ── Payroll month totals (all months in DB) ──
+    payroll_agg = Payroll.objects.filter(company=company).aggregate(
+        total_ot=Sum('overtime_amount'),
+        total_unpaid_deduction=Sum('unpaid_leave_deduction'),
+        total_other_deduction=Sum('other_deduction'),
+        total_net=Sum('net_salary'),
+    )
+
+    # ── Payroll status counts ──
+    payroll_stats = Payroll.objects.filter(company=company).aggregate(
+        draft=Count('id', filter=Q(status='draft')),
+        processed=Count('id', filter=Q(status='processed')),
+        paid=Count('id', filter=Q(status='paid')),
+    )
+
+    context = {
+        'total_employees': total_employees,
+        'employees_with_salary': employees_with_salary,
+        'employees_without_salary': total_employees - employees_with_salary,
+
+        # Salary config totals
+        'total_basic': salary_agg['total_basic'] or 0,
+        'total_hra': salary_agg['total_hra'] or 0,
+        'total_allowance': salary_agg['total_allowance'] or 0,
+        'total_gross': salary_agg['total_gross'] or 0,
+
+        # Payroll month totals
+        'total_overtime': payroll_agg['total_ot'] or 0,
+        'total_unpaid_leave_deduction': payroll_agg['total_unpaid_deduction'] or 0,
+        'total_other_deduction': payroll_agg['total_other_deduction'] or 0,
+        'total_net': payroll_agg['total_net'] or 0,
+
+        # Payroll status
+        'draft_payroll': payroll_stats['draft'] or 0,
+        'processed_payroll': payroll_stats['processed'] or 0,
+        'paid_payroll': payroll_stats['paid'] or 0,
+    }
+    return render(request, 'payroll/dashboard.html', context)
+
+
+
+@login_required
+@hr_admin_required
+@payroll_required
+@company_required
+def employee_salary_list(request):
+    from .utils import get_user_company
+    
+    if request.user.is_superuser:
+        employees = EmployeeProfile.objects.all().order_by('full_name')
+    else:
+        company = get_user_company(request)
+        employees = EmployeeProfile.objects.filter(company=company).order_by('full_name')
+    
+    salary_data = []
+    for emp in employees:
+        salary = EmployeeSalary.objects.filter(employee=emp, status='active').first()
+        salary_data.append({
+            'employee': emp,
+            'has_salary': salary is not None,
+            'salary': salary,
+        })
+    return render(request, 'payroll/employee_salary_list.html', {'salary_data': salary_data})
+    
+@login_required
+@hr_admin_required
+@payroll_required
+@company_required
+def employee_salary_create(request):
+    from .utils import get_user_company
+    from decimal import Decimal
+
+    user_company = get_user_company(request)
+
+    if request.user.is_superuser:
+        employees = EmployeeProfile.objects.all().order_by('full_name')
+    else:
+        employees = EmployeeProfile.objects.filter(company=user_company).order_by('full_name')
+
+    if request.method == 'POST':
+        employee_id = request.POST.get('employee')
+        salary_type = request.POST.get('salary_type')
+        basic_salary = Decimal(request.POST.get('basic_salary') or 0)
+        hra = Decimal(request.POST.get('hra') or 0)
+        allowance = Decimal(request.POST.get('allowance') or 0)
+        overtime_rate = Decimal(request.POST.get('overtime_rate') or 0)   # ✅ NEW
+        effective_from = request.POST.get('effective_from')
+
+        if not employee_id:
+            messages.error(request, 'Please select an employee.')
+            return redirect('employee_salary_create')
+
+        if request.user.is_superuser:
+            employee = get_object_or_404(EmployeeProfile, id=employee_id)
+        else:
+            employee = get_object_or_404(
+                EmployeeProfile, id=employee_id, company=user_company
+            )
+
+        company = employee.company
+        if not company:
+            messages.error(request, f'{employee.full_name} has no company assigned.')
+            return redirect('employee_salary_create')
+
+        existing = EmployeeSalary.objects.filter(employee=employee, status='active').first()
+        if existing:
+            messages.error(request, 'Salary is already configured for this employee.')
+            return redirect('employee_salary_edit', pk=existing.id)
+
+        EmployeeSalary.objects.create(
+            company=company,
+            employee=employee,
+            salary_type=salary_type,
+            basic_salary=basic_salary,
+            hra=hra,
+            allowance=allowance,
+            overtime_rate=overtime_rate,        # ✅ NEW
+            # ❌ REMOVED: deduction=deduction,
+            effective_from=effective_from,
+            status='active',
+        )
+        messages.success(request, f'Salary added for {employee.full_name}')
+        return redirect('employee_salary_list')
+
+    return render(request, 'payroll/employee_salary_form.html', {
+        'employees': employees,
+        'action': 'Add',
+    })
+
+
+
+@login_required
+@hr_admin_required
+@payroll_required
+@company_required
+def employee_salary_edit(request, pk):
+    from .utils import get_user_company
+    from decimal import Decimal
+
+    if request.user.is_superuser:
+        salary = get_object_or_404(EmployeeSalary, id=pk)
+    else:
+        company = get_user_company(request)
+        salary = get_object_or_404(EmployeeSalary, id=pk, company=company)
+
+    if request.method == 'POST':
+        salary.salary_type = request.POST.get('salary_type')
+        salary.basic_salary = Decimal(request.POST.get('basic_salary') or 0)
+        salary.hra = Decimal(request.POST.get('hra') or 0)
+        salary.allowance = Decimal(request.POST.get('allowance') or 0)
+        salary.overtime_rate = Decimal(request.POST.get('overtime_rate') or 0)   # ✅ NEW
+        # ❌ REMOVED: salary.deduction = ...
+        salary.effective_from = request.POST.get('effective_from')
+        salary.status = request.POST.get('status')
+        salary.save()
+        messages.success(request, 'Salary updated successfully')
+        return redirect('employee_salary_list')
+
+    return render(request, 'payroll/employee_salary_form.html', {
+        'salary': salary,
+        'action': 'Edit',
+    })
+
+
+
+@login_required
+@hr_admin_required
+@payroll_required
+@company_required
+def payroll_processing(request):
+    from .utils import get_user_company, calculate_monthly_payroll
+    from datetime import datetime as dt
+
+    if request.user.is_superuser:
+        company = Company.objects.first()
+    else:
+        company = get_user_company(request)
+
+    month = int(request.GET.get('month', dt.now().month))
+    year = int(request.GET.get('year', dt.now().year))
+
+    active_salaries = EmployeeSalary.objects.filter(
+    company=company, status='active'
+).select_related('employee', 'employee__user')
+
+    payroll_data = []
+    for salary in active_salaries:
+        emp = salary.employee
+        # Calculate fresh (or read existing)
+        calc = calculate_monthly_payroll(emp, year, month, salary)
+        existing = Payroll.objects.filter(
+            company=company, employee=emp, month=month, year=year
+        ).first()
+        payroll_data.append({
+            'employee': emp,
+            'salary': salary,
+            'calc': calc,
+            'has_payroll': existing is not None,
+            'payroll': existing,
+        })
+
+    context = {
+        'payroll_data': payroll_data,
+        'month': month,
+        'year': year,
+        'months': range(1, 13),
+        'years': range(2020, 2031),
+    }
+    return render(request, 'payroll/payroll_processing.html', context)
+
+
+
+@login_required
+@hr_admin_required
+@payroll_required
+@company_required
+def payroll_generate(request):
+    from .utils import get_user_company, calculate_monthly_payroll
+    
+    if request.method != 'POST':
+        return redirect('payroll_processing')
+
+    if request.user.is_superuser:
+        company = Company.objects.first()
+    else:
+        company = get_user_company(request)
+
+    month = int(request.POST.get('month'))
+    year = int(request.POST.get('year'))
+
+    salaries = EmployeeSalary.objects.filter(company=company, status='active')
+
+    created = 0
+    for salary in salaries:
+        emp = salary.employee
+        if Payroll.objects.filter(
+            company=company, employee=emp, month=month, year=year
+        ).exists():
+            continue
+
+        calc = calculate_monthly_payroll(emp, year, month, salary)
+
+        Payroll.objects.create(
+            company=company,
+            employee=emp,
+            month=month,
+            year=year,
+            basic_salary=calc['basic_salary'],
+            hra=calc['hra'],
+            allowance=calc['allowance'],
+            gross_salary=calc['gross_salary'],
+            working_days=calc['working_days'],
+            present_days=calc['present_days'],
+            absent_days=calc['absent_days'],
+            paid_leave_days=calc['paid_leave_days'],
+            unpaid_leave_days=calc['unpaid_leave_days'],
+            overtime_hours=calc['overtime_hours'],
+            overtime_rate=calc['overtime_rate'],
+            overtime_amount=calc['overtime_amount'],
+            absent_deduction=calc['absent_deduction'],
+            unpaid_leave_deduction=calc['unpaid_leave_deduction'],
+            other_deduction=calc['other_deduction'],
+            deduction=calc['other_deduction'],  # keep old field in sync
+            net_salary=calc['net_payable'],
+            status='draft',
+        )
+        created += 1
+
+    messages.success(request, f'Generated {created} payroll records for {month}/{year}')
+    return redirect('payroll_processing')
+
+
+
+@login_required
+@hr_admin_required
+@payroll_required
+@company_required
+def payroll_process(request, pk):
+    from .utils import get_user_company
+    
+    if request.user.is_superuser:
+        payroll = get_object_or_404(Payroll, id=pk)
+    else:
+        payroll = get_object_or_404(
+            Payroll, id=pk, company=get_user_company(request)
+        )
+    
+    payroll.status = 'processed'
+    payroll.save()
+    messages.success(request, 'Payroll processed')
+    return redirect('payroll_processing')
+
+
+
+@login_required
+@hr_admin_required
+@payroll_required
+@company_required
+def payroll_paid(request, pk):
+    from .utils import get_user_company
+    
+    if request.user.is_superuser:
+        payroll = get_object_or_404(Payroll, id=pk)
+    else:
+        payroll = get_object_or_404(
+            Payroll, id=pk, company=get_user_company(request)
+        )
+    
+    payroll.status = 'paid'
+    payroll.save()
+    messages.success(request, 'Payroll marked as Paid')
+    return redirect('payroll_processing')
+
+
+@login_required
+@hr_admin_required
+@payroll_required
+@company_required
+def payroll_list(request):
+    from .utils import get_user_company
+    if request.user.is_superuser:
+        payrolls = Payroll.objects.all().order_by('-year', '-month')
+    else:
+        company = get_user_company(request)
+        payrolls = Payroll.objects.filter(company=company).order_by('-year', '-month')
+    return render(request, 'payroll/payroll_list.html', {'payrolls': payrolls})
+
+
+
+
+@login_required
+@hr_admin_required
+@payroll_required
+@company_required
+def payslip_pdf(request, pk):
+    from .utils import get_user_company, number_to_words
+    from reportlab.lib.pagesizes import A4
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch, cm
+    from io import BytesIO
+    from django.http import FileResponse
+    from decimal import Decimal
+
+    # ─── Ownership check ───
+    if request.user.is_superuser:
+        payroll = get_object_or_404(Payroll, id=pk)
+    else:
+        payroll = get_object_or_404(
+            Payroll, id=pk, company=get_user_company(request)
+        )
+
+    employee = payroll.employee
+    company = payroll.company
+
+    # ─── Build PDF ───
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=A4,
+        topMargin=0.5*inch, bottomMargin=0.5*inch,
+        leftMargin=0.5*inch, rightMargin=0.5*inch
+    )
+    styles = getSampleStyleSheet()
+    normal = styles['Normal']
+
+    title_style = ParagraphStyle(
+        'TitleStyle', parent=normal,
+        fontSize=16, fontName='Helvetica-Bold', alignment=1, spaceAfter=4
+    )
+    sub_style = ParagraphStyle(
+        'SubStyle', parent=normal,
+        fontSize=11, alignment=1, spaceAfter=2
+    )
+    section_style = ParagraphStyle(
+        'SectionStyle', parent=normal,
+        fontSize=11, fontName='Helvetica-Bold',
+        spaceBefore=10, spaceAfter=6
+    )
+    footer_style = ParagraphStyle(
+        'FooterStyle', parent=normal,
+        fontSize=7, alignment=1
+    )
+
+    elements = []
+
+    # ─── Header ───
+    elements.append(Paragraph(
+        company.name if company else 'HRMS', title_style
+    ))
+    elements.append(Paragraph("Payslip", sub_style))
+    elements.append(Paragraph(
+        f"{payroll.month:02d}/{payroll.year}", sub_style
+    ))
     elements.append(Spacer(1, 0.2*inch))
 
-    # Daily Attendance (Full Width)
-    elements.append(Paragraph("Daily Attendance", heading_style))
-
-    table_data = [['Date', 'Day', 'Status', 'Check In', 'Check Out', 'Hours']]
-    for day in daily:
-        table_data.append([
-            day['date'].strftime('%d %b'),
-            day['day_name'],
-            day['status'],
-            day['check_in'] if day['check_in'] else '—',
-            day['check_out'] if day['check_out'] else '—',
-            day['working_hours'] if day['working_hours'] else '—'
-        ])
-
-    # Use full page width (available width = doc.width)
-    available_width = doc.width
-    col_widths = [
-        available_width * 0.12,  # Date (12%)
-        available_width * 0.10,  # Day (10%)
-        available_width * 0.18,  # Status (18%)
-        available_width * 0.18,  # Check In (18%)
-        available_width * 0.18,  # Check Out (18%)
-        available_width * 0.24,  # Hours (24%)
+    # ─── Employee Details ───
+    details_data = [
+        ["Employee Name:", employee.full_name or employee.user.username,
+         "Employee ID:", employee.employee_id or '—'],
+        ["Department:", employee.department or '—',
+         "Designation:", employee.designation or '—'],
+        ["Payroll Month:", f"{payroll.month:02d}/{payroll.year}",
+         "Status:", payroll.get_status_display()],
     ]
-
-    table = Table(table_data, colWidths=col_widths)
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.grey),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0,0), (-1,0), 9),
-        ('FONTSIZE', (0,1), (-1,-1), 8),
-        ('BOTTOMPADDING', (0,0), (-1,0), 6),
-        ('TOPPADDING', (0,0), (-1,-1), 4),
-        ('BOTTOMPADDING', (0,1), (-1,-1), 4),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
-        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.lightgrey]),
-    ]))
-    elements.append(table)
-    elements.append(Spacer(1, 0.1*inch))
-
-    # Monthly Summary
-    elements.append(Paragraph("Monthly Summary", heading_style))
-    ot_hours = int(emp_data['overtime_minutes'] // 60)
-    ot_minutes = int(emp_data['overtime_minutes'] % 60)
-    overtime_str = f"{ot_hours}h {ot_minutes}m" if ot_minutes > 0 or ot_hours > 0 else "0h"
-
-    summary_data = [
-        [Paragraph("Working Days:", summary_label_style), str(emp_data['working_days']),
-         Paragraph("Present:", summary_label_style), str(emp_data['present'])],
-        [Paragraph("Absent:", summary_label_style), str(emp_data['absent']),
-         Paragraph("Leave:", summary_label_style), str(emp_data['leave'])],
-        [Paragraph("Half Day:", summary_label_style), str(emp_data['half_day']),
-         Paragraph("Late Arrivals:", summary_label_style), str(emp_data['late_arrivals'])],
-        [Paragraph("Overtime:", summary_label_style), overtime_str,
-         Paragraph("Total Working Hours:", summary_label_style), emp_data['total_working_hours']],
-        [Paragraph("Average Working Hours:", summary_label_style), emp_data['avg_working_hours'],
-         Paragraph("", summary_label_style), ""],
-    ]
-    summary_table = Table(summary_data, colWidths=[3*cm, 2.5*cm, 3*cm, 2.5*cm])
-    summary_table.setStyle(TableStyle([
+    details_table = Table(details_data, colWidths=[3.5*cm, 4.5*cm, 3.5*cm, 4.5*cm])
+    details_table.setStyle(TableStyle([
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
+        ('FONTNAME', (2,0), (2,-1), 'Helvetica-Bold'),
         ('FONTSIZE', (0,0), (-1,-1), 9),
         ('LEFTPADDING', (0,0), (-1,-1), 4),
         ('RIGHTPADDING', (0,0), (-1,-1), 4),
         ('TOPPADDING', (0,0), (-1,-1), 3),
         ('BOTTOMPADDING', (0,0), (-1,-1), 3),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
     ]))
-    elements.append(summary_table)
-    elements.append(Spacer(1, 0.5*inch))
+    elements.append(details_table)
+    elements.append(Spacer(1, 0.2*inch))
 
-    # ----- Footer (inside the loop) -----
+    # ─── Attendance Summary ───
+    elements.append(Paragraph("Attendance & Leave", section_style))
+    att_data = [
+        ["Working Days", "Present", "Paid Leave", "Unpaid Leave", "OT Hours"],
+        [
+            str(payroll.working_days),
+            str(payroll.present_days),
+            str(payroll.paid_leave_days or 0),
+            str(payroll.unpaid_leave_days or 0),
+            f"{payroll.overtime_hours or 0} h",
+        ],
+    ]
+    att_table = Table(att_data, colWidths=[3.4*cm]*5)
+    att_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.grey),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,-1), 9),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+    ]))
+    elements.append(att_table)
+    elements.append(Spacer(1, 0.2*inch))
+
+    # ─── Earnings & Deductions ───
+    hra = payroll.hra or Decimal('0')
+    ot_amount = payroll.overtime_amount or Decimal('0')
+    ot_hours = payroll.overtime_hours or Decimal('0')
+    ot_rate = payroll.overtime_rate or Decimal('0')
+    ul_ded = payroll.unpaid_leave_deduction or Decimal('0')
+    other_ded = payroll.other_deduction or Decimal('0')
+    total_ded = ul_ded + other_ded
+    total_earn = (payroll.gross_salary or Decimal('0')) + ot_amount
+
+    salary_data = [
+        ["Earnings", "Amount (Rs.)", "Deductions", "Amount (Rs.)"],
+        ["Basic Salary", f"{payroll.basic_salary:.2f}", "Unpaid Leave Deduction", f"{ul_ded:.2f}"],
+        ["HRA", f"{hra:.2f}", "Other Deduction", f"{other_ded:.2f}"],
+        ["Allowance", f"{payroll.allowance:.2f}", "", ""],
+        ["Overtime Earnings", f"{ot_amount:.2f}", "", ""],
+        ["", "", "", ""],
+        ["Total Earnings", f"{total_earn:.2f}", "Total Deduction", f"{total_ded:.2f}"],
+    ]
+    salary_table = Table(salary_data, colWidths=[3.5*cm, 3.5*cm, 4.5*cm, 3.5*cm])
+    salary_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.grey),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+        ('ALIGN', (1,0), (1,-1), 'RIGHT'),
+        ('ALIGN', (3,0), (3,-1), 'RIGHT'),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,-1), 9),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+        ('LEFTPADDING', (0,0), (-1,-1), 4),
+        ('RIGHTPADDING', (0,0), (-1,-1), 4),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+    ]))
+    elements.append(salary_table)
+    elements.append(Spacer(1, 0.25*inch))
+
+    # ─── Net Payable ───
+    net = payroll.net_salary or Decimal('0')
+    net_words = number_to_words(net) + ' Rupees Only'
+    net_data = [
+        ["Net Payable", f"Rs. {net:.2f}"],
+        ["In Words", net_words],
+    ]
+    net_table = Table(net_data, colWidths=[4*cm, 12*cm])
+    net_table.setStyle(TableStyle([
+        ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
+        ('FONTNAME', (1,0), (1,0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,0), 12),
+        ('FONTSIZE', (0,1), (-1,1), 8),
+        ('ALIGN', (1,0), (1,0), 'RIGHT'),
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#f8f9fa')),
+        ('BOX', (0,0), (-1,-1), 0.5, colors.lightgrey),
+        ('LEFTPADDING', (0,0), (-1,-1), 6),
+        ('RIGHTPADDING', (0,0), (-1,-1), 6),
+        ('TOPPADDING', (0,0), (-1,-1), 6),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+    ]))
+    elements.append(net_table)
+    elements.append(Spacer(1, 0.3*inch))
+
+    # ─── Footer ───
     local_now = timezone.localtime(timezone.now())
-    footer_text = f"Generated on {local_now.strftime('%d %B %Y, %I:%M %p')} · Employee ID: {profile.employee_id if profile else 'N/A'}"
-    elements.append(Paragraph(footer_text,
-                              ParagraphStyle('Footer', parent=normal_style, fontSize=7, alignment=1)))
+    footer_text = (
+        f"Generated on {local_now.strftime('%d %B %Y, %I:%M %p')} · "
+        f"Employee ID: {employee.employee_id if employee else 'N/A'} · "
+        f"Status: {payroll.get_status_display()}"
+    )
+    elements.append(Paragraph(footer_text, footer_style))
 
-# ----- Build the document (outside the loop) -----
+    # ─── Build ───
     doc.build(elements)
     buffer.seek(0)
 
+    emp_id = employee.employee_id if employee and employee.employee_id else f"EMP{employee.id:04d}"
+    filename = f"payslip_{emp_id}_{payroll.month:02d}_{payroll.year}.pdf"
+
+    return FileResponse(buffer, as_attachment=True, filename=filename)
+
+
+
+
+
+
+@login_required
+@hr_admin_required
+@payroll_required
+@company_required
+def payslip_view(request, pk):
+    from .utils import get_user_company, number_to_words
+
+    if request.user.is_superuser:
+        payroll = get_object_or_404(Payroll, id=pk)
+    else:
+        payroll = get_object_or_404(
+            Payroll, id=pk, company=get_user_company(request)
+        )
+
+    net_words = number_to_words(payroll.net_salary) + ' Rupees Only'
+
+    return render(request, 'payroll/payslip.html', {
+        'payroll': payroll,
+        'net_in_words': net_words,
+    })
+    
 
     # **************texting 
 def test_view(request):
