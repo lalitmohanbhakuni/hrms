@@ -21,7 +21,7 @@ class Command(BaseCommand):
 
         if User.objects.filter(username=username).exists():
             self.stdout.write(self.style.SUCCESS(
-                f'Superuser "{username}" already exists.'
+                f'Superuser "{username}" already exists.' 
             ))
             return
 
