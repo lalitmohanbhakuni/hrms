@@ -6,25 +6,225 @@
 
 {% block content %}
 
-<!-- Tabs -->
-<ul class="nav nav-tabs mb-4">
-    <li class="nav-item">
-        <a class="nav-link" href="{% url 'attendance_view' %}">
-            <i class="las la-chart-bar me-1"></i> Status
-        </a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link active" href="{% url 'regularize_request_list' %}">
-            <i class="fas fa-clipboard-list me-1"></i> Regularize Requests
-        </a>
-    </li>
-</ul>
+<style>
+    /* ─────────── Tokens (scoped) ─────────── */
+    .rgz-wrap {
+        --rgz-surface:       #ffffff;
+        --rgz-surface-2:     #fafbfc;
+        --rgz-border:        #e8eaee;
+        --rgz-border-hover:  #d5d9e0;
+        --rgz-text:          #0f172a;
+        --rgz-text-muted:    #64748b;
+        --rgz-text-faint:    #94a3b8;
+        --rgz-primary:       #4f46e5;
+        --rgz-primary-soft:  #eef2ff;
+        --rgz-success:       #059669;
+        --rgz-success-soft:  #ecfdf5;
+        --rgz-warning:       #d97706;
+        --rgz-warning-soft:  #fffbeb;
+        --rgz-danger:        #dc2626;
+        --rgz-danger-soft:   #fef2f2;
+        --rgz-pill:          999px;
+        --rgz-shadow-sm:     0 1px 2px rgba(15,23,42,.04), 0 1px 3px rgba(15,23,42,.03);
+        --rgz-ease:          cubic-bezier(.4, 0, .2, 1);
+    }
 
-<div class="card border-0 shadow-sm">
-    <div class="card-body p-0">
+    /* ─────────── Segmented tabs ─────────── */
+    .rgz-tabs {
+        display: inline-flex;
+        gap: 2px;
+        padding: 4px;
+        background: var(--rgz-surface-2);
+        border: 1px solid var(--rgz-border);
+        border-radius: 8px;
+        list-style: none;
+        margin: 0 0 22px;
+    }
+    .rgz-tabs .nav-item { margin: 0; }
+    .rgz-tabs .nav-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 16px;
+        border-radius: 6px;
+        font-size: .82rem;
+        font-weight: 500;
+        color: var(--rgz-text-muted);
+        background: transparent;
+        text-decoration: none;
+        transition: background .15s var(--rgz-ease), color .15s var(--rgz-ease);
+    }
+    .rgz-tabs .nav-link i { font-size: .9rem; }
+    .rgz-tabs .nav-link:hover { color: var(--rgz-text); }
+    .rgz-tabs .nav-link.active {
+        background: var(--rgz-primary);
+        color: var(--rgz-surface);
+        box-shadow: var(--rgz-shadow-sm);
+    }
+
+    /* ─────────── Card shell ─────────── */
+    .rgz-card {
+        background: var(--rgz-surface);
+        border: 1px solid var(--rgz-border);
+        border-radius: 12px;
+        overflow: hidden;
+        transition: border-color .2s var(--rgz-ease);
+    }
+    .rgz-card:hover { border-color: var(--rgz-border-hover); }
+
+    /* ─────────── Table ─────────── */
+    .rgz-table {
+        width: 100%;
+        margin: 0;
+        border-collapse: collapse;
+    }
+    .rgz-table thead th {
+        font-size: .68rem;
+        font-weight: 600;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: var(--rgz-text-faint);
+        padding: 12px 20px;
+        border-bottom: 1px solid var(--rgz-border);
+        background: var(--rgz-surface-2);
+        white-space: nowrap;
+        text-align: left;
+    }
+    .rgz-table tbody td {
+        padding: 14px 20px;
+        vertical-align: middle;
+        border-bottom: 1px solid var(--rgz-border);
+        font-size: .875rem;
+        color: var(--rgz-text);
+    }
+    .rgz-table tbody tr:last-child td { border-bottom: none; }
+    .rgz-table tbody tr:hover { background: var(--rgz-surface-2); }
+
+    .rgz-table .name { font-weight: 600; }
+    .rgz-table .num {
+        font-variant-numeric: tabular-nums;
+        font-weight: 500;
+    }
+    .rgz-table .muted { color: var(--rgz-text-faint); }
+
+    /* ─────────── Reason (ellipsis) ─────────── */
+    .rgz-reason {
+        max-width: 220px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: var(--rgz-text-muted);
+        font-size: .82rem;
+    }
+
+    /* ─────────── Status pill ─────────── */
+    .rgz-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 11px;
+        border-radius: var(--rgz-pill);
+        font-size: .72rem;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+    .rgz-status::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+    }
+    .rgz-status.pending  { background: var(--rgz-warning-soft); color: var(--rgz-warning); }
+    .rgz-status.approved { background: var(--rgz-success-soft); color: var(--rgz-success); }
+    .rgz-status.rejected { background: var(--rgz-danger-soft);  color: var(--rgz-danger); }
+
+    /* ─────────── Actions ─────────── */
+    .rgz-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        justify-content: flex-end;
+    }
+    .rgz-actions .btn {
+        font-size: .72rem;
+        font-weight: 500;
+        padding: 4px 12px;
+        border-radius: var(--rgz-pill);
+        transition: transform .15s var(--rgz-ease);
+    }
+    .rgz-actions .btn:hover { transform: translateY(-1px); }
+
+    .rgz-waiting {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: .75rem;
+        color: var(--rgz-text-faint);
+        font-style: italic;
+    }
+    .rgz-waiting i { font-size: .85rem; }
+
+    /* ─────────── Empty state ─────────── */
+    .rgz-empty {
+        text-align: center;
+        padding: 48px 20px;
+    }
+    .rgz-empty-ico {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background: var(--rgz-surface-2);
+        color: var(--rgz-text-faint);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.75rem;
+        margin-bottom: 14px;
+    }
+    .rgz-empty-title {
+        font-size: .9rem;
+        font-weight: 600;
+        color: var(--rgz-text);
+        margin: 0 0 4px;
+    }
+    .rgz-empty-sub {
+        font-size: .8rem;
+        color: var(--rgz-text-muted);
+        margin: 0;
+    }
+
+    /* ─────────── Responsive ─────────── */
+    @media (max-width: 767.98px) {
+        .rgz-tabs .nav-link { padding: 7px 12px; font-size: .78rem; }
+        .rgz-table thead th,
+        .rgz-table tbody td { padding: 11px 14px; }
+        .rgz-reason { max-width: 140px; }
+        .rgz-empty { padding: 36px 16px; }
+    }
+</style>
+
+<div class="rgz-wrap">
+
+    <!-- Tabs -->
+    <ul class="nav rgz-tabs">
+        <li class="nav-item">
+            <a class="nav-link" href="{% url 'attendance_view' %}">
+                <i class="las la-chart-bar"></i> Status
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link active" href="{% url 'regularize_request_list' %}">
+                <i class="fas fa-clipboard-list"></i> Regularize Requests
+            </a>
+        </li>
+    </ul>
+
+    <!-- Card -->
+    <div class="rgz-card">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
+            <table class="rgz-table">
+                <thead>
                     <tr>
                         <th>Employee</th>
                         <th>Date</th>
@@ -33,43 +233,58 @@
                         <th>Reason</th>
                         <th>Status</th>
                         <th>Requested</th>
-                        <th>Actions</th>
+                        <th class="text-end">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for req in requests %}
                         <tr>
-                            <td><strong>{{ req.user.username }}</strong></td>
-                            <td>{{ req.date|date:"d M Y" }}</td>
-                            <td>{{ req.check_in_time|time:"H:i"|default:"--:--" }}</td>
-                            <td>{{ req.check_out_time|time:"H:i"|default:"--:--" }}</td>
-                            <td>{{ req.reason|truncatechars:30 }}</td>
+                            <td class="name">{{ req.user.username }}</td>
+                            <td class="num">{{ req.date|date:"d M Y" }}</td>
+                            <td class="num">{{ req.check_in_time|time:"H:i"|default:"--:--" }}</td>
+                            <td class="num">{{ req.check_out_time|time:"H:i"|default:"--:--" }}</td>
+                            <td>
+                                <div class="rgz-reason" title="{{ req.reason }}">
+                                    {{ req.reason|truncatechars:30 }}
+                                </div>
+                            </td>
                             <td>
                                 {% if req.status == 'Pending' %}
-                                    <span class="badge bg-warning text-dark">Pending</span>
+                                    <span class="rgz-status pending">Pending</span>
                                 {% elif req.status == 'Approved' %}
-                                    <span class="badge bg-success">Approved</span>
+                                    <span class="rgz-status approved">Approved</span>
                                 {% else %}
-                                    <span class="badge bg-danger">Rejected</span>
+                                    <span class="rgz-status rejected">Rejected</span>
                                 {% endif %}
                             </td>
-                            <td>{{ req.requested_at|date:"d M Y" }}</td>
-                            <td>
+                            <td class="num muted">{{ req.requested_at|date:"d M Y" }}</td>
+                            <td class="text-end">
                                 {% if user.is_superuser and req.status == 'Pending' %}
-                                    <a href="{% url 'regularize_approve' req.id %}" class="btn btn-sm btn-success">Approve</a>
-                                    <a href="{% url 'regularize_reject' req.id %}" class="btn btn-sm btn-danger">Reject</a>
+                                    <div class="rgz-actions">
+                                        <a href="{% url 'regularize_approve' req.id %}" class="btn btn-sm btn-success">
+                                            <i class="fas fa-check me-1"></i> Approve
+                                        </a>
+                                        <a href="{% url 'regularize_reject' req.id %}" class="btn btn-sm btn-danger">
+                                            <i class="fas fa-times me-1"></i> Reject
+                                        </a>
+                                    </div>
                                 {% elif req.status == 'Pending' %}
-                                    <span class="text-muted">Waiting for approval</span>
+                                    <span class="rgz-waiting">
+                                        <i class="las la-hourglass-half"></i> Waiting for approval
+                                    </span>
                                 {% else %}
-                                    <span class="text-muted">—</span>
+                                    <span class="muted">—</span>
                                 {% endif %}
                             </td>
                         </tr>
                     {% empty %}
                         <tr>
-                            <td colspan="8" class="text-center text-muted py-4">
-                                <i class="las la-inbox fa-2x mb-2 d-block"></i>
-                                No regularization requests.
+                            <td colspan="8">
+                                <div class="rgz-empty">
+                                    <div class="rgz-empty-ico"><i class="las la-inbox"></i></div>
+                                    <p class="rgz-empty-title">No regularization requests</p>
+                                    <p class="rgz-empty-sub">When you submit a request, it will show up here.</p>
+                                </div>
                             </td>
                         </tr>
                     {% endfor %}
@@ -77,5 +292,7 @@
             </table>
         </div>
     </div>
+
 </div>
+
 {% endblock %}

@@ -5,27 +5,287 @@
 {% block page_title %}{{ action }} Holiday{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body p-4">
-                <form method="post">
-                    {% csrf_token %}
-                    <div class="mb-3">
-                        <label for="name" class="form-label fw-semibold">Holiday Name</label>
-                        <input type="text" name="name" id="name" class="form-control" value="{{ holiday.name|default:'' }}" required>
+
+<style>
+    /* ═══════════════════════════════════════════════════
+       Holiday Form — refined design system
+       Prefix: .hlf-
+       ═══════════════════════════════════════════════════ */
+    .hlf-wrap {
+        --hlf-surface:       #ffffff;
+        --hlf-surface-2:     #fafbfc;
+        --hlf-border:        #e8eaee;
+        --hlf-border-hover:  #d5d9e0;
+        --hlf-text:          #0f172a;
+        --hlf-text-muted:    #64748b;
+        --hlf-text-faint:    #94a3b8;
+        --hlf-primary:       #4f46e5;
+        --hlf-primary-soft:  #eef2ff;
+        --hlf-primary-hover: #4338ca;
+        --hlf-danger:        #dc2626;
+        --hlf-pill:          999px;
+        --hlf-ease:          cubic-bezier(.4, 0, .2, 1);
+    }
+
+    /* ─── Page heading ─── */
+    .hlf-hd { margin-bottom: 22px; }
+    .hlf-hd-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 1.15rem;
+        font-weight: 600;
+        letter-spacing: -.015em;
+        color: var(--hlf-text);
+        margin: 0 0 4px;
+    }
+    .hlf-hd-ico {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        background: var(--hlf-primary-soft);
+        color: var(--hlf-primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .95rem;
+    }
+    .hlf-hd-sub {
+        font-size: .82rem;
+        color: var(--hlf-text-muted);
+        margin: 0;
+        padding-left: 44px;
+    }
+
+    /* ─── Card ─── */
+    .hlf-card {
+        background: var(--hlf-surface);
+        border: 1px solid var(--hlf-border);
+        border-radius: 12px;
+        overflow: hidden;
+        transition: border-color .2s var(--hlf-ease);
+    }
+    .hlf-card:hover { border-color: var(--hlf-border-hover); }
+    .hlf-card-bd { padding: 28px 32px; }
+
+    /* ─── Info note ─── */
+    .hlf-note {
+        display: flex;
+        gap: 10px;
+        padding: 12px 14px;
+        background: var(--hlf-primary-soft);
+        border-radius: 10px;
+        font-size: .78rem;
+        color: #3730a3;
+        line-height: 1.5;
+        margin-bottom: 22px;
+    }
+    .hlf-note i {
+        flex-shrink: 0;
+        font-size: .95rem;
+        margin-top: 1px;
+        color: var(--hlf-primary);
+    }
+    .hlf-note strong {
+        color: #312e81;
+        font-weight: 600;
+    }
+
+    /* ─── Fields ─── */
+    .hlf-field { margin-bottom: 20px; }
+    .hlf-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: .78rem;
+        font-weight: 600;
+        letter-spacing: .02em;
+        color: var(--hlf-text);
+        margin-bottom: 8px;
+    }
+    .hlf-label i {
+        color: var(--hlf-text-faint);
+        font-size: .85rem;
+    }
+    .hlf-req {
+        color: var(--hlf-danger);
+        margin-left: 2px;
+    }
+
+    .hlf-input {
+        width: 100%;
+        padding: 11px 14px;
+        font-size: .875rem;
+        font-family: inherit;
+        color: var(--hlf-text);
+        background: var(--hlf-surface);
+        border: 1px solid var(--hlf-border);
+        border-radius: 10px;
+        outline: none;
+        transition: border-color .15s var(--hlf-ease), box-shadow .15s var(--hlf-ease);
+    }
+    .hlf-input:hover { border-color: var(--hlf-border-hover); }
+    .hlf-input:focus {
+        border-color: var(--hlf-primary);
+        box-shadow: 0 0 0 3px rgba(79,70,229,.12);
+    }
+    .hlf-input::placeholder { color: var(--hlf-text-faint); }
+
+    /* Date input — tint calendar picker icon */
+    .hlf-input[type="date"] {
+        font-variant-numeric: tabular-nums;
+    }
+    .hlf-input[type="date"]::-webkit-calendar-picker-indicator {
+        cursor: pointer;
+        opacity: .55;
+        transition: opacity .15s var(--hlf-ease);
+    }
+    .hlf-input[type="date"]::-webkit-calendar-picker-indicator:hover {
+        opacity: 1;
+    }
+
+    /* ─── Live day preview (visual only, sits below date field) ─── */
+    .hlf-day-preview {
+        display: none; /* toggled by CSS when date has a value — see note */
+        align-items: center;
+        gap: 6px;
+        margin-top: 8px;
+        padding: 6px 12px;
+        background: var(--hlf-surface-2);
+        border: 1px solid var(--hlf-border);
+        border-radius: var(--hlf-pill);
+        font-size: .72rem;
+        font-weight: 500;
+        color: var(--hlf-text-muted);
+        width: fit-content;
+    }
+    .hlf-day-preview i { color: var(--hlf-text-faint); font-size: .72rem; }
+
+    /* ─── Footer / buttons ─── */
+    .hlf-foot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding-top: 20px;
+        border-top: 1px solid var(--hlf-border);
+        margin-top: 4px;
+    }
+    .hlf-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 22px;
+        font-size: .82rem;
+        font-weight: 500;
+        border-radius: var(--hlf-pill);
+        border: 1px solid transparent;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all .15s var(--hlf-ease);
+        line-height: 1.3;
+    }
+    .hlf-btn i { font-size: .85rem; }
+
+    .hlf-btn-primary {
+        background: var(--hlf-primary);
+        color: #fff;
+    }
+    .hlf-btn-primary:hover {
+        background: var(--hlf-primary-hover);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(79,70,229,.25);
+    }
+
+    .hlf-btn-ghost {
+        background: transparent;
+        color: var(--hlf-text-muted);
+        border-color: var(--hlf-border);
+    }
+    .hlf-btn-ghost:hover {
+        background: var(--hlf-surface-2);
+        color: var(--hlf-text);
+        border-color: var(--hlf-border-hover);
+    }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 767.98px) {
+        .hlf-card-bd { padding: 22px 20px; }
+        .hlf-hd-sub { padding-left: 0; }
+        .hlf-btn { padding: 9px 18px; font-size: .8rem; }
+        .hlf-foot { gap: 8px; }
+        .hlf-foot .hlf-btn { flex: 1; justify-content: center; }
+    }
+</style>
+
+<div class="hlf-wrap">
+    <div class="row justify-content-center">
+        <div class="col-md-7 col-lg-6">
+
+            <!-- Page header -->
+            <div class="hlf-hd">
+                <h5 class="hlf-hd-title">
+                    <span class="hlf-hd-ico"><i class="fas fa-calendar-plus"></i></span>
+                    {{ action }} Holiday
+                </h5>
+                <p class="hlf-hd-sub">
+                    {% if action == 'Add' %}
+                        Add a company-wide holiday that everyone will see on their calendar.
+                    {% else %}
+                        Update the details for this holiday.
+                    {% endif %}
+                </p>
+            </div>
+
+            <!-- Card -->
+            <div class="hlf-card">
+                <div class="hlf-card-bd">
+
+                    <div class="hlf-note">
+                        <i class="las la-info-circle"></i>
+                        <span>
+                            Holidays appear on every employee's <strong>My Leaves → Holidays</strong> tab and on the attendance calendar.
+                        </span>
                     </div>
-                    <div class="mb-3">
-                        <label for="date" class="form-label fw-semibold">Date</label>
-                        <input type="date" name="date" id="date" class="form-control" value="{{ holiday.date|date:'Y-m-d'|default:'' }}" required>
-                    </div>
-                    <button type="submit" class="btn btn-primary rounded-pill px-4">
-                        <i class="fas fa-save me-2"></i> {% if action == 'Add' %}Add{% else %}Update{% endif %}
-                    </button>
-                    <a href="{% url 'holiday_list' %}" class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
-                </form>
+
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <!-- Holiday Name -->
+                        <div class="hlf-field">
+                            <label for="name" class="hlf-label">
+                                <i class="las la-gift"></i> Holiday Name <span class="hlf-req">*</span>
+                            </label>
+                            <input type="text" name="name" id="name" class="hlf-input"
+                                   value="{{ holiday.name|default:'' }}"
+                                   placeholder="e.g. Diwali" required>
+                        </div>
+
+                        <!-- Date -->
+                        <div class="hlf-field">
+                            <label for="date" class="hlf-label">
+                                <i class="las la-calendar-day"></i> Date <span class="hlf-req">*</span>
+                            </label>
+                            <input type="date" name="date" id="date" class="hlf-input"
+                                   value="{{ holiday.date|date:'Y-m-d'|default:'' }}" required>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="hlf-foot">
+                            <button type="submit" class="hlf-btn hlf-btn-primary">
+                                <i class="fas fa-save"></i>
+                                {% if action == 'Add' %}Add{% else %}Update{% endif %}
+                            </button>
+                            <a href="{% url 'holiday_list' %}" class="hlf-btn hlf-btn-ghost">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                        </div>
+                    </form>
+
+                </div>
             </div>
         </div>
     </div>
 </div>
+
 {% endblock %}

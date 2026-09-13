@@ -7,160 +7,35 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}HRMS{% endblock %}</title>
+
+    <!-- Bootstrap -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href ="{% static 'css/custom.css' %}">
+
+    <!-- Icons & Fonts -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/line-awesome/1.3.0/line-awesome/css/line-awesome.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Project CSS -->
+     
+
+    <link rel="stylesheet" href="{% static 'css/custom.css' %}">
     <style>
-        body { font-family: 'Inter', sans-serif; background: #f0f2f5; margin: 0; padding: 0; }
-        .dropdown-menu {
-            border-radius: 16px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
-            border: none;
-            padding: 0;
-            width: 380px;
-            max-width: 90vw;
+        body{font-family:Inter,sans-serif;background:#f0f2f5;margin:0;padding:0}.dropdown-menu{border-radius:16px;box-shadow:0 10px 40px rgba(0,0,0,.15);border:none;padding:0;width:380px;max-width:90vw}.dropdown-item{padding:0;border-bottom:1px solid #f0f0f0}.dropdown-item:last-child,.notification-item:last-child{border-bottom:none}.notification-tabs .nav-link{font-size:.85rem;font-weight:500;color:#6c757d;padding:12px 20px;border:none;border-bottom:2px solid transparent;transition:.2s}.notification-tabs .nav-link.active{color:#667eea;border-bottom-color:#667eea;background:0 0}.notification-tabs .nav-link:hover{color:#667eea}.notification-item{padding:14px 18px;display:flex;align-items:flex-start;gap:12px;transition:background .15s;border-bottom:1px solid #f5f5f5}.notification-item:hover{background:#f8f9fa}.notification-item .icon{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.9rem}.notification-item .icon.info{background:#e3f2fd;color:#1976d2}.notification-item .icon.action{background:#fff3e0;color:#e65100}.notification-item .content{flex:1;min-width:0}.notification-item .content .message{font-size:.9rem;color:#1a1a2e;margin-bottom:2px;line-height:1.4}.notification-item .content .timestamp{font-size:.7rem;color:#9e9e9e}.notification-item .action-buttons{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}.notification-item .action-buttons .btn-sm{font-size:.7rem;padding:2px 12px;border-radius:20px}.notification-item.unread{background:#f0f7ff}.tab-content .tab-pane{}.tab-content .tab-pane::-webkit-scrollbar{width:4px}.tab-content .tab-pane::-webkit-scrollbar-thumb{background:#ccc;border-radius:4px}.dropdown-footer{padding:10px 16px;text-align:center;border-top:1px solid #f0f0f0;font-size:.85rem}.dropdown-footer a{color:#667eea;text-decoration:none;font-weight:500}.dropdown-footer a:hover{text-decoration:underline}.bell-icon{position:relative;cursor:pointer;font-size:1.2rem;color:#333;background:0 0;border:none;padding:6px 10px;transition:color .2s,transform .15s;border-radius:10px}.bell-icon:hover{color:#667eea;background:#f4f6fb}.bell-icon:focus-visible{outline:#667eea solid 2px;outline-offset:2px}.bell-icon .badge{position:absolute;top:-2px;right:0;font-size:.6rem;padding:3px 6px;background:#e74c3c;color:#fff;border-radius:50%;font-weight:600;min-width:18px;text-align:center;box-shadow:0 0 0 2px #fff}.sidebar::-webkit-scrollbar{width:4px}.sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.3);border-radius:4px}.sidebar::-webkit-scrollbar-track{background:0 0}.alert-premium{border-radius:12px;border:none;padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,.04)}.alert-premium.success{background:#d1fae5;color:#065f46}.alert-premium.error{background:#fee2e2;color:#991b1b}.alert-premium.warning{background:#fef3c7;color:#92400e}.alert-premium.info{background:#dbeafe;color:#1e40af}.alert-premium .close-btn{background:0 0;border:none;font-size:1.2rem;color:inherit;cursor:pointer;opacity:.6;transition:opacity .15s,transform .15s;line-height:1}.alert-premium .close-btn:hover{opacity:1;transform:scale(1.15)}.user-dropdown .avatar{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#667eea 0,#764ba2 100%);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:1.1rem;cursor:pointer;transition:transform .2s,box-shadow .2s;box-shadow:0 2px 6px rgba(102,126,234,.25)}.user-dropdown .avatar:hover{transform:scale(1.05);box-shadow:0 4px 12px rgba(102,126,234,.4)}.user-dropdown .dropdown-menu{min-width:200px;padding:8px 0;border-radius:16px}.user-dropdown .dropdown-item{padding:10px 20px;border-radius:8px;margin:2px 6px;display:flex;align-items:center;gap:10px;color:#1a1a2e;transition:background .2s;border-bottom:none}.user-dropdown .dropdown-item:hover{background:#f0f0f0}.user-dropdown .dropdown-item i{width:20px;text-align:center;color:#667eea}.user-dropdown .dropdown-item.logout i,.user-dropdown .dropdown-item.logout span{color:#dc3545}.user-dropdown .user-info{padding:8px 20px 12px;border-bottom:1px solid #f0f0f0;margin-bottom:4px}.user-dropdown .user-info .username{font-weight:600;font-size:.95rem}.user-dropdown .user-info .email{font-size:.8rem;color:#6c757d}.toast-container{position:fixed;top:20px;right:20px;z-index:9999}.sidebar-divider{color:rgba(255,255,255,.55);border-top:1px solid rgba(249,249,249,.25);padding:8px 0 4px 16px;margin-top:10px;font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;font-weight:600}
+
+        .sidebar-brand span {
+            font-size: 1.15rem;
+            line-height: 1.2;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 100%;
+            min-width: 0;
         }
-        .dropdown-item { padding: 0; border-bottom: 1px solid #f0f0f0; }
-        .dropdown-item:last-child { border-bottom: none; }
-        .notification-tabs .nav-link {
-            font-size: 0.85rem;
-            font-weight: 500;
-            color: #6c757d;
-            padding: 12px 20px;
-            border: none;
-            border-bottom: 2px solid transparent;
-            transition: all 0.2s;
-        }
-        .notification-tabs .nav-link.active {
-            color: #667eea;
-            border-bottom-color: #667eea;
-            background: transparent;
-        }
-        .notification-tabs .nav-link:hover { color: #667eea; }
-        .notification-item {
-            padding: 14px 18px;
-            display: flex;
-            align-items: flex-start;
-            gap: 12px;
-            transition: background 0.15s;
-            border-bottom: 1px solid #f5f5f5;
-        }
-        .notification-item:last-child { border-bottom: none; }
-        .notification-item:hover { background: #f8f9fa; }
-        .notification-item .icon {
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            font-size: 0.9rem;
-        }
-        .notification-item .icon.info { background: #e3f2fd; color: #1976d2; }
-        .notification-item .icon.action { background: #fff3e0; color: #e65100; }
-        .notification-item .content { flex: 1; min-width: 0; }
-        .notification-item .content .message { font-size: 0.9rem; color: #1a1a2e; margin-bottom: 2px; line-height: 1.4; }
-        .notification-item .content .timestamp { font-size: 0.7rem; color: #9e9e9e; }
-        .notification-item .action-buttons { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
-        .notification-item .action-buttons .btn-sm { font-size: 0.7rem; padding: 2px 12px; border-radius: 20px; }
-        .notification-item.unread { background: #f0f7ff; }
-        .tab-content .tab-pane { max-height: 340px; overflow-y: auto; }
-        .tab-content .tab-pane::-webkit-scrollbar { width: 4px; }
-        .tab-content .tab-pane::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
-        .dropdown-footer {
-            padding: 10px 16px;
-            text-align: center;
-            border-top: 1px solid #f0f0f0;
-            font-size: 0.85rem;
-        }
-        .dropdown-footer a { color: #667eea; text-decoration: none; font-weight: 500; }
-        .dropdown-footer a:hover { text-decoration: underline; }
-        .bell-icon {
-            position: relative;
-            cursor: pointer;
-            font-size: 1.2rem;
-            color: #333;
-            background: transparent;
-            border: none;
-            padding: 6px 10px;
-            transition: color 0.2s;
-        }
-        .bell-icon:hover { color: #667eea; }
-        .bell-icon .badge {
-            position: absolute;
-            top: -4px;
-            right: -4px;
-            font-size: 0.6rem;
-            padding: 3px 6px;
-            background: #e74c3c;
-            color: #fff;
-            border-radius: 50%;
-            font-weight: 600;
-            min-width: 18px;
-            text-align: center;
-        }
-        .sidebar::-webkit-scrollbar { width: 4px; }
-        .sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 4px; }
-        .sidebar::-webkit-scrollbar-track { background: transparent; }
-        .alert-premium {
-            border-radius: 12px;
-            border: none;
-            padding: 16px 20px;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        .alert-premium.success { background: #d1fae5; color: #065f46; }
-        .alert-premium.error { background: #fee2e2; color: #991b1b; }
-        .alert-premium.warning { background: #fef3c7; color: #92400e; }
-        .alert-premium.info { background: #dbeafe; color: #1e40af; }
-        .alert-premium .close-btn { background: none; border: none; font-size: 1.2rem; color: inherit; cursor: pointer; opacity: 0.6; }
-        .alert-premium .close-btn:hover { opacity: 1; }
-        .user-dropdown .avatar {
-            width: 42px;
-            height: 42px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #fff;
-            font-weight: 600;
-            font-size: 1.1rem;
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-        .user-dropdown .avatar:hover { transform: scale(1.05); }
-        .user-dropdown .dropdown-menu { min-width: 200px; padding: 8px 0; border-radius: 16px; }
-        .user-dropdown .dropdown-item {
-            padding: 10px 20px;
-            border-radius: 8px;
-            margin: 2px 6px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            color: #1a1a2e;
-            transition: background 0.2s;
-        }
-        .user-dropdown .dropdown-item:hover { background: #f0f0f0; }
-        .user-dropdown .dropdown-item i { width: 20px; text-align: center; color: #667eea; }
-        .user-dropdown .dropdown-item.logout i { color: #dc3545; }
-        .user-dropdown .dropdown-item.logout span { color: #dc3545; }
-        .user-dropdown .user-info {
-            padding: 8px 20px 12px;
-            border-bottom: 1px solid #f0f0f0;
-            margin-bottom: 4px;
-        }
-        .user-dropdown .user-info .username { font-weight: 600; font-size: 0.95rem; }
-        .user-dropdown .user-info .email { font-size: 0.8rem; color: #6c757d; }
-        /* Toast notification */
-        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; }
+
     </style>
+
+    
 </head>
 <body>
     <!-- Sidebar Overlay -->
@@ -171,17 +46,39 @@
 
     <!-- SIDEBAR -->
     <aside class="sidebar" id="sidebar">
-        <div class="sidebar-brand">
+        <!-- <div class="sidebar-brand">
             <i class="las la-building"></i>
             <span>HRMS</span>
+        </div> -->
+        <div class="sidebar-brand">
+            <i class="las la-building"></i>
+            <span>
+                {% if user.is_authenticated %}
+                    {% with company=user.profile.company %}
+                        {% if company %}
+                            {{ company.name }}
+                        {% elif user.is_superuser %}
+                            HRMS
+                        {% else %}
+                            HRMS
+                        {% endif %}
+                    {% endwith %}
+                {% else %}
+                    HRMS
+                {% endif %}
+            </span>
         </div>
+
+
         <nav class="sidebar-nav">
             <a href="{% url 'dashboard' %}" class="nav-item {% if request.path == '/dashboard/' or request.path == '/' %}active{% endif %}">
                 <i class="las la-chart-pie"></i><span>Dashboard</span>
             </a>
-            <a href="{% url 'attendance_view' %}" class="nav-item {% if 'attendance' in request.path %}active{% endif %}">
-    <i class="las la-clock"></i><span>Attendance</span>
-</a>
+
+            <a href="{% url 'attendance_view' %}" class="nav-item {% if request.resolver_match.url_name == 'attendance_view' %}active{% endif %}">
+                <i class="las la-clock"></i><span>Attendance</span>
+            </a>
+
             {% if user.is_authenticated %}
                 <a href="{% url 'employee_leaves' %}" class="nav-item {% if 'employee-leaves' in request.path %}active{% endif %}">
                     <i class="las la-calendar-check"></i><span>My Leaves</span>
@@ -189,23 +86,20 @@
                 <a href="{% url 'notification_list' %}" class="nav-item {% if 'notifications' in request.path %}active{% endif %}">
                     <i class="las la-bell"></i><span>Notifications</span>
                 </a>
-                <!-- DEBUG: is_admin_or_hr = {{ user|is_admin_or_hr }} -->
+
                 {% if user|is_admin_or_hr %}
-                    <div class="divider " style="    color: #ffff; 
-    border-top: 1px solid #f9f9f940;
-    padding: 8px 0 4px;
-    margin-top: 10px; "> <small> Admin View </small> </div>
+                    <div class="sidebar-divider">Admin View</div>
+
                     <a href="{% url 'team_attendance' %}" class="nav-item {% if 'team' in request.path %}active{% endif %}">
                         <i class="las la-users-cog"></i><span>My Team</span>
-                    </a>    
-                    
+                    </a>
 
                     <a href="{% url 'admin_leaves' %}" class="nav-item {% if 'admin-leaves' in request.path %}active{% endif %}">
                         <i class="las la-check-double"></i><span>Leave Approvals</span>
                     </a>
 
-                   <!-- ===== PAYROLL MENU ===== -->
-                    {% if user.is_superuser or user|is_admin_or_hr %}
+                    {# ── Payroll ── #}
+                    {% if user|can_see_payroll %}
                         {% if user.is_superuser or user.profile.company.payroll_enabled %}
                             <a href="{% url 'payroll_dashboard' %}" class="nav-item {% if 'payroll' in request.path %}active{% endif %}">
                                 <i class="fas fa-coins"></i><span>Payroll</span>
@@ -213,23 +107,22 @@
                         {% endif %}
                     {% endif %}
 
-
-                     {% if user.is_superuser or user|has_group:"HR Admin" %}
-
-                        <a href="{% url 'leave_type_list' %}" class="nav-item {% if 'leave-types' in request.path %}active{% endif %}">
+                    {% if user.is_superuser or user|has_group:"HR Admin" %}
+                        <!-- <a href="{% url 'leave_type_list' %}" class="nav-item {% if 'leave-types' in request.path %}active{% endif %}">
                             <i class="las la-tags"></i><span>Leave Types</span>
                         </a>
                         <a href="{% url 'holiday_list' %}" class="nav-item {% if 'holidays' in request.path %}active{% endif %}">
                             <i class="las la-calendar-alt"></i><span>Holidays</span>
-                        </a>
+                        </a> -->
+
 
                         <a href="{% url 'employee_list' %}" class="nav-item {% if 'employees' in request.path %}active{% endif %}">
                             <i class="las la-users"></i><span>Employees</span>
                         </a>
-                        <a href="{% url 'attendance_report' %}" class="nav-item {% if 'attendance-report' in request.path %}active{% endif %}">
+
+                        <a href="{% url 'attendance_report' %}" class="nav-item {% if request.resolver_match.url_name == 'attendance_report' %}active{% endif %}">
                             <i class="las la-chart-bar"></i><span>Reports</span>
                         </a>
-
                     {% endif %}
                 {% endif %}
             {% endif %}
@@ -241,31 +134,50 @@
         <!-- Top Header -->
         <header class="top-header">
             <div class="d-flex align-items-center">
-                <button class="hamburger" id="hamburgerBtn"><i class="fas fa-bars"></i></button>
-                <span class="page-title"><i class="fas fa-{% block page_icon %}home{% endblock %}"></i> {% block page_title %}Dashboard{% endblock %}</span>
+                <button class="hamburger" id="hamburgerBtn" type="button" aria-label="Toggle sidebar">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <span class="page-title">
+                    <i class="fas fa-{% block page_icon %}home{% endblock %}"></i>
+                    {% block page_title %}Dashboard{% endblock %}
+                </span>
             </div>
+
             <div class="d-flex align-items-center gap-3">
                 {% if user.is_authenticated %}
-                    <!-- NOTIFICATION BELL (Ajax enabled) -->
+                    <!-- NOTIFICATION BELL -->
                     <div class="dropdown" data-bs-auto-close="outside" id="notificationDropdownWrapper">
-                        <button class="bell-icon" id="notificationDropdownBtn" data-bs-toggle="dropdown" aria-expanded="false">
+                        <button class="bell-icon" id="notificationDropdownBtn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Notifications">
                             <i class="las la-bell"></i>
                             {% if unread_count > 0 %}
                                 <span class="badge" id="notificationBadge">{{ unread_count }}</span>
                             {% endif %}
                         </button>
+
                         <div class="dropdown-menu dropdown-menu-end" id="notificationDropdownMenu">
                             <ul class="nav nav-tabs notification-tabs" id="notificationTabs">
-                                <li class="nav-item"><button class="nav-link active" id="notif-tab" data-bs-toggle="tab" data-bs-target="#notifPane" type="button"><i class="las la-bell me-1"></i> Notifications</button></li>
+                                <li class="nav-item">
+                                    <button class="nav-link active" id="notif-tab" data-bs-toggle="tab" data-bs-target="#notifPane" type="button">
+                                        <i class="las la-bell me-1"></i> Notifications
+                                    </button>
+                                </li>
                                 {% if user|is_admin_or_hr %}
-                                <li class="nav-item"><button class="nav-link" id="action-tab" data-bs-toggle="tab" data-bs-target="#actionPane" type="button"><i class="fas fa-tasks me-1"></i> Actions</button></li>
+                                    <li class="nav-item">
+                                        <button class="nav-link" id="action-tab" data-bs-toggle="tab" data-bs-target="#actionPane" type="button">
+                                            <i class="fas fa-tasks me-1"></i> Actions
+                                        </button>
+                                    </li>
                                 {% endif %}
                             </ul>
+
                             <div class="tab-content">
-                                <div class="tab-pane active" id="notifPane">
-                                    {% if notifications %}
-                                        {% for notif in notifications %}
-                                            <div class="notification-item {% if not notif.is_read %}unread{% endif %}">
+
+                            {# ═══════════════ INFORMATION TAB ═══════════════ #}
+                            <div class="tab-pane active" id="notifPane">
+                                {% with info_notifs=notifications|filter_info_notifications|filter_unread %}
+                                    {% if info_notifs %}
+                                        {% for notif in info_notifs %}
+                                            <div class="notification-item unread">
                                                 <div class="icon info"><i class="fas fa-info-circle"></i></div>
                                                 <div class="content">
                                                     <div class="message">{{ notif.message }}</div>
@@ -274,39 +186,94 @@
                                             </div>
                                         {% endfor %}
                                     {% else %}
-                                        <div class="text-center text-muted py-4"><i class="las la-inbox fa-2x mb-2 d-block"></i>No notifications</div>
+                                        <div class="text-center text-muted py-4">
+                                            <i class="las la-inbox fa-2x mb-2 d-block"></i>No notifications
+                                        </div>
                                     {% endif %}
-                                </div>
-                                {% if user|is_admin_or_hr and not user|has_group:"HR Admin" %}
-                                    <div class="tab-pane" id="actionPane">
-                                        <div id="pendingActionsList">
-                                            {% if pending_actions %}
-                                                {% for leave in pending_actions %}
-                                                    <div class="notification-item" data-leave-id="{{ leave.id }}">
-                                                        <div class="icon action"><i class="las la-clock"></i></div>
-                                                        <div class="content">
-                                                            <div class="message">
-                                                                <strong>{{ leave.user.username }}</strong> requested 
-                                                                <span class="fw-semibold">{{ leave.leave_type.name }}</span> 
-                                                                <span class="text-muted">({{ leave.start_date|date:"d M" }} - {{ leave.end_date|date:"d M" }})</span>
-                                                            </div>
-                                                            <div class="action-buttons">
-                                                                <a href="{% url 'leave_approve' leave.id %}?next={{ request.path }}" class="btn btn-sm btn-success">Approve</a>
-                                                                <a href="{% url 'leave_reject' leave.id %}?next={{ request.path }}" class="btn btn-sm btn-danger">Reject</a>
-                                                            </div>
-                                                            <div class="timestamp">Applied {{ leave.applied_on|date:"d M Y, H:i" }}</div>
+                                {% endwith %}
+                            </div>
+
+                            {# ═══════════════ ACTIONS TAB ═══════════════ #}
+                            {% if user|is_admin_or_hr %}
+                                <div class="tab-pane" id="actionPane">
+                                    <div id="pendingActionsList">
+
+                                        {# ─── Password Reset Requests ─── #}
+                                        {% for notif in notifications %}
+                                            {% if notif.notification_type == 'action' and not notif.is_read and notif.related_object_type == 'passwordresetrequest' %}
+                                                <div class="notification-item" data-request-id="{{ notif.related_object_id }}">
+                                                    <div class="icon action"><i class="las la-key"></i></div>
+                                                    <div class="content">
+                                                        <div class="message">{{ notif.message }}</div>
+                                                        <div class="action-buttons">
+                                                            <a href="{% url 'password_reset_request_detail' notif.related_object_id %}"
+                                                            class="btn btn-sm btn-primary">
+                                                                <i class="las la-key me-1"></i> Review Request
+                                                            </a>
                                                         </div>
+                                                        <div class="timestamp">{{ notif.created_at|date:"d M Y, H:i" }}</div>
                                                     </div>
-                                                {% endfor %}
-                                            {% else %}
+                                                </div>
+                                            {% endif %}
+                                        {% endfor %}
+
+                                        {# ─── Regularization Requests ─── #}
+                                        {% for notif in notifications %}
+                                            {% if notif.notification_type == 'action' and not notif.is_read and notif.related_object_type == 'regularizationrequest' %}
+                                                <div class="notification-item" data-regularize-id="{{ notif.related_object_id }}">
+                                                    <div class="icon action"><i class="las la-user-clock"></i></div>
+                                                    <div class="content">
+                                                        <div class="message">{{ notif.message }}</div>
+                                                        <div class="action-buttons">
+                                                            <a href="{% url 'regularize_approve' notif.related_object_id %}"
+                                                            class="btn btn-sm btn-success">
+                                                                <i class="fas fa-check me-1"></i> Approve
+                                                            </a>
+                                                            <a href="{% url 'regularize_reject' notif.related_object_id %}"
+                                                            class="btn btn-sm btn-danger">
+                                                                <i class="fas fa-times me-1"></i> Reject
+                                                            </a>
+                                                        </div>
+                                                        <div class="timestamp">{{ notif.created_at|date:"d M Y, H:i" }}</div>
+                                                    </div>
+                                                </div>
+                                            {% endif %}
+                                        {% endfor %}
+
+                                        {# ─── Leave Requests (from pending_actions context) ─── #}
+                                        {% for leave in pending_actions %}
+                                            <div class="notification-item" data-leave-id="{{ leave.id }}">
+                                                <div class="icon action"><i class="las la-clock"></i></div>
+                                                <div class="content">
+                                                    <div class="message">
+                                                        <strong>{{ leave.user.username }}</strong> requested
+                                                        <span class="fw-semibold">{{ leave.leave_type.name }}</span>
+                                                        <span class="text-muted">({{ leave.start_date|date:"d M" }} - {{ leave.end_date|date:"d M" }})</span>
+                                                    </div>
+                                                    <div class="action-buttons">
+                                                        <a href="{% url 'leave_approve' leave.id %}?next={{ request.path }}" class="btn btn-sm btn-success">Approve</a>
+                                                        <a href="{% url 'leave_reject' leave.id %}?next={{ request.path }}" class="btn btn-sm btn-danger">Reject</a>
+                                                    </div>
+                                                    <div class="timestamp">Applied {{ leave.applied_on|date:"d M Y, H:i" }}</div>
+                                                </div>
+                                            </div>
+                                        {% endfor %}
+
+                                        {# ─── Empty state ─── #}
+                                        {% with action_count=notifications|filter_action_notifications|filter_unread|length %}
+                                            {% if action_count == 0 and not pending_actions %}
                                                 <div class="text-center text-muted py-4">
                                                     <i class="las la-check-circle fa-2x mb-2 d-block"></i>No pending actions
                                                 </div>
                                             {% endif %}
-                                        </div>
+                                        {% endwith %}
+
                                     </div>
-                                    {% endif %}
-                            </div>
+                                </div>
+                            {% endif %}
+                        </div>
+
+
                             <div class="dropdown-footer">
                                 <a href="{% url 'notification_list' %}">View All Notifications</a>
                             </div>
@@ -318,6 +285,7 @@
                         <div class="avatar" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                             {{ user.username|slice:":1"|upper }}
                         </div>
+
                         <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0" aria-labelledby="userDropdown">
                             <li class="user-info">
                                 <div class="d-flex align-items-center gap-2">
@@ -326,8 +294,6 @@
                                     </div>
                                     <div>
                                         <div class="username">{{ user.username }}</div>
-                                        <!-- <div class="email">{{ user.email|default:"No email" }}</div> -->
-
                                         <div class="email">
                                             {% with profile=user.profile %}
                                                 {% if profile and profile.employee_id %}
@@ -336,22 +302,27 @@
                                                     N/A
                                                 {% endif %}
                                             {% endwith %}
-                                            
                                         </div>
-                                        
                                     </div>
                                 </div>
                             </li>
-                            <!-- START: Admin Setup Link -->
-                            <!-- END: Admin Setup Link -->
-                             
-                            <li><a class="dropdown-item" href="{% url 'profile' %}"><i class="las la-user"></i> Profile</a></li>
-                            {% if user.is_superuser or user|has_group:"HR Admin" %}
 
-                            <li><a class="dropdown-item" href="{% url 'setup' %}"><i class="las la-cog me-2"></i> Setup</a></li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'profile' %}">
+                                    <i class="las la-user"></i> Profile
+                                </a>
+                            </li>
+
+                            {% if user.is_superuser or user|has_group:"HR Admin" %}
+                                <li>
+                                    <a class="dropdown-item" href="{% url 'setup' %}">
+                                        <i class="las la-cog"></i> Setup
+                                    </a>
+                                </li>
                             {% endif %}
-                            <!-- <li><a class="dropdown-item" href="#"><i class="las la-cog"></i> Settings</a></li> -->
+
                             <li><hr class="dropdown-divider"></li>
+
                             <li>
                                 <form method="post" action="{% url 'logout' %}" style="display:inline;">
                                     {% csrf_token %}
@@ -363,7 +334,9 @@
                         </ul>
                     </div>
                 {% else %}
-                    <a href="{% url 'login' %}" class="btn btn-primary btn-sm rounded-pill px-4"><i class="las la-sign-in-alt me-2"></i> Login</a>
+                    <a href="{% url 'login' %}" class="btn btn-primary btn-sm rounded-pill px-4">
+                        <i class="las la-sign-in-alt me-2"></i> Login
+                    </a>
                 {% endif %}
             </div>
         </header>
@@ -373,22 +346,29 @@
             {% if messages %}
                 {% for message in messages %}
                     <div class="alert-premium {{ message.tags }}">
-                        <span><i class="fas fa-{% if message.tags == 'success' %}check-circle{% elif message.tags == 'error' %}times-circle{% else %}info-circle{% endif %}"></i> {{ message }}</span>
+                        <span>
+                            <i class="fas fa-{% if message.tags == 'success' %}check-circle{% elif message.tags == 'error' %}times-circle{% else %}info-circle{% endif %}"></i>
+                            {{ message }}
+                        </span>
                         <button class="close-btn" onclick="this.parentElement.remove()">&times;</button>
                     </div>
                 {% endfor %}
             {% endif %}
+
             {% block content %}{% endblock %}
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    
+
     <script>
-    // Mobile sidebar toggle
-    // const hamburgerBtn = document.getElementById('hamburgerBtn');
+    // ─── Mobile sidebar toggle ───
+    // NOTE: `hamburgerBtn` is commented out in your original. Uncomment the line
+    // below or the next handler will throw "hamburgerBtn is not defined".
+    const hamburgerBtn = document.getElementById('hamburgerBtn');
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('sidebarOverlay');
+
     function toggleSidebar() {
         sidebar.classList.toggle('open');
         overlay.classList.toggle('show');
@@ -399,22 +379,21 @@
         overlay.classList.remove('show');
         document.body.style.overflow = '';
     }
+
     hamburgerBtn.addEventListener('click', toggleSidebar);
     overlay.addEventListener('click', closeSidebar);
+
     document.querySelectorAll('.sidebar-nav .nav-item').forEach(link => {
-        link.addEventListener('click', function(e) {
+        link.addEventListener('click', function (e) {
             if (window.innerWidth <= 992) closeSidebar();
         });
     });
-    window.addEventListener('resize', function() {
+
+    window.addEventListener('resize', function () {
         if (window.innerWidth > 992) closeSidebar();
     });
 
-   
-
-   
-
-    // ------- TOAST NOTIFICATION -------
+    // ─── Toast notification ───
     function showToast(message, type = 'success') {
         const container = document.getElementById('toastContainer');
         if (!container) {
@@ -435,13 +414,13 @@
         }, 5000);
     }
 
-    // Ensure dropdown stays open after action
+    // ─── Keep dropdown open after inner action ───
     document.querySelectorAll('.dropdown-menu').forEach(menu => {
-        menu.addEventListener('click', function(e) {
+        menu.addEventListener('click', function (e) {
             e.stopPropagation();
         });
     });
-</script>
+    </script>
 
 
     {% block extra_js %}{% endblock %}

@@ -5,93 +5,535 @@
 {% block page_title %}Leave Approvals{% endblock %}
 
 {% block content %}
-<div class="row mb-3">
-    <div class="col">
-        <ul class="nav nav-tabs" id="approvalTabs">
-            <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#pending">Pending ({{ pending_leaves|length }})</a></li>
-            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#approved">Approved ({{ approved_leaves|length }})</a></li>
-            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#rejected">Rejected ({{ rejected_leaves|length }})</a></li>
-        </ul>
+
+<style>
+    /* ═══════════════════════════════════════════════════
+       Leave Approvals — refined design system
+       Prefix: .lap-
+       ═══════════════════════════════════════════════════ */
+    .lap-wrap {
+        --lap-surface:        #ffffff;
+        --lap-surface-2:      #fafbfc;
+        --lap-surface-3:      #f4f6f8;
+        --lap-border:         #e8eaee;
+        --lap-border-hover:   #d5d9e0;
+        --lap-text:           #0f172a;
+        --lap-text-muted:     #64748b;
+        --lap-text-faint:     #94a3b8;
+        --lap-primary:        #4f46e5;
+        --lap-primary-soft:   #eef2ff;
+        --lap-success:        #059669;
+        --lap-success-soft:   #ecfdf5;
+        --lap-success-hover:  #047857;
+        --lap-warning:        #d97706;
+        --lap-warning-soft:   #fffbeb;
+        --lap-danger:         #dc2626;
+        --lap-danger-soft:    #fef2f2;
+        --lap-danger-hover:   #b91c1c;
+        --lap-pill:           999px;
+        --lap-shadow-xs:      0 1px 2px rgba(15,23,42,.04);
+        --lap-shadow-sm:      0 1px 3px rgba(15,23,42,.06), 0 1px 2px rgba(15,23,42,.04);
+        --lap-ease:           cubic-bezier(.4, 0, .2, 1);
+    }
+
+    /* ─── Page heading ─── */
+    .lap-page-hd { margin-bottom: 22px; }
+    .lap-page-hd-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        letter-spacing: -.02em;
+        color: var(--lap-text);
+        margin: 0;
+        line-height: 1.2;
+    }
+    .lap-page-hd-sub {
+        font-size: .82rem;
+        color: var(--lap-text-muted);
+        margin: 4px 0 0;
+    }
+
+    /* ─── Segmented tabs (restyled Bootstrap nav-tabs) ─── */
+    .lap-tabs {
+        display: inline-flex;
+        gap: 2px;
+        padding: 4px;
+        background: var(--lap-surface);
+        border: 1px solid var(--lap-border);
+        border-radius: 10px;
+        list-style: none;
+        margin: 0 0 22px;
+        box-shadow: var(--lap-shadow-xs);
+        border-bottom: none;
+    }
+    .lap-tabs .nav-item { margin: 0; }
+    .lap-tabs .nav-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        border-radius: 7px;
+        font-size: .82rem;
+        font-weight: 500;
+        color: var(--lap-text-muted);
+        background: transparent;
+        border: none;
+        text-decoration: none;
+        transition: color .15s var(--lap-ease), background .15s var(--lap-ease);
+    }
+    .lap-tabs .nav-link:hover { color: var(--lap-text); }
+    .lap-tabs .nav-link.active {
+        background: var(--lap-primary);
+        color: #fff;
+    }
+
+    .lap-tab-count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 20px;
+        height: 20px;
+        padding: 0 7px;
+        border-radius: var(--lap-pill);
+        background: var(--lap-surface-3);
+        color: var(--lap-text-muted);
+        font-size: .65rem;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        transition: background .15s var(--lap-ease), color .15s var(--lap-ease);
+    }
+    .lap-tabs .nav-link.active .lap-tab-count {
+        background: rgba(255,255,255,.22);
+        color: #fff;
+    }
+
+    /* ─── Card shell ─── */
+    .lap-card {
+        background: var(--lap-surface);
+        border: 1px solid var(--lap-border);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: var(--lap-shadow-xs);
+        transition: border-color .2s var(--lap-ease);
+    }
+    .lap-card:hover { border-color: var(--lap-border-hover); }
+
+    /* ─── Table ─── */
+    .lap-table {
+        width: 100%;
+        margin: 0;
+        border-collapse: collapse;
+    }
+    .lap-table thead th {
+        font-size: .68rem;
+        font-weight: 600;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: var(--lap-text-faint);
+        padding: 12px 20px;
+        border-bottom: 1px solid var(--lap-border);
+        background: var(--lap-surface-2);
+        white-space: nowrap;
+        text-align: left;
+    }
+    .lap-table tbody td {
+        padding: 14px 20px;
+        vertical-align: middle;
+        border-bottom: 1px solid var(--lap-border);
+        font-size: .875rem;
+        color: var(--lap-text);
+    }
+    .lap-table tbody tr:last-child td { border-bottom: none; }
+    .lap-table tbody tr { transition: background .12s var(--lap-ease); }
+    .lap-table tbody tr:hover { background: var(--lap-surface-2); }
+
+    .lap-table .name { font-weight: 600; }
+    .lap-table .num {
+        font-variant-numeric: tabular-nums;
+        font-weight: 500;
+    }
+    .lap-table .muted { color: var(--lap-text-faint); }
+
+    /* ─── Employee chip ─── */
+    .lap-emp {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .lap-avatar {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        color: #fff;
+        font-weight: 600;
+        font-size: .72rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        letter-spacing: -.02em;
+    }
+
+    /* ─── Reason column ─── */
+    .lap-reason {
+        max-width: 220px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: var(--lap-text-muted);
+        font-size: .82rem;
+    }
+
+    /* ─── Duration pill ─── */
+    .lap-duration {
+        display: inline-flex;
+        align-items: center;
+        padding: 3px 10px;
+        border-radius: var(--lap-pill);
+        background: var(--lap-surface-2);
+        border: 1px solid var(--lap-border);
+        font-size: .72rem;
+        font-weight: 600;
+        color: var(--lap-text-muted);
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* ─── Action buttons ─── */
+    .lap-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        justify-content: flex-end;
+    }
+    .lap-act {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 5px 12px;
+        font-size: .72rem;
+        font-weight: 500;
+        border-radius: var(--lap-pill);
+        border: 1px solid transparent;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all .15s var(--lap-ease);
+        line-height: 1.2;
+        white-space: nowrap;
+    }
+    .lap-act i { font-size: .75rem; }
+
+    .lap-act-approve {
+        background: var(--lap-success-soft);
+        color: var(--lap-success);
+    }
+    .lap-act-approve:hover {
+        background: var(--lap-success);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(5,150,105,.25);
+    }
+
+    .lap-act-reject {
+        background: var(--lap-danger-soft);
+        color: var(--lap-danger);
+    }
+    .lap-act-reject:hover {
+        background: var(--lap-danger);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(220,38,38,.25);
+    }
+
+    /* ─── Comment column (truncated) ─── */
+    .lap-comment {
+        max-width: 240px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: var(--lap-text-muted);
+        font-size: .82rem;
+    }
+    .lap-comment.empty {
+        color: var(--lap-text-faint);
+        font-style: italic;
+    }
+
+    /* ─── Rejection reason (soft red) ─── */
+    .lap-reject-note {
+        max-width: 260px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: var(--lap-danger);
+        font-size: .82rem;
+    }
+    .lap-reject-note.empty {
+        color: var(--lap-text-faint);
+        font-style: italic;
+    }
+
+    /* ─── Empty state ─── */
+    .lap-empty {
+        text-align: center;
+        padding: 52px 20px;
+    }
+    .lap-empty-ico {
+        width: 68px;
+        height: 68px;
+        border-radius: 50%;
+        background: var(--lap-surface-2);
+        border: 1px solid var(--lap-border);
+        color: var(--lap-text-faint);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.75rem;
+        margin-bottom: 16px;
+    }
+    .lap-empty-title {
+        font-size: .9rem;
+        font-weight: 600;
+        color: var(--lap-text);
+        margin: 0 0 4px;
+    }
+    .lap-empty-sub {
+        font-size: .8rem;
+        color: var(--lap-text-muted);
+        margin: 0;
+    }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 767.98px) {
+        .lap-page-hd-title { font-size: 1.1rem; }
+        .lap-tabs {
+            width: 100%;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+        .lap-tabs::-webkit-scrollbar { display: none; }
+        .lap-tabs .nav-item { flex-shrink: 0; }
+        .lap-tabs .nav-link {
+            padding: 8px 12px;
+            font-size: .76rem;
+            white-space: nowrap;
+        }
+        .lap-table thead th,
+        .lap-table tbody td { padding: 11px 14px; }
+        .lap-reason,
+        .lap-comment,
+        .lap-reject-note { max-width: 140px; }
+        .lap-act { padding: 4px 10px; font-size: .68rem; }
+    }
+</style>
+
+<div class="lap-wrap">
+
+    <!-- ═══════════ Page heading ═══════════ -->
+    <div class="lap-page-hd">
+        <h1 class="lap-page-hd-title">Leave Approvals</h1>
+        <p class="lap-page-hd-sub">Review, approve, or reject leave requests from your team.</p>
+    </div>
+
+    <!-- ═══════════ Tabs ═══════════ -->
+    <ul class="nav lap-tabs" id="approvalTabs" role="tablist">
+        <li class="nav-item">
+            <a class="nav-link active" data-bs-toggle="tab" href="#pending">
+                Pending
+                <span class="lap-tab-count">{{ pending_leaves|length }}</span>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#approved">
+                Approved
+                <span class="lap-tab-count">{{ approved_leaves|length }}</span>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#rejected">
+                Rejected
+                <span class="lap-tab-count">{{ rejected_leaves|length }}</span>
+            </a>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+
+        {# ═══════════════ TAB 1: PENDING ═══════════════ #}
+        <div class="tab-pane fade show active" id="pending">
+            {% if pending_leaves %}
+                <div class="lap-card">
+                    <div class="table-responsive">
+                        <table class="lap-table">
+                            <thead>
+                                <tr>
+                                    <th>Employee</th>
+                                    <th>Leave Type</th>
+                                    <th>Date</th>
+                                    <th>Duration</th>
+                                    <th>Reason</th>
+                                    <th>Applied</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for req in pending_leaves %}
+                                    <tr>
+                                        <td>
+                                            <div class="lap-emp">
+                                                <div class="lap-avatar">{{ req.user.username|slice:":1"|upper }}</div>
+                                                <span class="name">{{ req.user.username }}</span>
+                                            </div>
+                                        </td>
+                                        <td>{{ req.leave_type.name }}</td>
+                                        <td class="num">{{ req.start_date|date:"d M" }} – {{ req.end_date|date:"d M" }}</td>
+                                        <td>
+                                            <span class="lap-duration">{{ req.get_duration }} day{{ req.get_duration|pluralize }}</span>
+                                        </td>
+                                        <td>
+                                            <div class="lap-reason" title="{{ req.reason }}">
+                                                {{ req.reason|truncatechars:30 }}
+                                            </div>
+                                        </td>
+                                        <td class="num muted">{{ req.applied_on|date:"d M Y" }}</td>
+                                        <td class="text-end">
+                                            <div class="lap-actions">
+                                                <a href="{% url 'leave_approve' req.id %}" class="lap-act lap-act-approve">
+                                                    <i class="fas fa-check"></i> Approve
+                                                </a>
+                                                <a href="{% url 'leave_reject' req.id %}" class="lap-act lap-act-reject">
+                                                    <i class="fas fa-times"></i> Reject
+                                                </a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            {% else %}
+                <div class="lap-card">
+                    <div class="lap-empty">
+                        <div class="lap-empty-ico"><i class="las la-check-circle"></i></div>
+                        <p class="lap-empty-title">You're all caught up 🎉</p>
+                        <p class="lap-empty-sub">No pending leave requests to review.</p>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+
+        {# ═══════════════ TAB 2: APPROVED ═══════════════ #}
+        <div class="tab-pane fade" id="approved">
+            {% if approved_leaves %}
+                <div class="lap-card">
+                    <div class="table-responsive">
+                        <table class="lap-table">
+                            <thead>
+                                <tr>
+                                    <th>Employee</th>
+                                    <th>Leave Type</th>
+                                    <th>Date</th>
+                                    <th>Duration</th>
+                                    <th>Admin Comment</th>
+                                    <th>Applied</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for req in approved_leaves %}
+                                    <tr>
+                                        <td>
+                                            <div class="lap-emp">
+                                                <div class="lap-avatar">{{ req.user.username|slice:":1"|upper }}</div>
+                                                <span class="name">{{ req.user.username }}</span>
+                                            </div>
+                                        </td>
+                                        <td>{{ req.leave_type.name }}</td>
+                                        <td class="num">{{ req.start_date|date:"d M" }} – {{ req.end_date|date:"d M" }}</td>
+                                        <td>
+                                            <span class="lap-duration">{{ req.get_duration }} day{{ req.get_duration|pluralize }}</span>
+                                        </td>
+                                        <td>
+                                            {% if req.admin_comment %}
+                                                <div class="lap-comment" title="{{ req.admin_comment }}">
+                                                    {{ req.admin_comment }}
+                                                </div>
+                                            {% else %}
+                                                <span class="lap-comment empty">—</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="num muted">{{ req.applied_on|date:"d M Y" }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            {% else %}
+                <div class="lap-card">
+                    <div class="lap-empty">
+                        <div class="lap-empty-ico"><i class="las la-history"></i></div>
+                        <p class="lap-empty-title">No approved leaves</p>
+                        <p class="lap-empty-sub">Approved requests will appear here.</p>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+
+        {# ═══════════════ TAB 3: REJECTED ═══════════════ #}
+        <div class="tab-pane fade" id="rejected">
+            {% if rejected_leaves %}
+                <div class="lap-card">
+                    <div class="table-responsive">
+                        <table class="lap-table">
+                            <thead>
+                                <tr>
+                                    <th>Employee</th>
+                                    <th>Leave Type</th>
+                                    <th>Date</th>
+                                    <th>Rejection Reason</th>
+                                    <th>Applied</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for req in rejected_leaves %}
+                                    <tr>
+                                        <td>
+                                            <div class="lap-emp">
+                                                <div class="lap-avatar">{{ req.user.username|slice:":1"|upper }}</div>
+                                                <span class="name">{{ req.user.username }}</span>
+                                            </div>
+                                        </td>
+                                        <td>{{ req.leave_type.name }}</td>
+                                        <td class="num">{{ req.start_date|date:"d M" }} – {{ req.end_date|date:"d M" }}</td>
+                                        <td>
+                                            {% if req.rejection_reason %}
+                                                <div class="lap-reject-note" title="{{ req.rejection_reason }}">
+                                                    {{ req.rejection_reason }}
+                                                </div>
+                                            {% else %}
+                                                <span class="lap-reject-note empty">No reason provided</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="num muted">{{ req.applied_on|date:"d M Y" }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            {% else %}
+                <div class="lap-card">
+                    <div class="lap-empty">
+                        <div class="lap-empty-ico"><i class="las la-history"></i></div>
+                        <p class="lap-empty-title">No rejected leaves</p>
+                        <p class="lap-empty-sub">Rejected requests will appear here.</p>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+
     </div>
 </div>
 
-<div class="tab-content">
-    <!-- Pending -->
-    <div class="tab-pane fade show active" id="pending">
-        {% if pending_leaves %}
-            <div class="table-responsive">
-                <table class="table table-hover align-middle">
-                    <thead><tr><th>Employee</th><th>Leave Type</th><th>Date</th><th>Duration</th><th>Reason</th><th>Applied</th><th>Actions</th></tr></thead>
-                    <tbody>
-                        {% for req in pending_leaves %}
-                            <tr>
-                                <td>{{ req.user.username }}</td>
-                                <td>{{ req.leave_type.name }}</td>
-                                <td>{{ req.start_date|date:"d M" }} - {{ req.end_date|date:"d M" }}</td>
-                                <td>{{ req.get_duration }} day{{ req.get_duration|pluralize }}</td>
-                                <td>{{ req.reason|truncatechars:30 }}</td>
-                                <td>{{ req.applied_on|date:"d M Y" }}</td>
-                                <td>
-                                    <a href="{% url 'leave_approve' req.id %}" class="btn btn-sm btn-success rounded-pill me-1"><i class="fas fa-check me-1"></i>Approve</a>
-                                    <a href="{% url 'leave_reject' req.id %}" class="btn btn-sm btn-danger rounded-pill"><i class="fas fa-times me-1"></i>Reject</a>
-                                </td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        {% else %}
-            <p class="text-muted text-center py-4">🎉 No pending leave requests.</p>
-        {% endif %}
-    </div>
-
-    <!-- Approved -->
-    <div class="tab-pane fade" id="approved">
-        {% if approved_leaves %}
-            <div class="table-responsive">
-                <table class="table table-hover align-middle">
-                    <thead><tr><th>Employee</th><th>Leave Type</th><th>Date</th><th>Duration</th><th>Admin Comment</th><th>Applied</th></tr></thead>
-                    <tbody>
-                        {% for req in approved_leaves %}
-                            <tr>
-                                <td>{{ req.user.username }}</td>
-                                <td>{{ req.leave_type.name }}</td>
-                                <td>{{ req.start_date|date:"d M" }} - {{ req.end_date|date:"d M" }}</td>
-                                <td>{{ req.get_duration }} day{{ req.get_duration|pluralize }}</td>
-                                <td>{{ req.admin_comment|default:"-" }}</td>
-                                <td>{{ req.applied_on|date:"d M Y" }}</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        {% else %}
-            <p class="text-muted text-center py-4">No approved leaves.</p>
-        {% endif %}
-    </div>
-
-    <!-- Rejected -->
-    <div class="tab-pane fade" id="rejected">
-        {% if rejected_leaves %}
-            <div class="table-responsive">
-                <table class="table table-hover align-middle">
-                    <thead><tr><th>Employee</th><th>Leave Type</th><th>Date</th><th>Rejection Reason</th><th>Applied</th></tr></thead>
-                    <tbody>
-                        {% for req in rejected_leaves %}
-                            <tr>
-                                <td>{{ req.user.username }}</td>
-                                <td>{{ req.leave_type.name }}</td>
-                                <td>{{ req.start_date|date:"d M" }} - {{ req.end_date|date:"d M" }}</td>
-                                <td>{{ req.rejection_reason|default:"No reason provided" }}</td>
-                                <td>{{ req.applied_on|date:"d M Y" }}</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        {% else %}
-            <p class="text-muted text-center py-4">No rejected leaves.</p>
-        {% endif %}
-    </div>
-</div>
 {% endblock %}

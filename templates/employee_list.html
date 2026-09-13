@@ -5,87 +5,482 @@
 {% block page_title %}Employee Management{% endblock %}
 
 {% block content %}
-<!-- Stats Row -->
-<div class="row g-3 mb-4">
-    <div class="col-12 col-sm-6 col-lg-3">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body d-flex align-items-center">
-                <div class="rounded-circle bg-primary bg-opacity-10 p-3 me-3">
-                    <i class="las la-users text-primary fs-4"></i>
-                </div>
-                <div>
-                    <h6 class="text-muted mb-0">Total Employees</h6>
-                    <h3 class="mb-0 fw-bold">{{ employees|length }}</h3>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-12 col-sm-6 col-lg-3">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body d-flex align-items-center">
-                <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3">
-                    <i class="las la-user-tie text-success fs-4"></i>
-                </div>
-                <div>
-                    <h6 class="text-muted mb-0">Admins</h6>
-                    <h3 class="mb-0 fw-bold">
-                        {% for emp in employees %}{% if emp.is_superuser %}{{ forloop.counter }}{% endif %}{% endfor %}
-                    </h3>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-12 col-sm-6 col-lg-3">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body d-flex align-items-center">
-                <div class="rounded-circle bg-warning bg-opacity-10 p-3 me-3">
-                    <i class="las la-user text-warning fs-4"></i>
-                </div>
-                <div>
-                    <h6 class="text-muted mb-0">Staff</h6>
-                    <h3 class="mb-0 fw-bold">
-                        {% for emp in employees %}{% if emp.is_staff and not emp.is_superuser %}{{ forloop.counter }}{% endif %}{% endfor %}
-                    </h3>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-12 col-sm-6 col-lg-3">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body d-flex align-items-center">
-                <div class="rounded-circle bg-info bg-opacity-10 p-3 me-3">
-                    <i class="las la-user-plus text-info fs-4"></i>
-                </div>
-                <div>
-                    <h6 class="text-muted mb-0">Recent</h6>
-                    <h3 class="mb-0 fw-bold">
-                        {% with recent=employees|slice:":3" %}{{ recent|length }}{% endwith %}
-                    </h3>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 
-<!-- Employee Table Card -->
-<div class="card border-0 shadow-sm rounded-3">
-    <div class="card-header bg-white border-0 pt-4 pb-2 d-flex flex-wrap justify-content-between align-items-center">
-        <h5 class="mb-0">
-            <i class="fas fa-list text-primary me-2"></i> All Employees
-            <span class="badge bg-primary ms-2">{{ employees|length }}</span>
-        </h5>
-        <div class="d-flex gap-2 mt-2 mt-sm-0">
-            <!-- Search Input (client-side filter) -->
-            <input type="text" id="employeeSearch" class="form-control form-control-sm" placeholder="🔍 Search employees..." style="width: 200px;">
-            <a href="{% url 'employee_create' %}" class="btn btn-sm btn-success">
-                <i class="las la-user-plus me-1"></i> Add
-            </a>
+<style>
+    /* ═══════════════════════════════════════════════════
+       Employee Management — refined design system
+       Prefix: .emp-
+       ═══════════════════════════════════════════════════ */
+    .emp-wrap {
+        --emp-surface:        #ffffff;
+        --emp-surface-2:      #fafbfc;
+        --emp-surface-3:      #f4f6f8;
+        --emp-border:         #e8eaee;
+        --emp-border-hover:   #d5d9e0;
+        --emp-text:           #0f172a;
+        --emp-text-muted:     #64748b;
+        --emp-text-faint:     #94a3b8;
+        --emp-primary:        #4f46e5;
+        --emp-primary-soft:   #eef2ff;
+        --emp-primary-hover:  #4338ca;
+        --emp-success:        #059669;
+        --emp-success-soft:   #ecfdf5;
+        --emp-success-hover:  #047857;
+        --emp-warning:        #d97706;
+        --emp-warning-soft:   #fffbeb;
+        --emp-danger:         #dc2626;
+        --emp-danger-soft:    #fef2f2;
+        --emp-info:           #0284c7;
+        --emp-info-soft:      #f0f9ff;
+        --emp-pill:           999px;
+        --emp-shadow-xs:      0 1px 2px rgba(15,23,42,.04);
+        --emp-ease:           cubic-bezier(.4, 0, .2, 1);
+    }
+
+    /* ─── Stats ─── */
+    .emp-stat {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        background: var(--emp-surface);
+        border: 1px solid var(--emp-border);
+        border-radius: 12px;
+        padding: 16px 18px;
+        height: 100%;
+        transition: border-color .2s var(--emp-ease), transform .15s var(--emp-ease);
+    }
+    .emp-stat:hover {
+        border-color: var(--emp-border-hover);
+        transform: translateY(-1px);
+    }
+    .emp-stat-ico {
+        width: 42px;
+        height: 42px;
+        border-radius: 11px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.1rem;
+        flex-shrink: 0;
+    }
+    .emp-stat-ico.primary { background: var(--emp-primary-soft); color: var(--emp-primary); }
+    .emp-stat-ico.success { background: var(--emp-success-soft); color: var(--emp-success); }
+    .emp-stat-ico.warning { background: var(--emp-warning-soft); color: var(--emp-warning); }
+    .emp-stat-ico.info    { background: var(--emp-info-soft);    color: var(--emp-info); }
+
+    .emp-stat-label {
+        font-size: .68rem;
+        font-weight: 600;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--emp-text-faint);
+        margin-bottom: 2px;
+    }
+    .emp-stat-value {
+        font-size: 1.55rem;
+        font-weight: 700;
+        letter-spacing: -.02em;
+        line-height: 1.05;
+        color: var(--emp-text);
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* ─── Card shell ─── */
+    .emp-card {
+        background: var(--emp-surface);
+        border: 1px solid var(--emp-border);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: var(--emp-shadow-xs);
+        transition: border-color .2s var(--emp-ease);
+    }
+    .emp-card:hover { border-color: var(--emp-border-hover); }
+
+    /* ─── Card header ─── */
+    .emp-card-hd {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        padding: 18px 22px 14px;
+        border-bottom: 1px solid var(--emp-border);
+    }
+    .emp-card-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: .95rem;
+        font-weight: 600;
+        letter-spacing: -.01em;
+        color: var(--emp-text);
+        margin: 0;
+    }
+    .emp-card-title i {
+        color: var(--emp-text-faint);
+        font-size: .95rem;
+    }
+    .emp-count-pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 3px 10px;
+        border-radius: var(--emp-pill);
+        background: var(--emp-primary-soft);
+        color: var(--emp-primary);
+        font-size: .7rem;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* ─── Header tools (search + add) ─── */
+    .emp-tools {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .emp-search {
+        position: relative;
+        width: 220px;
+        max-width: 100%;
+    }
+    .emp-search-input {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 10px 0 12px;
+        height: 36px;
+        background: var(--emp-surface);
+        border: 1px solid var(--emp-border);
+        border-radius: 10px;
+        transition: border-color .15s var(--emp-ease), box-shadow .15s var(--emp-ease);
+    }
+    .emp-search-input:focus-within {
+        border-color: var(--emp-primary);
+        box-shadow: 0 0 0 3px rgba(79,70,229,.12);
+    }
+    .emp-search-input > i {
+        color: var(--emp-text-faint);
+        font-size: .85rem;
+        flex-shrink: 0;
+    }
+    .emp-search-input input {
+        flex: 1;
+        border: none;
+        outline: none;
+        background: transparent;
+        font-size: .82rem;
+        color: var(--emp-text);
+        font-family: inherit;
+        padding: 0;
+        min-width: 0;
+    }
+    .emp-search-input input::placeholder { color: var(--emp-text-faint); }
+
+    .emp-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 16px;
+        font-size: .78rem;
+        font-weight: 500;
+        border-radius: var(--emp-pill);
+        border: 1px solid transparent;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all .15s var(--emp-ease);
+        line-height: 1.3;
+        white-space: nowrap;
+    }
+    .emp-btn i { font-size: .82rem; }
+
+    .emp-btn-primary {
+        background: var(--emp-success);
+        color: #fff;
+    }
+    .emp-btn-primary:hover {
+        background: var(--emp-success-hover);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(5,150,105,.25);
+    }
+
+    /* ─── Table ─── */
+    .emp-table {
+        width: 100%;
+        margin: 0;
+        border-collapse: collapse;
+    }
+    .emp-table thead th {
+        font-size: .68rem;
+        font-weight: 600;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: var(--emp-text-faint);
+        padding: 12px 18px;
+        border-bottom: 1px solid var(--emp-border);
+        background: var(--emp-surface-2);
+        white-space: nowrap;
+        text-align: left;
+    }
+    .emp-table thead th.text-end { text-align: right; }
+
+    .emp-table tbody td {
+        padding: 14px 18px;
+        vertical-align: middle;
+        border-bottom: 1px solid var(--emp-border);
+        font-size: .875rem;
+        color: var(--emp-text);
+    }
+    .emp-table tbody tr:last-child td { border-bottom: none; }
+    .emp-table tbody tr { transition: background .12s var(--emp-ease); }
+    .emp-table tbody tr:hover { background: var(--emp-surface-2); }
+
+    .emp-table .idx {
+        color: var(--emp-text-faint);
+        font-variant-numeric: tabular-nums;
+        font-weight: 500;
+        width: 44px;
+    }
+    .emp-table .muted { color: var(--emp-text-faint); }
+    .emp-table .num {
+        font-variant-numeric: tabular-nums;
+        font-weight: 500;
+    }
+
+    /* ─── Employee cell ─── */
+    .emp-name-cell {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+    }
+    .emp-avatar {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        color: #fff;
+        font-weight: 600;
+        font-size: .78rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        letter-spacing: -.02em;
+    }
+    .emp-name {
+        font-weight: 600;
+        color: var(--emp-text);
+        letter-spacing: -.005em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* ─── Employee ID chip ─── */
+    .emp-id {
+        display: inline-flex;
+        align-items: center;
+        padding: 3px 9px;
+        border-radius: 6px;
+        background: var(--emp-surface-2);
+        border: 1px solid var(--emp-border);
+        font-size: .72rem;
+        font-weight: 500;
+        color: var(--emp-text-muted);
+        font-variant-numeric: tabular-nums;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        letter-spacing: .02em;
+    }
+
+    /* ─── Role pill (dot + soft) ─── */
+    .emp-role {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 11px;
+        border-radius: var(--emp-pill);
+        font-size: .72rem;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+    .emp-role::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+        flex-shrink: 0;
+    }
+    .emp-role i { display: none; }
+    .emp-role.admin    { background: var(--emp-danger-soft);  color: var(--emp-danger); }
+    .emp-role.hr       { background: var(--emp-primary-soft); color: var(--emp-primary); }
+    .emp-role.manager  { background: var(--emp-success-soft); color: var(--emp-success); }
+    .emp-role.staff    { background: var(--emp-info-soft);    color: var(--emp-info); }
+    .emp-role.employee { background: var(--emp-surface-3);    color: var(--emp-text-muted); }
+
+    /* ─── Actions ─── */
+    .emp-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        justify-content: flex-end;
+    }
+    .emp-action {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        border: 1px solid var(--emp-border);
+        background: var(--emp-surface);
+        color: var(--emp-text-muted);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .78rem;
+        text-decoration: none;
+        transition: all .15s var(--emp-ease);
+        padding: 0;
+        cursor: pointer;
+    }
+    .emp-action:hover { transform: scale(1.05); }
+
+    .emp-action.edit:hover {
+        background: var(--emp-primary-soft);
+        color: var(--emp-primary);
+        border-color: transparent;
+    }
+    .emp-action.delete:hover {
+        background: var(--emp-danger-soft);
+        color: var(--emp-danger);
+        border-color: transparent;
+    }
+
+    .emp-locked {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: var(--emp-surface-2);
+        border: 1px solid var(--emp-border);
+        color: var(--emp-text-faint);
+        font-size: .78rem;
+        cursor: not-allowed;
+    }
+
+    /* ─── Empty state (defensive, not in original markup) ─── */
+    .emp-empty {
+        text-align: center;
+        padding: 56px 20px;
+    }
+    .emp-empty-ico {
+        width: 68px;
+        height: 68px;
+        border-radius: 50%;
+        background: var(--emp-surface-2);
+        border: 1px solid var(--emp-border);
+        color: var(--emp-text-faint);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.85rem;
+        margin-bottom: 16px;
+    }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 991.98px) {
+        .emp-table thead th:nth-child(5),
+        .emp-table tbody td:nth-child(5) { display: none; }
+    }
+    @media (max-width: 767.98px) {
+        .emp-stat { padding: 14px 16px; gap: 12px; }
+        .emp-stat-ico { width: 36px; height: 36px; font-size: 1rem; }
+        .emp-stat-value { font-size: 1.25rem; }
+        .emp-search { width: 100%; }
+        .emp-tools { width: 100%; }
+        .emp-table thead th,
+        .emp-table tbody td { padding: 11px 12px; font-size: .82rem; }
+        .emp-avatar { width: 30px; height: 30px; font-size: .72rem; }
+        .emp-table thead th:nth-child(4),
+        .emp-table tbody td:nth-child(4),
+        .emp-table thead th:nth-child(6),
+        .emp-table tbody td:nth-child(6) { display: none; }
+    }
+</style>
+
+<div class="emp-wrap">
+
+    <!-- ═══════════ Stats row ═══════════ -->
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="emp-stat">
+                <div class="emp-stat-ico primary"><i class="las la-users"></i></div>
+                <div>
+                    <div class="emp-stat-label">Total Employees</div>
+                    <div class="emp-stat-value">{{ employees|length }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="emp-stat">
+                <div class="emp-stat-ico success"><i class="las la-user-tie"></i></div>
+                <div>
+                    <div class="emp-stat-label">Admins</div>
+                    <div class="emp-stat-value">
+                        {% for emp in employees %}{% if emp.is_superuser %}{{ forloop.counter }}{% endif %}{% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="emp-stat">
+                <div class="emp-stat-ico warning"><i class="las la-user"></i></div>
+                <div>
+                    <div class="emp-stat-label">Staff</div>
+                    <div class="emp-stat-value">
+                        {% for emp in employees %}{% if emp.is_staff and not emp.is_superuser %}{{ forloop.counter }}{% endif %}{% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="emp-stat">
+                <div class="emp-stat-ico info"><i class="las la-user-plus"></i></div>
+                <div>
+                    <div class="emp-stat-label">Recent</div>
+                    <div class="emp-stat-value">
+                        {% with recent=employees|slice:":3" %}{{ recent|length }}{% endwith %}
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
-    <div class="card-body">
+
+    <!-- ═══════════ Employee table ═══════════ -->
+    <div class="emp-card">
+        <div class="emp-card-hd">
+            <h5 class="emp-card-title">
+                <i class="fas fa-list"></i> All Employees
+                <span class="emp-count-pill">{{ employees|length }}</span>
+            </h5>
+            <div class="emp-tools">
+                <div class="emp-search">
+                    <div class="emp-search-input">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="employeeSearch" placeholder="Search employees...">
+                    </div>
+                </div>
+                <a href="{% url 'employee_create' %}" class="emp-btn emp-btn-primary">
+                    <i class="las la-user-plus"></i> Add Employee
+                </a>
+            </div>
+        </div>
+
         <div class="table-responsive">
-            
-            <table class="table table-hover align-middle mb-0" id="employeeTable">
+            <table class="emp-table" id="employeeTable">
                 <thead>
                     <tr>
                         <th>#</th>
@@ -95,68 +490,73 @@
                         <th>Department</th>
                         <th>Email</th>
                         <th>Role</th>
-                        <th>Actions</th>
+                        <th class="text-end">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for emp in employees %}
                         <tr>
-                            <td>{{ forloop.counter }}</td>
+                            <td class="idx">{{ forloop.counter }}</td>
                             <td>
-                                <div class="d-flex align-items-center">
-                                    <div class="avatar-circle me-2" style="width:32px; height:32px; border-radius:50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display:flex; align-items:center; justify-content:center; color:#fff; font-weight:600; font-size:0.75rem;">
+                                <div class="emp-name-cell">
+                                    <div class="emp-avatar">
                                         {{ emp.profile.full_name|slice:":1"|upper|default:emp.username|slice:":1"|upper }}
                                     </div>
-                                    <span style="font-weight:600;">{{ emp.profile.full_name|default:emp.username }} </span>
+                                    <span class="emp-name">
+                                        {{ emp.profile.full_name|default:emp.username }}
+                                    </span>
                                 </div>
                             </td>
-                            <td>{{ emp.profile.employee_id|default:"N/A" }}</td>
-                            
+                            <td>
+                                <span class="emp-id">{{ emp.profile.employee_id|default:"N/A" }}</span>
+                            </td>
                             <td>{{ emp.profile.designation|default:"-" }}</td>
                             <td>{{ emp.profile.department|default:"-" }}</td>
-                            <td>{{ emp.email|default:"-" }}</td>
+                            <td class="muted">{{ emp.email|default:"-" }}</td>
                             <td>
                                 {% with profile=emp.profile %}
                                     {% if emp.is_superuser %}
-                                        <span class="badge bg-danger"><i class="fas fa-crown me-1"></i> Admin</span>
+                                        <span class="emp-role admin"><i class="fas fa-crown"></i> Admin</span>
                                     {% elif profile and profile.role == 'hr_admin' %}
-                                        <span class="badge bg-primary"><i class="las la-user-tie me-1"></i> HR Admin</span>
+                                        <span class="emp-role hr"><i class="las la-user-tie"></i> HR Admin</span>
                                     {% elif profile and profile.role == 'manager' %}
-                                        <span class="badge bg-success"><i class="las la-user-tie me-1"></i> Manager</span>
+                                        <span class="emp-role manager"><i class="las la-user-tie"></i> Manager</span>
                                     {% elif emp.is_staff %}
-                                        <span class="badge bg-primary"><i class="las la-user-tie me-1"></i> Staff</span>
+                                        <span class="emp-role staff"><i class="las la-user-tie"></i> Staff</span>
                                     {% else %}
-                                        <span class="badge bg-secondary"><i class="las la-user me-1"></i> Employee</span>
+                                        <span class="emp-role employee"><i class="las la-user"></i> Employee</span>
                                     {% endif %}
                                 {% endwith %}
                             </td>
-                            <td>
-                                <a href="{% url 'employee_edit' emp.id %}" class="btn btn-sm btn-outline-primary">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                                {% if emp != request.user %}
-                                    <form method="post" action="{% url 'employee_delete' emp.id %}" class="d-inline" onsubmit="return confirm('Delete {{ emp.username }}?');">
-                                        {% csrf_token %}
-                                        <button type="submit" class="btn btn-sm btn-outline-danger">
-                                            <i class="fas fa-trash-alt"></i>
-                                        </button>
-                                    </form>
-                                {% else %}
-                                    <span class="badge bg-secondary" title="Cannot delete yourself">
-                                        <i class="las la-lock"></i>
-                                    </span>
-                                {% endif %}
+                            <td class="text-end">
+                                <div class="emp-actions">
+                                    <a href="{% url 'employee_edit' emp.id %}" class="emp-action edit" title="Edit">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% if emp != request.user %}
+                                        <form method="post" action="{% url 'employee_delete' emp.id %}" class="d-inline m-0" onsubmit="return confirm('Delete {{ emp.username }}?');">
+                                            {% csrf_token %}
+                                            <button type="submit" class="emp-action delete" title="Delete">
+                                                <i class="fas fa-trash-alt"></i>
+                                            </button>
+                                        </form>
+                                    {% else %}
+                                        <span class="emp-locked" title="Cannot delete yourself">
+                                            <i class="las la-lock"></i>
+                                        </span>
+                                    {% endif %}
+                                </div>
                             </td>
                         </tr>
                     {% endfor %}
                 </tbody>
-
             </table>
         </div>
     </div>
+
 </div>
 
-<!-- Client-side search filter -->
+<!-- Client-side search filter (unchanged) -->
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const searchInput = document.getElementById('employeeSearch');
@@ -171,4 +571,4 @@
         });
     });
 </script>
-{% endblock %}  
+{% endblock %}

@@ -5,47 +5,343 @@
 {% block page_title %}Regularize Attendance{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-lg-8">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body p-4">
-                <h5 class="card-title mb-3">
-                    <i class="fas fa-edit text-primary me-2"></i> Request Regularization
-                </h5>
-                <p class="text-muted small">Use this form to request approval for missed check-in or check-out.</p>
 
-                <form method="post">
-                    {% csrf_token %}
-                    <div class="mb-3">
-                        <label for="date" class="form-label fw-semibold">Date</label>
-                        <input type="date" name="date" id="date" class="form-control" 
-                               value="{{ request.GET.date|default:'' }}" required>
+<style>
+    /* ─────────── Scoped tokens ─────────── */
+    .rqf-wrap {
+        --rqf-surface:       #ffffff;
+        --rqf-surface-2:     #fafbfc;
+        --rqf-border:        #e8eaee;
+        --rqf-border-hover:  #d5d9e0;
+        --rqf-text:          #0f172a;
+        --rqf-text-muted:    #64748b;
+        --rqf-text-faint:    #94a3b8;
+        --rqf-primary:       #4f46e5;
+        --rqf-primary-soft:  #eef2ff;
+        --rqf-primary-hover: #4338ca;
+        --rqf-danger:        #dc2626;
+        --rqf-danger-soft:   #fef2f2;
+        --rqf-pill:          999px;
+        --rqf-shadow-sm:     0 1px 2px rgba(15,23,42,.04), 0 1px 3px rgba(15,23,42,.03);
+        --rqf-ease:          cubic-bezier(.4, 0, .2, 1);
+    }
+
+    /* ─────────── Page header ─────────── */
+    .rqf-head {
+        margin-bottom: 22px;
+    }
+    .rqf-head-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 1.15rem;
+        font-weight: 600;
+        letter-spacing: -.015em;
+        color: var(--rqf-text);
+        margin: 0 0 4px;
+    }
+    .rqf-head-ico {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        background: var(--rqf-primary-soft);
+        color: var(--rqf-primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .95rem;
+    }
+    .rqf-head-sub {
+        font-size: .82rem;
+        color: var(--rqf-text-muted);
+        margin: 0;
+        padding-left: 44px;
+    }
+
+    /* ─────────── Card ─────────── */
+    .rqf-card {
+        background: var(--rqf-surface);
+        border: 1px solid var(--rqf-border);
+        border-radius: 12px;
+        overflow: hidden;
+        transition: border-color .2s var(--rqf-ease);
+    }
+    .rqf-card:hover { border-color: var(--rqf-border-hover); }
+
+    .rqf-card-bd {
+        padding: 28px 32px;
+    }
+
+    /* ─────────── Form fields ─────────── */
+    .rqf-field {
+        margin-bottom: 20px;
+    }
+    .rqf-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: .78rem;
+        font-weight: 600;
+        letter-spacing: .02em;
+        color: var(--rqf-text);
+        margin-bottom: 8px;
+    }
+    .rqf-label i {
+        color: var(--rqf-text-faint);
+        font-size: .85rem;
+    }
+    .rqf-req {
+        color: var(--rqf-danger);
+        margin-left: 2px;
+    }
+
+    .rqf-input,
+    .rqf-textarea {
+        width: 100%;
+        padding: 11px 14px;
+        font-size: .875rem;
+        font-family: inherit;
+        color: var(--rqf-text);
+        background: var(--rqf-surface);
+        border: 1px solid var(--rqf-border);
+        border-radius: 10px;
+        outline: none;
+        transition: border-color .15s var(--rqf-ease), box-shadow .15s var(--rqf-ease), background .15s var(--rqf-ease);
+        font-variant-numeric: tabular-nums;
+    }
+    .rqf-textarea {
+        resize: vertical;
+        min-height: 96px;
+        line-height: 1.5;
+        font-variant-numeric: normal;
+    }
+    .rqf-input::placeholder,
+    .rqf-textarea::placeholder {
+        color: var(--rqf-text-faint);
+    }
+    .rqf-input:hover,
+    .rqf-textarea:hover {
+        border-color: var(--rqf-border-hover);
+    }
+    .rqf-input:focus,
+    .rqf-textarea:focus {
+        border-color: var(--rqf-primary);
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, .12);
+        background: var(--rqf-surface);
+    }
+
+    /* Date input — picker icon tint */
+    .rqf-input[type="date"]::-webkit-calendar-picker-indicator,
+    .rqf-input[type="time"]::-webkit-calendar-picker-indicator {
+        cursor: pointer;
+        opacity: .55;
+        transition: opacity .15s var(--rqf-ease);
+    }
+    .rqf-input[type="date"]::-webkit-calendar-picker-indicator:hover,
+    .rqf-input[type="time"]::-webkit-calendar-picker-indicator:hover {
+        opacity: 1;
+    }
+
+    /* ─────────── Info note ─────────── */
+    .rqf-note {
+        display: flex;
+        gap: 10px;
+        padding: 12px 14px;
+        background: var(--rqf-primary-soft);
+        border-radius: 10px;
+        font-size: .78rem;
+        color: #3730a3;
+        line-height: 1.5;
+        margin-bottom: 22px;
+    }
+    .rqf-note i {
+        flex-shrink: 0;
+        font-size: .95rem;
+        margin-top: 1px;
+        color: var(--rqf-primary);
+    }
+
+    /* ─────────── Form footer ─────────── */
+    .rqf-foot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding-top: 20px;
+        border-top: 1px solid var(--rqf-border);
+        margin-top: 6px;
+    }
+
+    .rqf-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 22px;
+        font-size: .82rem;
+        font-weight: 500;
+        border-radius: var(--rqf-pill);
+        border: 1px solid transparent;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all .15s var(--rqf-ease);
+    }
+    .rqf-btn i { font-size: .85rem; }
+
+    .rqf-btn-primary {
+        background: var(--rqf-primary);
+        color: #fff;
+    }
+    .rqf-btn-primary:hover {
+        background: var(--rqf-primary-hover);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(79, 70, 229, .25);
+    }
+
+    .rqf-btn-ghost {
+        background: transparent;
+        color: var(--rqf-text-muted);
+        border-color: var(--rqf-border);
+    }
+    .rqf-btn-ghost:hover {
+        background: var(--rqf-surface-2);
+        color: var(--rqf-text);
+        border-color: var(--rqf-border-hover);
+    }
+
+        /* Read-only date field */
+    .rqf-input[readonly] {
+        background: #f4f6f8;
+        color: #64748b;
+        cursor: not-allowed;
+        border-style: dashed;
+    }
+
+    /* Small hint under fields */
+    .rqf-lock-hint {
+        display: flex;
+        align-items: flex-start;
+        gap: 5px;
+        margin-top: 6px;
+        font-size: .7rem;
+        color: #94a3b8;
+        line-height: 1.45;
+    }
+    .rqf-lock-hint i {
+        font-size: .72rem;
+        margin-top: 1px;
+        flex-shrink: 0;
+        color: #94a3b8;
+    }
+
+
+    /* ─────────── Responsive ─────────── */
+    @media (max-width: 767.98px) {
+        .rqf-card-bd { padding: 22px 20px; }
+        .rqf-head-sub { padding-left: 0; }
+        .rqf-btn { padding: 9px 18px; font-size: .8rem; }
+        .rqf-foot { gap: 8px; }
+        .rqf-foot .rqf-btn { flex: 1; justify-content: center; }
+    }
+</style>
+
+<div class="rqf-wrap">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+
+            <!-- Page header -->
+            <div class="rqf-head">
+                <h5 class="rqf-head-title">
+                    <span class="rqf-head-ico"><i class="fas fa-edit"></i></span>
+                    Request Regularization
+                </h5>
+                <p class="rqf-head-sub">
+                    Use this form to request approval for missed check-in or check-out.
+                </p>
+            </div>
+
+            <!-- Card -->
+            <div class="rqf-card">
+                <div class="rqf-card-bd">
+
+                    <div class="rqf-note">
+                        <i class="las la-info-circle"></i>
+                        <span>
+                            Your request will be reviewed by your HR admin. Please provide accurate times and a clear reason.
+                        </span>
                     </div>
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label for="check_in" class="form-label fw-semibold">Check In Time</label>
-                            <input type="time" name="check_in" id="check_in" class="form-control">
+
+                    <form method="post" id="rqf-form">
+                        {% csrf_token %}
+
+                        <!-- Date -->
+                        <div class="rqf-field">
+                            <label for="date" class="rqf-label">
+                                <i class="las la-calendar-day"></i> Date <span class="rqf-req">*</span>
+                            </label>
+                            <input type="date" name="date" id="date" class="rqf-input"
+                                value="{{ prefilled_date }}"
+                                {% if prefilled_date %}readonly{% endif %}
+                                required>
+                            {% if prefilled_date %}
+                                <div class="rqf-lock-hint">
+                                    <i class="las la-lock"></i>
+                                    <span>Date is fixed to the attendance record you're regularizing.</span>
+                                </div>
+                            {% endif %}
                         </div>
-                        <div class="col-md-6">
-                            <label for="check_out" class="form-label fw-semibold">Check Out Time</label>
-                            <input type="time" name="check_out" id="check_out" class="form-control">
+
+                        <!-- Check in / out -->
+                        <div class="row g-3">
+                            <div class="col-md-6 rqf-field mb-0">
+                                <label for="check_in" class="rqf-label">
+                                    <i class="las la-sign-in-alt"></i> Check In Time
+                                </label>
+                                <input type="time" name="check_in" id="check_in" class="rqf-input"
+                                    value="{% if attendance and attendance.check_in_time %}{{ attendance.check_in_time|time:'H:i' }}{% endif %}">
+                                {% if attendance and attendance.check_in_time %}
+                                    <div class="rqf-lock-hint">
+                                        <i class="las la-check-circle"></i>
+                                        <span>Pre-filled from your check-in.</span>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6 rqf-field mb-0">
+                                <label for="check_out" class="rqf-label">
+                                    <i class="las la-sign-out-alt"></i> Check Out Time <span class="rqf-req">*</span>
+                                </label>
+                                <input type="time" name="check_out" id="check_out" class="rqf-input" required>
+                                <div class="rqf-lock-hint">
+                                    <i class="las la-info-circle"></i>
+                                    <span>Enter the time you actually left work.</span>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="mb-3 mt-3">
-                        <label for="reason" class="form-label fw-semibold">Reason <span class="text-danger">*</span></label>
-                        <textarea name="reason" id="reason" rows="3" class="form-control" required placeholder="Please explain why you need to regularize this attendance..."></textarea>
-                    </div>
-                    <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-primary rounded-pill px-4">
-                            <i class="fas fa-paper-plane me-2"></i> Submit Request
-                        </button>
-                        <a href="{% url 'attendance_view' %}" class="btn btn-outline-secondary rounded-pill px-4">
-                            <i class="fas fa-times me-2"></i> Cancel
-                        </a>
-                    </div>
-                </form>
+
+                        <!-- Reason -->
+                        <div class="rqf-field mt-3">
+                            <label for="reason" class="rqf-label">
+                                <i class="las la-comment-alt"></i> Reason <span class="rqf-req">*</span>
+                            </label>
+                            <textarea name="reason" id="reason" rows="3" class="rqf-textarea" required
+                                    placeholder="Please explain why you forgot to check out..."></textarea>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="rqf-foot">
+                            <button type="submit" class="rqf-btn rqf-btn-primary">
+                                <i class="fas fa-paper-plane"></i> Submit Request
+                            </button>
+                            <a href="{% url 'attendance_view' %}" class="rqf-btn rqf-btn-ghost">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                        </div>
+                    </form>
+
+
+                </div>
             </div>
         </div>
     </div>
 </div>
+
 {% endblock %}

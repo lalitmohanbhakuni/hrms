@@ -367,6 +367,9 @@ color: #374151 !important;
 .calendar-legend .dot.weekend { background: #9aa0a6; }
 .calendar-legend .dot.none    { background: transparent; border: 1px solid #dadce0; }
 
+
+
+
 /* Responsive */
 @media (max-width: 576px) {
     .calendar-day {

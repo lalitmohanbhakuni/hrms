@@ -17,80 +17,98 @@ class Company(models.Model):
 
 # ---------- Attendance Model (MOVED OUTSIDE Company) ----------
 class Attendance(models.Model):
-    # Existing status for reports
+    # ─── Status for reports and business logic ───
     STATUS_CHOICES = [
-        ('Present', 'Present'),
-        ('Absent', 'Absent'),
-        ('Half-Day', 'Half-Day'),
+        ('Present',           'Present'),
+        ('Absent',            'Absent'),
+        ('On Leave',          'On Leave'),
+        ('Late',              'Late'),
+        ('Early Out',         'Early Out'),
+        ('Half-Day',          'Half-Day'),
+        ('Missing Checkout',  'Missing Checkout'),
+        ('Under Review',      'Under Review'),
     ]
-    
-    # New state for clock in/out flow
+
+    # ─── State for clock in/out flow ───
     STATE_CHOICES = [
-        ('checked_in', 'Checked In'),
-        ('checked_out', 'Checked Out'),
+        ('checked_in',       'Checked In'),
+        ('checked_out',      'Checked Out'),
         ('auto_checked_out', 'Auto Checked Out'),
     ]
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    company = models.ForeignKey(Company, on_delete=models.CASCADE, null=True, blank=True)
-    date = models.DateField(auto_now_add=True)
-    check_in_time = models.DateTimeField()
+    user    = models.ForeignKey(User, on_delete=models.CASCADE)
+    company = models.ForeignKey(
+        Company, on_delete=models.CASCADE,
+        null=True, blank=True,
+    )
+    # date = models.DateField()                         # ✅ fixed earlier
+    date = models.DateField(default=timezone.localdate)   # ← add this
+    check_in_time  = models.DateTimeField()
     check_out_time = models.DateTimeField(null=True, blank=True)
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='Present')
-    
+
+    status = models.CharField(
+        max_length=20,                                # bumped from 10
+        choices=STATUS_CHOICES,
+        default='Present',
+    )
+
     total_working_time = models.DurationField(null=True, blank=True)
+
     state = models.CharField(
         max_length=20,
-        choices=[('checked_in', 'Checked In'), ('checked_out', 'Checked Out'), ('auto_checked_out', 'Auto Checked Out')],
-        default='checked_in'
+        choices=STATE_CHOICES,
+        default='checked_in',
     )
-    
-    # ---------- NEW LOCATION FIELDS ----------
-    check_in_latitude = models.DecimalField(
-        max_digits=10, 
-        decimal_places=6, 
-        null=True, 
-        blank=True,
-        help_text="Latitude of check-in location"
+
+    # ─── Location fields ───
+    check_in_latitude  = models.DecimalField(
+        max_digits=10, decimal_places=6,
+        null=True, blank=True,
+        help_text="Latitude of check-in location",
     )
     check_in_longitude = models.DecimalField(
-        max_digits=10, 
-        decimal_places=6, 
-        null=True, 
-        blank=True,
-        help_text="Longitude of check-in location"
+        max_digits=10, decimal_places=6,
+        null=True, blank=True,
+        help_text="Longitude of check-in location",
     )
-    check_in_distance = models.PositiveIntegerField(
-        null=True, 
-        blank=True,
-        help_text="Distance from office in meters"
+    check_in_distance  = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Distance from office in meters",
     )
-    
     check_out_latitude = models.DecimalField(
-        max_digits=10, 
-        decimal_places=6, 
-        null=True, 
-        blank=True,
-        help_text="Latitude of check-out location"
+        max_digits=10, decimal_places=6,
+        null=True, blank=True,
+        help_text="Latitude of check-out location",
     )
     check_out_longitude = models.DecimalField(
-        max_digits=10, 
-        decimal_places=6, 
-        null=True, 
-        blank=True,
-        help_text="Longitude of check-out location"
+        max_digits=10, decimal_places=6,
+        null=True, blank=True,
+        help_text="Longitude of check-out location",
     )
-    # -----------------------------------------
+
+    class Meta:
+        # One attendance record per user per day
+        unique_together = [['user', 'date']]
+        ordering = ['-date']
+        indexes = [
+            models.Index(fields=['company', 'date']),
+            models.Index(fields=['user', 'date']),
+            models.Index(fields=['state', 'check_out_time']),
+        ]
 
     def __str__(self):
-        return f"{self.user.username} - {self.date}"
+        return f"{self.user.username} - {self.date} ({self.status})"
 
-    def save(self, *args, **kwargs):
-        if self.check_out_time or self.state in ['checked_out', 'auto_checked_out']:
-            self.status = 'Present'
-        elif self.check_in_time and not self.check_out_time:
-            self.status = 'Present'
-        super().save(*args, **kwargs)
+    # ─────────────────────────────────────────────────────
+    # NOTE: save() override REMOVED.
+    #
+    # The old save() forced status='Present' whenever a check-in
+    # existed, which would silently overwrite custom statuses like
+    # 'Missing Checkout' or 'Under Review'.
+    #
+    # Now views set `status` explicitly, and it sticks.
+    # ─────────────────────────────────────────────────────
+
 
 
 
@@ -131,7 +149,7 @@ class Shift(models.Model):
         on_delete=models.CASCADE, 
         null=True, 
         blank=True
-    )  # <-- ADD THIS
+    )
     name = models.CharField(max_length=100)
     start_time = models.TimeField()
     end_time = models.TimeField()
@@ -141,6 +159,16 @@ class Shift(models.Model):
     min_working_hours = models.IntegerField(default=480, help_text="Minutes")
     overtime_allowed = models.BooleanField(default=True)
     overtime_limit = models.IntegerField(default=2, help_text="Maximum overtime hours per day")
+
+    # ────────── NEW FIELD ──────────
+    overtime_multiplier = models.DecimalField(
+        max_digits=4,
+        decimal_places=2,
+        default=1.50,
+        help_text="Multiplier for OT rate. 1.50 = 1.5×, 2.00 = 2×."
+    )
+    # ──────────────────────────────
+
     mon = models.BooleanField(default=True)
     tue = models.BooleanField(default=True)
     wed = models.BooleanField(default=True)
@@ -173,6 +201,7 @@ class Shift(models.Model):
                 return days[0]
             return f"{days[0]} - {days[-1]}"
         return ", ".join(days)
+        
 
 
 # ---------- Office Location Model ----------
@@ -227,6 +256,12 @@ class EmployeeProfile(models.Model):
         default='employee',
         help_text="Employee role for permissions and approval routing"
     )
+
+    is_company_owner = models.BooleanField(
+        default=False,
+        help_text="True for the primary HR Admin who self-approves their own requests.",
+    )
+
     
 
     # ----- NEW: Manager Relationship -----
@@ -240,24 +275,29 @@ class EmployeeProfile(models.Model):
     )
     
     
-    # ---------- NEW FIELDS FOR LOCATION CHECK-IN ----------
+        # ---------- NEW FIELDS FOR LOCATION CHECK-IN ----------
     attendance_type = models.CharField(
-        max_length=10, 
-        choices=ATTENDANCE_TYPES, 
+        max_length=10,
+        choices=ATTENDANCE_TYPES,
         default='office',
         help_text="Office: requires location check. Remote/Flexible: no location restriction."
     )
     office_location = models.ForeignKey(
-        OfficeLocation, 
-        on_delete=models.SET_NULL, 
-        null=True, 
+        OfficeLocation,
+        on_delete=models.SET_NULL,
+        null=True,
         blank=True,
         help_text="Required if Attendance Type is 'Office'."
     )
-    # ----------------------------------------------------
 
     class Meta:
-        unique_together = ('company', 'employee_id')
+        constraints = [
+            models.UniqueConstraint(
+                fields=['company'],
+                condition=models.Q(is_company_owner=True),
+                name='one_owner_per_company',
+            ),
+        ]
 
     def __str__(self):
         return self.full_name or self.user.username
@@ -288,6 +328,10 @@ class LeaveRequest(models.Model):
     applied_on = models.DateTimeField(auto_now_add=True)
     admin_comment = models.TextField(blank=True, null=True)
     rejection_reason = models.TextField(blank=True, null=True)
+    is_self_approved = models.BooleanField(
+        default=False,
+        help_text="True when the requester self-approved as Company Owner.",
+    )
     
     def __str__(self):
         return f"{self.user.username} - {self.leave_type.name} ({self.start_date} to {self.end_date})"
@@ -387,7 +431,67 @@ class EmployeeSalary(models.Model):
         self.net_salary = self.gross_salary   # Fixed salary has no deduction
         super().save(*args, **kwargs)
 
+
+#*********************** PasswordResetRequest
             
+class PasswordResetRequest(models.Model):
+    """
+    Employee-initiated password reset request.
+    HR Admin approves and sets the new password directly.
+    """
+    STATUS_PENDING   = 'Pending'
+    STATUS_APPROVED  = 'Approved'
+    STATUS_REJECTED  = 'Rejected'
+    STATUS_COMPLETED = 'Completed'
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING,   'Pending'),
+        (STATUS_APPROVED,  'Approved'),
+        (STATUS_REJECTED,  'Rejected'),
+        (STATUS_COMPLETED, 'Completed'),
+    ]
+
+    user       = models.ForeignKey(
+        'auth.User',
+        on_delete=models.CASCADE,
+        related_name='password_reset_requests',
+    )
+    employee   = models.ForeignKey(
+        'core.EmployeeProfile',
+        on_delete=models.CASCADE,
+        related_name='password_reset_requests',
+    )
+    company    = models.ForeignKey(
+        'core.Company',
+        on_delete=models.CASCADE,
+        related_name='password_reset_requests',
+    )
+    status     = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+        db_index=True,
+    )
+    requested_at = models.DateTimeField(auto_now_add=True)
+    reviewed_by  = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='reviewed_password_resets',
+    )
+    reviewed_at  = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-requested_at']
+        indexes = [
+            models.Index(fields=['company', 'status']),
+            models.Index(fields=['user', 'status']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} — {self.status}"
+
 
 
 # ---------- Payroll Model ----------

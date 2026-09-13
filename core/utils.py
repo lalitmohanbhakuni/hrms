@@ -309,6 +309,9 @@ def get_company_filtered(request, queryset, company_field=None):
 
     return queryset.filter(**{company_field: company})
 
+    
+
+
 def calculate_monthly_payroll(employee, year, month, salary):
     """
     Calculate monthly payroll for one employee by REUSING
@@ -331,12 +334,21 @@ def calculate_monthly_payroll(employee, year, month, salary):
     hra = Decimal(str(salary.hra or 0))
     allowance = Decimal(str(salary.allowance or 0))
     gross = basic + hra + allowance
-    ot_rate = Decimal(str(salary.overtime_rate or 0))
 
     # ✅ `employee` IS the profile — no `.profile`
     company = employee.company
     shift = employee.shift if employee.shift else None
     user = employee.user
+
+    # ── OT rate: auto-computed from basic × shift multiplier ──
+    # Formula: (basic / 208) × shift.overtime_multiplier
+    # Returns 0 when shift has OT disabled or no shift assigned.
+    if shift and shift.overtime_allowed:
+        _monthly_hours = Decimal(208)
+        _multiplier = Decimal(str(shift.overtime_multiplier or 1.50))
+        ot_rate = (basic / _monthly_hours * _multiplier).quantize(Decimal('0.01'))
+    else:
+        ot_rate = Decimal('0')
 
     # ── Holidays ──
     holidays = set(
@@ -448,8 +460,7 @@ def calculate_monthly_payroll(employee, year, month, salary):
         'other_deduction': other_deduction,
         'total_deduction': total_deduction,
         'net_payable': net_payable,
-    }   
-
+    }
 
 def number_to_words(n):
     """Convert a number to Indian-style words."""

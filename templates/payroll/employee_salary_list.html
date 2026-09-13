@@ -2,24 +2,369 @@
 
 {% block payroll_content %}
 
-<!-- Header with Add Button -->
-<div class="row mb-3">
-    <div class="col-md-12 d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">
-            <i class="fas fa-money-bill-wave text-primary me-2"></i>Employee Salary
-        </h5>
-        <a href="{% url 'employee_salary_create' %}" class="btn btn-primary">
-            <i class="fas fa-plus me-1"></i> Add Employee Salary
+<style>
+    /* ═══════════════════════════════════════════════════
+       Employee Salary List — refined design system
+       Prefix: .esal-
+       ═══════════════════════════════════════════════════ */
+    .esal-wrap {
+        --esal-surface:        #ffffff;
+        --esal-surface-2:      #fafbfc;
+        --esal-surface-3:      #f4f6f8;
+        --esal-border:         #e8eaee;
+        --esal-border-hover:   #d5d9e0;
+        --esal-text:           #0f172a;
+        --esal-text-muted:     #64748b;
+        --esal-text-faint:     #94a3b8;
+        --esal-primary:        #4f46e5;
+        --esal-primary-soft:   #eef2ff;
+        --esal-primary-hover:  #4338ca;
+        --esal-success:        #059669;
+        --esal-success-soft:   #ecfdf5;
+        --esal-success-hover:  #047857;
+        --esal-warning:        #d97706;
+        --esal-warning-soft:   #fffbeb;
+        --esal-info:           #0284c7;
+        --esal-info-soft:      #f0f9ff;
+        --esal-pill:           999px;
+        --esal-shadow-xs:      0 1px 2px rgba(15,23,42,.04);
+        --esal-ease:           cubic-bezier(.4, 0, .2, 1);
+    }
+
+    /* ─── Page header ─── */
+    .esal-hd {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+    .esal-hd-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .esal-hd-ico {
+        width: 40px;
+        height: 40px;
+        border-radius: 11px;
+        background: var(--esal-primary-soft);
+        color: var(--esal-primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.05rem;
+        flex-shrink: 0;
+    }
+    .esal-hd-title {
+        font-size: 1.15rem;
+        font-weight: 600;
+        letter-spacing: -.015em;
+        color: var(--esal-text);
+        margin: 0 0 2px;
+        line-height: 1.2;
+    }
+    .esal-hd-sub {
+        font-size: .82rem;
+        color: var(--esal-text-muted);
+        margin: 0;
+    }
+
+    /* ─── Buttons ─── */
+    .esal-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 9px 18px;
+        font-size: .8rem;
+        font-weight: 500;
+        border-radius: var(--esal-pill);
+        border: 1px solid transparent;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all .15s var(--esal-ease);
+        line-height: 1.3;
+        white-space: nowrap;
+    }
+    .esal-btn i { font-size: .82rem; }
+
+    .esal-btn-primary {
+        background: var(--esal-primary);
+        color: #fff;
+    }
+    .esal-btn-primary:hover {
+        background: var(--esal-primary-hover);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(79,70,229,.25);
+    }
+
+    .esal-btn-add {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 5px 12px;
+        font-size: .72rem;
+        font-weight: 500;
+        border-radius: var(--esal-pill);
+        background: var(--esal-success-soft);
+        color: var(--esal-success);
+        text-decoration: none;
+        cursor: pointer;
+        transition: all .15s var(--esal-ease);
+        white-space: nowrap;
+    }
+    .esal-btn-add:hover {
+        background: var(--esal-success);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(5,150,105,.25);
+    }
+    .esal-btn-add i { font-size: .72rem; }
+
+    /* ─── Card shell ─── */
+    .esal-card {
+        background: var(--esal-surface);
+        border: 1px solid var(--esal-border);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: var(--esal-shadow-xs);
+        transition: border-color .2s var(--esal-ease);
+    }
+    .esal-card:hover { border-color: var(--esal-border-hover); }
+
+    /* ─── Table ─── */
+    .esal-table {
+        width: 100%;
+        margin: 0;
+        border-collapse: collapse;
+    }
+    .esal-table thead th {
+        font-size: .65rem;
+        font-weight: 600;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--esal-text-faint);
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--esal-border);
+        background: var(--esal-surface-2);
+        white-space: nowrap;
+        text-align: left;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+    }
+    .esal-table thead th.text-end    { text-align: right; }
+    .esal-table thead th.text-center { text-align: center; }
+
+    .esal-table tbody td {
+        padding: 13px 14px;
+        vertical-align: middle;
+        border-bottom: 1px solid var(--esal-border);
+        font-size: .82rem;
+        color: var(--esal-text);
+    }
+    .esal-table tbody td.text-end    { text-align: right; }
+    .esal-table tbody td.text-center { text-align: center; }
+    .esal-table tbody tr:last-child td { border-bottom: none; }
+    .esal-table tbody tr { transition: background .12s var(--esal-ease); }
+    .esal-table tbody tr:hover { background: var(--esal-surface-2); }
+
+    .esal-table .idx {
+        color: var(--esal-text-faint);
+        font-variant-numeric: tabular-nums;
+        font-weight: 500;
+    }
+    .esal-table .num {
+        font-variant-numeric: tabular-nums;
+        font-weight: 500;
+    }
+    .esal-table .muted { color: var(--esal-text-faint); }
+
+    /* ─── Employee cell ─── */
+    .esal-emp-cell {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        min-width: 0;
+    }
+    .esal-avatar {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        color: #fff;
+        font-weight: 600;
+        font-size: .72rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        letter-spacing: -.02em;
+    }
+    .esal-emp-name {
+        font-weight: 600;
+        color: var(--esal-text);
+        letter-spacing: -.005em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* ─── Employee ID chip ─── */
+    .esal-id-chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 3px 9px;
+        border-radius: 6px;
+        background: var(--esal-surface-2);
+        border: 1px solid var(--esal-border);
+        font-size: .7rem;
+        font-weight: 500;
+        color: var(--esal-text-muted);
+        font-variant-numeric: tabular-nums;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        letter-spacing: .02em;
+        white-space: nowrap;
+    }
+
+    /* ─── Salary type badge ─── */
+    .esal-type {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 3px 10px;
+        border-radius: var(--esal-pill);
+        background: var(--esal-info-soft);
+        color: var(--esal-info);
+        font-size: .68rem;
+        font-weight: 600;
+        letter-spacing: .03em;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    /* ─── Status pill ─── */
+    .esal-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 11px;
+        border-radius: var(--esal-pill);
+        font-size: .72rem;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+    .esal-status::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+        flex-shrink: 0;
+    }
+    .esal-status.active      { background: var(--esal-success-soft); color: var(--esal-success); }
+    .esal-status.inactive    { background: var(--esal-surface-3);    color: var(--esal-text-muted); }
+    .esal-status.unconfigured{ background: var(--esal-warning-soft); color: var(--esal-warning); }
+
+    /* ─── Action button (Edit) ─── */
+    .esal-edit {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 5px 12px;
+        font-size: .72rem;
+        font-weight: 500;
+        border-radius: var(--esal-pill);
+        background: transparent;
+        color: var(--esal-primary);
+        border: 1px solid var(--esal-border);
+        text-decoration: none;
+        cursor: pointer;
+        transition: all .15s var(--esal-ease);
+        white-space: nowrap;
+    }
+    .esal-edit:hover {
+        background: var(--esal-primary-soft);
+        color: var(--esal-primary);
+        border-color: transparent;
+    }
+    .esal-edit i { font-size: .72rem; }
+
+    /* ─── "Not configured" colspan cell ─── */
+    .esal-notconf {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--esal-text-faint);
+        font-style: italic;
+        font-size: .8rem;
+    }
+    .esal-notconf i { font-size: .85rem; }
+
+    /* ─── Empty state ─── */
+    .esal-empty {
+        text-align: center;
+        padding: 56px 20px;
+    }
+    .esal-empty-ico {
+        width: 68px;
+        height: 68px;
+        border-radius: 50%;
+        background: var(--esal-surface-2);
+        border: 1px solid var(--esal-border);
+        color: var(--esal-text-faint);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.85rem;
+        margin-bottom: 16px;
+    }
+    .esal-empty-title {
+        font-size: .9rem;
+        font-weight: 600;
+        color: var(--esal-text);
+        margin: 0 0 4px;
+    }
+    .esal-empty-sub {
+        font-size: .8rem;
+        color: var(--esal-text-muted);
+        margin: 0;
+    }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 767.98px) {
+        .esal-hd-title { font-size: 1rem; }
+        .esal-hd-ico { width: 34px; height: 34px; font-size: .95rem; }
+        .esal-table thead th,
+        .esal-table tbody td { padding: 10px 11px; font-size: .78rem; }
+        .esal-avatar { width: 26px; height: 26px; font-size: .68rem; }
+        .esal-btn-primary { padding: 8px 14px; font-size: .76rem; }
+    }
+</style>
+
+<div class="esal-wrap">
+
+    <!-- ═══════════ Page header ═══════════ -->
+    <div class="esal-hd">
+        <div class="esal-hd-left">
+            <span class="esal-hd-ico"><i class="fas fa-money-bill-wave"></i></span>
+            <div>
+                <h1 class="esal-hd-title">Employee Salary</h1>
+                <p class="esal-hd-sub">Configure and manage salary structures for your team.</p>
+            </div>
+        </div>
+        <a href="{% url 'employee_salary_create' %}" class="esal-btn esal-btn-primary">
+            <i class="fas fa-plus"></i> Add Employee Salary
         </a>
     </div>
-</div>
 
-<!-- Employee Salary Table -->
-<div class="card border-0 shadow-sm">
-    <div class="card-body p-0">
+    <!-- ═══════════ Salary table ═══════════ -->
+    <div class="esal-card">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
+            <table class="esal-table">
+                <thead>
                     <tr>
                         <th>#</th>
                         <th>Employee</th>
@@ -40,52 +385,63 @@
                 <tbody>
                     {% for item in salary_data %}
                         <tr>
-                            <td>{{ forloop.counter }}</td>
+                            <td class="idx">{{ forloop.counter }}</td>
                             <td>
-                                <strong>{{ item.employee.full_name|default:item.employee.user.username }}</strong>
+                                <div class="esal-emp-cell">
+                                    <span class="esal-avatar">
+                                        {{ item.employee.full_name|default:item.employee.user.username|slice:":1"|upper }}
+                                    </span>
+                                    <span class="esal-emp-name">
+                                        {{ item.employee.full_name|default:item.employee.user.username }}
+                                    </span>
+                                </div>
                             </td>
-                            <td>{{ item.employee.employee_id }}</td>
-                            <td>{{ item.employee.department|default:"—" }}</td>
-                            <td>{{ item.employee.designation|default:"—" }}</td>
-                            
+                            <td>
+                                <span class="esal-id-chip">{{ item.employee.employee_id }}</span>
+                            </td>
+                            <td class="muted">{{ item.employee.department|default:"—" }}</td>
+                            <td class="muted">{{ item.employee.designation|default:"—" }}</td>
+
                             {% if item.has_salary %}
                                 <td>
-                                    <span class="badge bg-info text-dark">
-                                        {{ item.salary.get_salary_type_display }}
-                                    </span>
+                                    <span class="esal-type">{{ item.salary.get_salary_type_display }}</span>
                                 </td>
-                                <td class="text-end">₹{{ item.salary.basic_salary|floatformat:2 }}</td>
-                                <td class="text-end">₹{{ item.salary.hra|floatformat:2 }}</td>
-                                <td class="text-end">₹{{ item.salary.allowance|floatformat:2 }}</td>
-                                <td class="text-end">
+                                <td class="text-end num">₹{{ item.salary.basic_salary|floatformat:2 }}</td>
+                                <td class="text-end num">₹{{ item.salary.hra|floatformat:2 }}</td>
+                                <td class="text-end num">₹{{ item.salary.allowance|floatformat:2 }}</td>
+                                <td class="text-end num">
                                     ₹{{ item.salary.overtime_rate|floatformat:2 }}
-                                    <small class="text-muted">/hr</small>
+                                    <small class="muted">/hr</small>
                                 </td>
-                                <td class="text-end fw-bold text-primary">₹{{ item.salary.gross_salary|floatformat:2 }}</td>
-                                <td class="text-end fw-bold text-success">₹{{ item.salary.net_salary|floatformat:2 }}</td>
+                                <td class="text-end num fw-semibold" style="color: var(--esal-primary);">
+                                    ₹{{ item.salary.gross_salary|floatformat:2 }}
+                                </td>
+                                <td class="text-end num fw-semibold" style="color: var(--esal-success);">
+                                    ₹{{ item.salary.net_salary|floatformat:2 }}
+                                </td>
                                 <td>
                                     {% if item.salary.status == 'active' %}
-                                        <span class="badge bg-success">Active</span>
+                                        <span class="esal-status active">Active</span>
                                     {% else %}
-                                        <span class="badge bg-secondary">Inactive</span>
+                                        <span class="esal-status inactive">Inactive</span>
                                     {% endif %}
                                 </td>
                                 <td class="text-center">
-                                    <a href="{% url 'employee_salary_edit' item.salary.id %}" 
-                                       class="btn btn-sm btn-outline-primary">
+                                    <a href="{% url 'employee_salary_edit' item.salary.id %}" class="esal-edit">
                                         <i class="fas fa-edit"></i> Edit
                                     </a>
                                 </td>
                             {% else %}
-                                <td colspan="7" class="text-center text-muted">
-                                    <em>Salary not configured</em>
+                                <td colspan="7" class="text-center">
+                                    <span class="esal-notconf">
+                                        <i class="las la-minus-circle"></i> Salary not configured
+                                    </span>
                                 </td>
                                 <td>
-                                    <span class="badge bg-warning text-dark">Not Configured</span>
+                                    <span class="esal-status unconfigured">Not Configured</span>
                                 </td>
                                 <td class="text-center">
-                                    <a href="{% url 'employee_salary_create' %}?employee={{ item.employee.id }}" 
-                                       class="btn btn-sm btn-success">
+                                    <a href="{% url 'employee_salary_create' %}?employee={{ item.employee.id }}" class="esal-btn-add">
                                         <i class="fas fa-plus"></i> Add Salary
                                     </a>
                                 </td>
@@ -93,9 +449,12 @@
                         </tr>
                     {% empty %}
                         <tr>
-                            <td colspan="14" class="text-center text-muted py-4">
-                                <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
-                                No employees found for your company.
+                            <td colspan="14">
+                                <div class="esal-empty">
+                                    <div class="esal-empty-ico"><i class="fas fa-inbox"></i></div>
+                                    <p class="esal-empty-title">No employees found</p>
+                                    <p class="esal-empty-sub">Add employees to your company to configure their salaries.</p>
+                                </div>
                             </td>
                         </tr>
                     {% endfor %}
@@ -103,6 +462,7 @@
             </table>
         </div>
     </div>
+
 </div>
 
 {% endblock %}

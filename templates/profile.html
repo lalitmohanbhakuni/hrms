@@ -6,202 +6,760 @@
 {% block page_title %}My Profile{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-lg-10 mx-auto">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body p-4 p-md-5">
-                <!-- Page Header -->
-                <div class="d-flex align-items-center gap-3 mb-4 pb-3 border-bottom">
-                    <div class="rounded-circle bg-primary bg-opacity-10 p-3">
-                        <i class="las la-user-edit text-primary fs-3"></i>
-                    </div>
-                    <div>
-                        <h4 class="mb-0 fw-bold">Edit Profile</h4>
-                        <p class="text-muted small mb-0">Update your personal information</p>
-                    </div>
-                </div>
 
-                <form method="post" enctype="multipart/form-data">
-                    {% csrf_token %}
-                    <div class="row g-4">
-                        <!-- Left Column: Avatar & Quick Info -->
-                        <div class="col-md-4">
-                            <div class="text-center">
-                                <!-- Profile Picture -->
-                                <div class="position-relative d-inline-block">
-                                    {% if profile.profile_picture %}
-                                        <img src="{{ profile.profile_picture.url }}" 
-                                             alt="{{ user.username }}" 
-                                             class="rounded-circle border border-3 border-primary" 
-                                             style="width: 140px; height: 140px; object-fit: cover;">
-                                    {% else %}
-                                        <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center mx-auto"
-                                             style="width: 140px; height: 140px; border: 3px solid #667eea;">
-                                            <span class="display-1 text-primary">{{ user.username|slice:":1"|upper }}</span>
-                                        </div>
-                                    {% endif %}
-                                    <div class="mt-2">
-                                        <label for="profile_picture" class="btn btn-outline-primary btn-sm rounded-pill">
-                                            <i class="fas fa-camera me-1"></i> Change Photo
+<style>
+    /* ═══════════════════════════════════════════════════
+       My Profile — refined design system
+       Prefix: .prf-
+       ═══════════════════════════════════════════════════ */
+    .prf-wrap {
+        --prf-surface:       #ffffff;
+        --prf-surface-2:     #fafbfc;
+        --prf-surface-3:     #f4f6f8;
+        --prf-border:        #e8eaee;
+        --prf-border-hover:  #d5d9e0;
+        --prf-text:          #0f172a;
+        --prf-text-muted:    #64748b;
+        --prf-text-faint:    #94a3b8;
+        --prf-primary:       #4f46e5;
+        --prf-primary-soft:  #eef2ff;
+        --prf-primary-hover: #4338ca;
+        --prf-danger:        #dc2626;
+        --prf-info:          #0284c7;
+        --prf-info-soft:     #f0f9ff;
+        --prf-pill:          999px;
+        --prf-shadow-xs:     0 1px 2px rgba(15,23,42,.04);
+        --prf-ease:          cubic-bezier(.4, 0, .2, 1);
+    }
+
+    /* ─── Page header ─── */
+    .prf-hd {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 22px;
+    }
+    .prf-hd-ico {
+        width: 40px;
+        height: 40px;
+        border-radius: 11px;
+        background: var(--prf-primary-soft);
+        color: var(--prf-primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.05rem;
+        flex-shrink: 0;
+    }
+    .prf-hd-title {
+        font-size: 1.15rem;
+        font-weight: 600;
+        letter-spacing: -.015em;
+        color: var(--prf-text);
+        margin: 0 0 2px;
+        line-height: 1.2;
+    }
+    .prf-hd-sub {
+        font-size: .82rem;
+        color: var(--prf-text-muted);
+        margin: 0;
+    }
+
+    /* ─── Card ─── */
+    .prf-card {
+        background: var(--prf-surface);
+        border: 1px solid var(--prf-border);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: var(--prf-shadow-xs);
+        transition: border-color .2s var(--prf-ease);
+    }
+    .prf-card:hover { border-color: var(--prf-border-hover); }
+    .prf-card-bd { padding: 28px 32px; }
+
+    /* ─── Avatar panel (left column) ─── */
+    .prf-avatar-panel {
+        background: var(--prf-surface-2);
+        border: 1px solid var(--prf-border);
+        border-radius: 12px;
+        padding: 24px 20px;
+        text-align: center;
+        height: 100%;
+    }
+    .prf-avatar-wrap {
+        position: relative;
+        display: inline-block;
+        margin-bottom: 14px;
+    }
+    .prf-avatar-img {
+        width: 120px;
+        height: 120px;
+        object-fit: cover;
+        border-radius: 50%;
+        border: 3px solid #fff;
+        box-shadow: 0 0 0 3px var(--prf-primary-soft), 0 8px 24px rgba(79,70,229,.15);
+        display: block;
+    }
+    .prf-avatar-fallback {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        color: #fff;
+        font-size: 2.6rem;
+        font-weight: 600;
+        letter-spacing: -.03em;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 3px solid #fff;
+        box-shadow: 0 0 0 3px var(--prf-primary-soft), 0 8px 24px rgba(79,70,229,.2);
+    }
+    .prf-avatar-change {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 14px;
+        background: var(--prf-surface);
+        border: 1px solid var(--prf-border);
+        border-radius: var(--prf-pill);
+        font-size: .72rem;
+        font-weight: 500;
+        color: var(--prf-text-muted);
+        cursor: pointer;
+        transition: all .15s var(--prf-ease);
+        margin-top: 12px;
+    }
+    .prf-avatar-change:hover {
+        background: var(--prf-primary-soft);
+        color: var(--prf-primary);
+        border-color: transparent;
+    }
+    .prf-avatar-change i { font-size: .78rem; }
+
+    .prf-avatar-name {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--prf-text);
+        letter-spacing: -.01em;
+        margin: 4px 0 6px;
+    }
+    .prf-role-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 11px;
+        border-radius: var(--prf-pill);
+        background: var(--prf-primary-soft);
+        color: var(--prf-primary);
+        font-size: .68rem;
+        font-weight: 600;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+    }
+    .prf-role-pill::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+    }
+
+    /* ─── Quick info block ─── */
+    .prf-quickinfo {
+        margin-top: 18px;
+        padding-top: 18px;
+        border-top: 1px solid var(--prf-border);
+        text-align: left;
+    }
+    .prf-quickinfo-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 0;
+        font-size: .8rem;
+        color: var(--prf-text-muted);
+    }
+    .prf-quickinfo-item:not(:last-child) {
+        border-bottom: 1px solid var(--prf-border);
+    }
+    .prf-quickinfo-item i {
+        width: 26px;
+        height: 26px;
+        border-radius: 8px;
+        background: var(--prf-surface);
+        border: 1px solid var(--prf-border);
+        color: var(--prf-primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .78rem;
+        flex-shrink: 0;
+    }
+    .prf-quickinfo-item .value {
+        flex: 1;
+        min-width: 0;
+        font-weight: 500;
+        color: var(--prf-text);
+        word-break: break-word;
+    }
+    .prf-quickinfo-item .value.muted {
+        color: var(--prf-text-faint);
+        font-weight: 400;
+        font-style: italic;
+    }
+
+    /* ─── Section ─── */
+    .prf-section {
+        margin-bottom: 26px;
+    }
+    .prf-section:last-of-type { margin-bottom: 0; }
+    .prf-section-hd {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 16px;
+    }
+    .prf-section-ico {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        background: var(--prf-primary-soft);
+        color: var(--prf-primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .78rem;
+        flex-shrink: 0;
+    }
+    .prf-section-title {
+        font-size: .78rem;
+        font-weight: 600;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--prf-text-muted);
+        margin: 0;
+    }
+
+    /* ─── Info note (admin-controlled) ─── */
+    .prf-note {
+        display: flex;
+        gap: 10px;
+        padding: 12px 14px;
+        background: var(--prf-info-soft);
+        border-radius: 10px;
+        font-size: .78rem;
+        color: #075985;
+        line-height: 1.5;
+        margin-bottom: 22px;
+    }
+    .prf-note > i {
+        flex-shrink: 0;
+        font-size: .95rem;
+        margin-top: 1px;
+        color: var(--prf-info);
+    }
+    .prf-note strong { color: #0c4a6e; font-weight: 600; }
+
+    /* ─── Fields ─── */
+    .prf-field { min-width: 0; }
+    .prf-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: .78rem;
+        font-weight: 600;
+        letter-spacing: .02em;
+        color: var(--prf-text);
+        margin-bottom: 8px;
+    }
+    .prf-label i {
+        color: var(--prf-text-faint);
+        font-size: .85rem;
+    }
+
+    .prf-input,
+    .prf-textarea {
+        width: 100%;
+        padding: 11px 14px;
+        font-size: .875rem;
+        font-family: inherit;
+        color: var(--prf-text);
+        background: var(--prf-surface);
+        border: 1px solid var(--prf-border);
+        border-radius: 10px;
+        outline: none;
+        transition: border-color .15s var(--prf-ease), box-shadow .15s var(--prf-ease);
+        font-variant-numeric: tabular-nums;
+    }
+    .prf-textarea {
+        resize: vertical;
+        min-height: 68px;
+        line-height: 1.5;
+        font-variant-numeric: normal;
+    }
+    .prf-input::placeholder,
+    .prf-textarea::placeholder { color: var(--prf-text-faint); }
+    .prf-input:hover:not(:disabled),
+    .prf-textarea:hover { border-color: var(--prf-border-hover); }
+    .prf-input:focus:not(:disabled),
+    .prf-textarea:focus {
+        border-color: var(--prf-primary);
+        box-shadow: 0 0 0 3px rgba(79,70,229,.12);
+    }
+    .prf-input[type="date"]::-webkit-calendar-picker-indicator {
+        cursor: pointer;
+        opacity: .55;
+        transition: opacity .15s var(--prf-ease);
+    }
+    .prf-input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+    .prf-input[type="password"] { letter-spacing: .04em; }
+
+    /* ─── Read-only fields ─── */
+    .prf-input[disabled],
+    .prf-input[readonly] {
+        background: var(--prf-surface-3);
+        color: var(--prf-text-muted);
+        cursor: not-allowed;
+        border-style: dashed;
+        border-color: var(--prf-border);
+    }
+    .prf-readonly-hint {
+        font-size: .7rem;
+        color: var(--prf-text-faint);
+        margin-top: 6px;
+        display: flex;
+        align-items: flex-start;
+        gap: 4px;
+        line-height: 1.45;
+    }
+    .prf-readonly-hint i {
+        font-size: .72rem;
+        margin-top: 1px;
+        flex-shrink: 0;
+    }
+
+    /* ─── Footer ─── */
+    .prf-foot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: flex-end;
+        padding-top: 22px;
+        border-top: 1px solid var(--prf-border);
+        margin-top: 24px;
+    }
+    .prf-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 22px;
+        font-size: .82rem;
+        font-weight: 500;
+        border-radius: var(--prf-pill);
+        border: 1px solid transparent;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all .15s var(--prf-ease);
+        line-height: 1.3;
+    }
+    .prf-btn i { font-size: .85rem; }
+    .prf-btn-primary {
+        background: var(--prf-primary);
+        color: #fff;
+    }
+    .prf-btn-primary:hover {
+        background: var(--prf-primary-hover);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(79,70,229,.25);
+    }
+    .prf-btn-ghost {
+        background: transparent;
+        color: var(--prf-text-muted);
+        border-color: var(--prf-border);
+    }
+    .prf-btn-ghost:hover {
+        background: var(--prf-surface-2);
+        color: var(--prf-text);
+        border-color: var(--prf-border-hover);
+    }
+    .prf-password-cta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 14px 18px;
+        background: var(--prf-surface-2);
+        border: 1px solid var(--prf-border);
+        border-radius: 10px;
+        flex-wrap: wrap;
+    }
+    .prf-password-cta-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+    }
+    .prf-password-cta-ico {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        background: var(--prf-primary-soft);
+        color: var(--prf-primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .9rem;
+        flex-shrink: 0;
+    }
+    .prf-password-cta-title {
+        font-size: .82rem;
+        font-weight: 600;
+        color: var(--prf-text);
+        margin-bottom: 1px;
+    }
+    .prf-password-cta-sub {
+        font-size: .72rem;
+        color: var(--prf-text-faint);
+    }
+
+
+    /* ─── Responsive ─── */
+    @media (max-width: 767.98px) {
+        .prf-card-bd { padding: 22px 20px; }
+        .prf-avatar-panel { padding: 20px 16px; }
+        .prf-avatar-img,
+        .prf-avatar-fallback { width: 100px; height: 100px; font-size: 2.2rem; }
+        .prf-btn { padding: 9px 18px; font-size: .8rem; }
+        .prf-foot { gap: 8px; }
+        .prf-foot .prf-btn { flex: 1; justify-content: center; }
+    }
+</style>
+
+<div class="prf-wrap">
+    <div class="row">
+        <div class="col-lg-10 mx-auto">
+
+            <!-- Page header -->
+            <div class="prf-hd">
+                <span class="prf-hd-ico"><i class="las la-user-edit"></i></span>
+                <div>
+                    <h1 class="prf-hd-title">Edit Profile</h1>
+                    <p class="prf-hd-sub">Update your personal information</p>
+                </div>
+            </div>
+
+            <!-- Card -->
+            <div class="prf-card">
+                <div class="prf-card-bd">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <div class="row g-4">
+
+                            <!-- ═══════════ LEFT: Avatar + Quick Info ═══════════ -->
+                            <div class="col-md-4">
+                                <div class="prf-avatar-panel">
+
+                                    <div class="prf-avatar-wrap">
+                                        {% if profile.profile_picture %}
+                                            <img src="{{ profile.profile_picture.url }}"
+                                                 alt="{{ user.username }}"
+                                                 class="rounded-circle border prf-avatar-img">
+                                        {% else %}
+                                            <div class="prf-avatar-fallback">
+                                                {{ user.username|slice:":1"|upper }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+
+                                    <div>
+                                        <label for="profile_picture" class="prf-avatar-change">
+                                            <i class="fas fa-camera"></i> Change Photo
                                         </label>
                                         <input type="file" name="profile_picture" id="profile_picture" class="d-none" accept="image/*">
                                     </div>
-                                </div>
-                                <div class="mt-3">
-                                    <h5 class="fw-bold mb-0">{{ profile.full_name|default:user.username }}</h5>
-                                    <span class="badge bg-secondary rounded-pill">{% if user|is_admin_or_hr %}Admin{% else %}Employee{% endif %}</span>
-                                    <p class="text-muted small mt-2">
-                                        <i class="fas fa-envelope me-1"></i> {{ user.email }}
-                                    </p>
-                                    <!-- Quick Employee ID -->
-                                    <p class="text-muted small mb-1">
-                                        <i class="las la-id-card me-1"></i> 
-                                        <strong>Employee ID:</strong> {{ profile.employee_id|default:"Not set" }}
-                                    </p>
-                                    <!-- Quick Shift Info -->
-                                    <div class="mt-2 p-2 bg-light rounded-3">
-                                        <i class="las la-clock text-primary me-1"></i> 
-                                        <strong>Shift:</strong> 
-                                        <span class="text-muted">{{ profile.shift.name|default:"Not assigned" }}</span>
+
+                                    <h5 class="prf-avatar-name">
+                                        {{ profile.full_name|default:user.username }}
+                                    </h5>
+
+                                    <span class="prf-role-pill">
+                                        {% if user|is_admin_or_hr %}Admin{% else %}Employee{% endif %}
+                                    </span>
+
+                                    <!-- Quick info block -->
+                                    <div class="prf-quickinfo">
+                                        <div class="prf-quickinfo-item">
+                                            <i class="fas fa-envelope"></i>
+                                            <span class="value {% if not user.email %}muted{% endif %}">
+                                                {{ user.email|default:"Not set" }}
+                                            </span>
+                                        </div>
+                                        <div class="prf-quickinfo-item">
+                                            <i class="las la-id-card"></i>
+                                            <span class="value {% if not profile.employee_id %}muted{% endif %}">
+                                                {{ profile.employee_id|default:"Not set" }}
+                                            </span>
+                                        </div>
+                                        <div class="prf-quickinfo-item">
+                                            <i class="las la-clock"></i>
+                                            <span class="value {% if not profile.shift.name %}muted{% endif %}">
+                                                {{ profile.shift.name|default:"Not assigned" }}
+                                            </span>
+                                        </div>
                                     </div>
+                                </div>
+                            </div>
+
+                            <!-- ═══════════ RIGHT: Form Fields ═══════════ -->
+                            <div class="col-md-8">
+
+                                <!-- Admin-controlled note -->
+                                <div class="prf-note">
+                                    <i class="fas fa-info-circle"></i>
+                                    <span>
+                                        <strong>Username, Employee ID, Shift, Attendance Type & Office Location</strong>
+                                        are managed by HR/Admin. Contact your HR department if you need to update these.
+                                    </span>
+                                </div>
+
+                                <!-- ── Section: Basic Information ── -->
+                                <div class="prf-section">
+                                    <div class="prf-section-hd">
+                                        <span class="prf-section-ico"><i class="las la-user-circle"></i></span>
+                                        <h6 class="prf-section-title">Basic Information</h6>
+                                    </div>
+
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <div class="prf-field">
+                                                <label for="username" class="prf-label">
+                                                    <i class="las la-user"></i> Username
+                                                </label>
+                                                <input type="text" id="username" class="prf-input"
+                                                       value="{{ user.username }}" disabled readonly>
+                                                <div class="prf-readonly-hint">
+                                                    <i class="las la-lock"></i>
+                                                    <span>Username cannot be changed.</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="prf-field">
+                                                <label for="email" class="prf-label">
+                                                    <i class="las la-envelope"></i> Email
+                                                </label>
+                                                <input type="email" name="email" id="email" class="prf-input"
+                                                       value="{{ user.email }}" required>
+                                            </div>
+                                        </div>
+
+                                        <!-- <div class="col-md-6">
+                                            <div class="prf-field">
+                                                <label for="password1" class="prf-label">
+                                                    <i class="las la-lock"></i> New Password
+                                                </label>
+                                                <input type="password" name="password1" id="password1" class="prf-input"
+                                                       placeholder="Leave blank to keep current">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="prf-field">
+                                                <label for="password2" class="prf-label">
+                                                    <i class="las la-lock"></i> Confirm Password
+                                                </label>
+                                                <input type="password" name="password2" id="password2" class="prf-input"
+                                                       placeholder="Confirm new password">
+                                            </div>
+                                        </div> -->
+
+                                        <div class="col-12">
+                                            <div class="prf-password-cta">
+                                                <div class="prf-password-cta-left">
+                                                    <span class="prf-password-cta-ico"><i class="las la-key"></i></span>
+                                                    <div>
+                                                        <div class="prf-password-cta-title">Password</div>
+                                                        <div class="prf-password-cta-sub">Change your account password anytime</div>
+                                                    </div>
+                                                </div>
+                                                <a href="{% url 'change_password' %}" class="prf-btn prf-btn-ghost">
+                                                    <i class="fas fa-key"></i> Change Password
+                                                </a>
+                                            </div>
+                                        </div>
+
+
+                                    </div>
+                                </div>
+
+                                <!-- ── Section: Personal Details ── -->
+                                <div class="prf-section">
+                                    <div class="prf-section-hd">
+                                        <span class="prf-section-ico"><i class="las la-id-card"></i></span>
+                                        <h6 class="prf-section-title">Personal Details</h6>
+                                    </div>
+
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <div class="prf-field">
+                                                <label for="full_name" class="prf-label">
+                                                    <i class="las la-signature"></i> Full Name
+                                                </label>
+                                                <input type="text" name="full_name" id="full_name" class="prf-input"
+                                                       value="{{ profile.full_name }}">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="prf-field">
+                                                <label for="phone" class="prf-label">
+                                                    <i class="las la-phone"></i> Phone
+                                                </label>
+                                                <input type="text" name="phone" id="phone" class="prf-input"
+                                                       value="{{ profile.phone }}">
+                                            </div>
+                                        </div>
+
+                                        <!-- Read-only: Employee ID -->
+                                        <div class="col-md-6">
+                                            <div class="prf-field">
+                                                <label for="employee_id" class="prf-label">
+                                                    <i class="las la-id-badge"></i> Employee ID
+                                                </label>
+                                                <input type="text" id="employee_id" class="prf-input"
+                                                       value="{{ profile.employee_id|default:'Not set' }}"
+                                                       disabled readonly>
+                                                <div class="prf-readonly-hint">
+                                                    <i class="las la-lock"></i>
+                                                    <span>Assigned by admin — cannot be changed.</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-md-6">
+                                            <div class="prf-field">
+                                                <label for="date_of_birth" class="prf-label">
+                                                    <i class="las la-birthday-cake"></i> Date of Birth
+                                                </label>
+                                                <input type="date" name="date_of_birth" id="date_of_birth" class="prf-input"
+                                                       value="{{ profile.date_of_birth|date:'Y-m-d' }}">
+                                            </div>
+                                        </div>
+
+                                        <div class="col-md-6">
+                                            <div class="prf-field">
+                                                <label for="date_of_joining" class="prf-label">
+                                                    <i class="las la-calendar-check"></i> Date of Joining
+                                                </label>
+                                                <input type="date" name="date_of_joining" id="date_of_joining" class="prf-input"
+                                                       value="{{ profile.date_of_joining|date:'Y-m-d' }}">
+                                            </div>
+                                        </div>
+
+                                        <div class="col-md-6">
+                                            <div class="prf-field">
+                                                <label for="designation" class="prf-label">
+                                                    <i class="las la-briefcase"></i> Designation
+                                                </label>
+                                                <input type="text" name="designation" id="designation" class="prf-input"
+                                                       value="{{ profile.designation }}">
+                                            </div>
+                                        </div>
+
+                                        <div class="col-md-6">
+                                            <div class="prf-field">
+                                                <label for="department" class="prf-label">
+                                                    <i class="las la-sitemap"></i> Department
+                                                </label>
+                                                <input type="text" name="department" id="department" class="prf-input"
+                                                       value="{{ profile.department }}">
+                                            </div>
+                                        </div>
+
+                                        <!-- Read-only: Shift -->
+                                        <div class="col-md-6">
+                                            <div class="prf-field">
+                                                <label for="shift" class="prf-label">
+                                                    <i class="las la-clock"></i> Assigned Shift
+                                                </label>
+                                                <input type="text" id="shift" class="prf-input"
+                                                       value="{{ profile.shift.name|default:'Not assigned' }}"
+                                                       disabled readonly>
+                                                <div class="prf-readonly-hint">
+                                                    <i class="las la-lock"></i>
+                                                    <span>Your shift is assigned by the admin.</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- ── Section: Role & Manager (read-only) ── -->
+                                <div class="prf-section">
+                                    <div class="prf-section-hd">
+                                        <span class="prf-section-ico"><i class="las la-user-tag"></i></span>
+                                        <h6 class="prf-section-title">Role & Reporting</h6>
+                                    </div>
+
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <div class="prf-field">
+                                                <label class="prf-label">
+                                                    <i class="las la-user-tag"></i> Role
+                                                </label>
+                                                <input type="text" class="prf-input"
+                                                       value="{{ profile.get_role_display|default:'Employee' }}"
+                                                       disabled readonly>
+                                                <div class="prf-readonly-hint">
+                                                    <i class="las la-lock"></i>
+                                                    <span>Your role is assigned by HR.</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="prf-field">
+                                                <label class="prf-label">
+                                                    <i class="las la-user-tie"></i> Manager
+                                                </label>
+                                                <input type="text" class="prf-input"
+                                                       value="{% if profile.manager %}{{ profile.manager.full_name }} ({{ profile.manager.employee_id }}){% else %}None{% endif %}"
+                                                       disabled readonly>
+                                                <div class="prf-readonly-hint">
+                                                    <i class="las la-lock"></i>
+                                                    <span>Your manager is assigned by HR.</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- ── Address ── -->
+                                <div class="prf-field mt-3">
+                                    <label for="address" class="prf-label">
+                                        <i class="las la-map-marker"></i> Address
+                                    </label>
+                                    <textarea name="address" id="address" rows="2" class="prf-textarea">{{ profile.address }}</textarea>
+                                </div>
+
+                                <!-- Footer -->
+                                <div class="prf-foot">
+                                    <a href="{% url 'dashboard' %}" class="prf-btn prf-btn-ghost">
+                                        <i class="fas fa-times"></i> Cancel
+                                    </a>
+                                    <button type="submit" class="prf-btn prf-btn-primary">
+                                        <i class="fas fa-save"></i> Save Changes
+                                    </button>
                                 </div>
                             </div>
                         </div>
-
-                        <!-- Right Column: Editable Fields -->
-                        <div class="col-md-8">
-                            <!-- ⚠️ Admin-Controlled Info Alert -->
-                            <div class="alert alert-info bg-light border-0 p-3 mb-3">
-                                <i class="fas fa-info-circle text-primary me-2"></i>
-                                <strong>Username, Employee ID, Shift, Attendance Type & Office Location</strong> are managed by HR/Admin. 
-                                Contact your HR department if you need to update these.
-                            </div>
-
-                            <h6 class="fw-bold text-primary mb-3"><i class="las la-user-circle me-2"></i> Basic Information</h6>
-                            <div class="row g-3">
-                                <div class="col-md-6">
-                                    <label for="username" class="form-label fw-semibold">Username</label>
-                                    <input type="text" id="username" class="form-control" 
-                                           value="{{ user.username }}" 
-                                           disabled readonly style="background-color: #f8f9fa; cursor: not-allowed;">
-                                    <!-- ✅ Removed name="username" so it's NOT submitted -->
-                                    <div class="form-text text-muted small">Username cannot be changed.</div>
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="email" class="form-label fw-semibold">Email</label>
-                                    <input type="email" name="email" id="email" class="form-control" value="{{ user.email }}" required>
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="password1" class="form-label fw-semibold">New Password</label>
-                                    <input type="password" name="password1" id="password1" class="form-control" placeholder="Leave blank to keep current">
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="password2" class="form-label fw-semibold">Confirm Password</label>
-                                    <input type="password" name="password2" id="password2" class="form-control" placeholder="Confirm new password">
-                                </div>
-                            </div>
-
-                            <hr class="my-4">
-
-                            <h6 class="fw-bold text-primary mb-3"><i class="las la-id-card me-2"></i> Personal Details</h6>
-                            <div class="row g-3">
-                                <div class="col-md-6">
-                                    <label for="full_name" class="form-label fw-semibold">Full Name</label>
-                                    <input type="text" name="full_name" id="full_name" class="form-control" value="{{ profile.full_name }}">
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="phone" class="form-label fw-semibold">Phone</label>
-                                    <input type="text" name="phone" id="phone" class="form-control" value="{{ profile.phone }}">
-                                </div>
-
-                                <!-- Employee ID (Read-Only, no name attribute) -->
-                                <div class="col-md-6">
-                                    <label for="employee_id" class="form-label fw-semibold">
-                                        <i class="las la-id-card text-primary me-1"></i> Employee ID
-                                    </label>
-                                    <input type="text" id="employee_id" class="form-control" 
-                                           value="{{ profile.employee_id|default:'Not set' }}" 
-                                           disabled readonly style="background-color: #f8f9fa; cursor: not-allowed;">
-                                    <!-- ✅ Removed name="employee_id" so it's NOT submitted -->
-                                    <div class="form-text text-muted small">Your employee ID is assigned by the admin and cannot be changed.</div>
-                                </div>
-
-                                <div class="col-md-6">
-                                    <label for="date_of_birth" class="form-label fw-semibold">Date of Birth</label>
-                                    <input type="date" name="date_of_birth" id="date_of_birth" class="form-control" value="{{ profile.date_of_birth|date:'Y-m-d' }}">
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="date_of_joining" class="form-label fw-semibold">Date of Joining</label>
-                                    <input type="date" name="date_of_joining" id="date_of_joining" class="form-control" value="{{ profile.date_of_joining|date:'Y-m-d' }}">
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="designation" class="form-label fw-semibold">Designation</label>
-                                    <input type="text" name="designation" id="designation" class="form-control" value="{{ profile.designation }}">
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="department" class="form-label fw-semibold">Department</label>
-                                    <input type="text" name="department" id="department" class="form-control" value="{{ profile.department }}">
-                                </div>
-
-                                <!-- Shift Field (Read-Only) -->
-                                <div class="col-md-6">
-                                    <label for="shift" class="form-label fw-semibold">
-                                        <i class="las la-clock text-primary me-1"></i> Assigned Shift
-                                    </label>
-                                    <input type="text" id="shift" class="form-control" 
-                                           value="{{ profile.shift.name|default:'Not assigned' }}" 
-                                           disabled readonly style="background-color: #f8f9fa; cursor: not-allowed;">
-                                    <!-- ✅ Removed name="shift" so it's NOT submitted -->
-                                    <div class="form-text text-muted small">Your shift is assigned by the admin and cannot be changed.</div>
-                                </div>
-
-                                <!-- Role & Manager Display (Read-Only) -->
-                                <div class="row g-3 mt-2">
-                                    <div class="col-md-6">
-                                        <label class="form-label fw-semibold">
-                                            <i class="las la-user-tag text-primary me-1"></i> Role
-                                        </label>
-                                        <input type="text" class="form-control" 
-                                            value="{{ profile.get_role_display|default:'Employee' }}" 
-                                            disabled readonly style="background-color: #f8f9fa; cursor: not-allowed;">
-                                        <div class="form-text text-muted small">Your role is assigned by HR.</div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label fw-semibold">
-                                            <i class="las la-user-tie text-primary me-1"></i> Manager
-                                        </label>
-                                        <input type="text" class="form-control" 
-                                            value="{% if profile.manager %}{{ profile.manager.full_name }} ({{ profile.manager.employee_id }}){% else %}None{% endif %}" 
-                                            disabled readonly style="background-color: #f8f9fa; cursor: not-allowed;">
-                                        <div class="form-text text-muted small">Your manager is assigned by HR.</div>
-                                    </div>
-                                </div>
-
-
-                                <div class="col-12">
-                                    <label for="address" class="form-label fw-semibold">Address</label>
-                                    <textarea name="address" id="address" rows="2" class="form-control">{{ profile.address }}</textarea>
-                                </div>
-                            </div>
-
-                            <!-- Submit Buttons -->
-                            <div class="mt-4 d-flex gap-2 justify-content-end">
-                                <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary rounded-pill px-4">
-                                    <i class="fas fa-times me-2"></i> Cancel
-                                </a>
-                                <button type="submit" class="btn btn-primary rounded-pill px-4">
-                                    <i class="fas fa-save me-2"></i> Save Changes
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </form>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- JavaScript to show selected image preview -->
+<!-- JavaScript to show selected image preview (unchanged) -->
 <script>
     document.getElementById('profile_picture')?.addEventListener('change', function(e) {
         const file = e.target.files[0];

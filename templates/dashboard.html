@@ -1,265 +1,211 @@
 {% extends 'base.html' %}
+{% load static %}
+{% load auth_extras %}
 
 {% block title %}Dashboard - HRMS{% endblock %}
 {% block page_icon %}home{% endblock %}
 {% block page_title %}Dashboard{% endblock %}
 
-{% load auth_extras %}
+
+
+<!-- {% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+{% endblock %} -->
 
 {% block content %}
 
-<!-- ===== WELCOME BANNER ===== -->
-<div class="card border-0 shadow-sm rounded-3 mb-4 overflow-hidden" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-    <div class="card-body p-4 p-md-4 text-white">
-        <div class="row align-items-center">
-            <div class="col-md-8">
-                <h4 class="fw-bold mb-2">Welcome back, {{ user.username }}! 👋</h4>
-                <p class="opacity-75 mb-0">Here's your attendance overview for <strong>{{ today|date:"F Y" }}</strong></p>
-                <div class="mt-3 d-flex flex-wrap gap-2">
-                    <span class="badge bg-white bg-opacity-20 text-white px-3 py-2 rounded-pill" style="font-weight:normal">
-                        <i class="las la-calendar-alt me-1"></i> {{ today|date:"l, d M Y" }}
-                    </span>
-                    <span class="badge bg-white bg-opacity-20 text-white px-3 py-2 rounded-pill" id="liveTime" style="font-weight:normal">
-                        <i class="las la-clock me-1"></i> Loading...
-                    </span>
-                </div>
+<style>
+    .db-card:hover,.db-stat:hover{border-color:var(--db-border-hover)}.db-btn-pill:hover,.db-stat:hover{transform:translateY(-1px)}.db-hero,.db-leave{position:relative;overflow:hidden}.db-cal,.db-hero,.db-leave,.db-leave-bar,.db-rate-bar{overflow:hidden}.db-cal-month,.db-empty,.db-mini{text-align:center}:root{--db-bg:#f6f7f9;--db-surface:#ffffff;--db-surface-2:#fafbfc;--db-border:#e8eaee;--db-border-hover:#d5d9e0;--db-text:#0f172a;--db-text-muted:#64748b;--db-text-faint:#94a3b8;--db-primary:#4f46e5;--db-primary-soft:#eef2ff;--db-success:#059669;--db-success-soft:#ecfdf5;--db-warning:#d97706;--db-warning-soft:#fffbeb;--db-danger:#dc2626;--db-danger-soft:#fef2f2;--db-info:#0284c7;--db-info-soft:#f0f9ff;--db-teal:#0d9488;--db-teal-soft:#f0fdfa;--db-r-sm:8px;--db-r-md:12px;--db-r-lg:16px;--db-r-pill:999px;--db-shadow-sm:0 1px 2px rgba(15, 23, 42, 0.04),0 1px 3px rgba(15, 23, 42, 0.03);--db-shadow-md:0 4px 16px rgba(15, 23, 42, 0.06),0 1px 3px rgba(15, 23, 42, 0.04);--db-shadow-lg:0 12px 32px rgba(15, 23, 42, 0.10),0 4px 8px rgba(15, 23, 42, 0.04);--db-ease:cubic-bezier(0.4, 0, 0.2, 1)}.db-card{background:var(--db-surface);border:1px solid var(--db-border);border-radius:var(--db-r-md);transition:border-color .2s var(--db-ease),box-shadow .2s var(--db-ease)}.db-card-hd{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 22px 4px}.db-card-title{font-size:.9375rem;font-weight:600;letter-spacing:-.01em;color:var(--db-text);margin:0;display:inline-flex;align-items:center;gap:8px}.db-chip,.db-stat{align-items:center}.db-card-title i{font-size:1rem;color:var(--db-text-faint)}.db-card-sub{font-size:.75rem;color:var(--db-text-muted);margin:4px 0 0 24px}.db-card-bd{padding:16px 22px 20px}.db-card-bd.flush{padding:8px 0 12px}.db-hero{border-radius:var(--db-r-lg);background:#0f1729;background-image:radial-gradient(circle at 88% 15%,rgba(99,102,241,.45),transparent 45%),radial-gradient(circle at 12% 110%,rgba(139,92,246,.28),transparent 55%);color:#fff;padding:28px 32px;margin-bottom:22px}.db-hero::after{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);background-size:32px 32px;pointer-events:none;mask-image:linear-gradient(to bottom,rgba(0,0,0,0.6),transparent 80%)}.db-hero-hi{font-size:1.375rem;font-weight:600;letter-spacing:-.015em;margin:0 0 6px}.db-hero-sub{color:rgba(255,255,255,.65);font-size:.875rem;margin:0}.db-hero-sub strong{color:rgba(255,255,255,.9);font-weight:500}.db-chip{display:inline-flex;gap:6px;padding:6px 13px;border-radius:var(--db-r-pill);background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.08);color:rgba(255,255,255,.85);font-size:.78rem;font-weight:400;backdrop-filter:blur(6px)}.db-chip i{font-size:.9rem;opacity:.7}.db-hero-art{font-size:5.5rem;color:rgba(255,255,255,.08);line-height:1}.db-stat{display:flex;gap:14px;background:var(--db-surface);border:1px solid var(--db-border);border-radius:var(--db-r-md);padding:18px 20px;height:100%;transition:border-color .2s var(--db-ease),transform .2s var(--db-ease)}.db-table tbody td,.db-table thead th{border-bottom:1px solid var(--db-border)}.db-stat-ico{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:1.15rem;flex-shrink:0}.db-mini,.db-shift{border:1px solid var(--db-border)}.db-stat-ico.primary{background:var(--db-primary-soft);color:var(--db-primary)}.db-badge-soft.success,.db-stat-ico.success{background:var(--db-success-soft);color:var(--db-success)}.db-badge-soft.warning,.db-stat-ico.warning{background:var(--db-warning-soft);color:var(--db-warning)}.db-badge-soft.danger,.db-stat-ico.danger{background:var(--db-danger-soft);color:var(--db-danger)}.db-stat-ico.info{background:var(--db-info-soft);color:var(--db-info)}.db-stat-ico.teal{background:var(--db-teal-soft);color:var(--db-teal)}.db-stat-label{font-size:.7rem;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--db-text-muted);margin-bottom:3px}.db-stat-value{font-size:1.5rem;font-weight:700;letter-spacing:-.02em;color:var(--db-text);line-height:1.1;font-variant-numeric:tabular-nums}.calendar-day .day-number,.db-timer{font-variant-numeric:tabular-nums;line-height:1}.db-stat-value small{font-size:.875rem;font-weight:400;color:var(--db-text-faint);letter-spacing:0}.db-shift strong,.db-time-value{font-weight:600}.db-shift{display:inline-flex;align-items:center;flex-wrap:wrap;gap:8px;padding:8px 14px;background:var(--db-surface-2);border-radius:var(--db-r-pill);font-size:.82rem;color:var(--db-text);margin-bottom:20px}.db-shift .muted{color:var(--db-text-muted);font-size:.78rem}.db-time-label{font-size:.72rem;color:var(--db-text-faint);letter-spacing:.04em;text-transform:uppercase;margin-bottom:2px}.db-time-value{font-size:1rem;color:var(--db-text);font-variant-numeric:tabular-nums}.db-time-value.empty{color:var(--db-text-faint);font-weight:400}.db-timer{font-size:1.85rem;font-weight:700;letter-spacing:.5px;color:var(--db-primary)}.db-btn-pill{border-radius:var(--db-r-pill);font-weight:500;letter-spacing:.005em;padding-left:1.25rem;padding-right:1.25rem;transition:all .15s var(--db-ease)}.db-icon-btn{width:32px;height:32px;border-radius:50%;border:none;background:0 0;display:inline-flex;align-items:center;justify-content:center;font-size:.85rem;transition:background .15s var(--db-ease),transform .15s var(--db-ease)}.db-mini,.db-table tbody tr:hover,.db-table thead th{background:var(--db-surface-2)}.db-mini-label,.db-table thead th{font-size:.68rem;color:var(--db-text-faint);text-transform:uppercase}.db-icon-btn:hover{transform:scale(1.08)}.db-icon-btn.success,.db-mini-value.success{color:var(--db-success)}.db-icon-btn.success:hover{background:var(--db-success-soft)}.db-icon-btn.danger{color:var(--db-danger)}.db-icon-btn.danger:hover{background:var(--db-danger-soft)}.db-table{width:100%;margin:0}.db-table thead th{font-weight:600;letter-spacing:.08em;padding:12px 16px;white-space:nowrap}.db-table tbody td{padding:14px 16px;vertical-align:middle;font-size:.875rem;color:var(--db-text)}.db-table tbody tr:last-child td{border-bottom:none}.db-table .num{font-variant-numeric:tabular-nums}.db-table .muted{color:var(--db-text-muted)}.db-mini{border-radius:var(--db-r-sm);padding:10px 14px}.db-mini-label{font-weight:500;letter-spacing:.06em}.db-mini-value{font-size:1.2rem;font-weight:700;letter-spacing:-.02em;color:var(--db-text);font-variant-numeric:tabular-nums;line-height:1.3}.db-leave-foot .pending,.db-mini-value.warning{color:var(--db-warning)}.db-mini-value.primary{color:var(--db-primary)}.db-leave{background:var(--db-surface);border:1px solid var(--db-border);border-radius:var(--db-r-md);padding:14px 16px;height:100%;transition:border-color .15s var(--db-ease),transform .15s var(--db-ease)}.db-leave-bar,.db-leave-count{border-radius:var(--db-r-pill)}.db-leave:hover{transform:translateY(-1px);border-color:var(--db-border-hover)}.db-leave::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--db-success)}.calendar-legend .dot.halfday,.db-leave-bar>div.warning,.db-leave.warning::before,.event-dot.halfday{background:var(--db-warning)}.db-leave-bar>div.danger,.db-leave.danger::before{background:var(--db-danger)}.db-leave-name{font-size:.82rem;font-weight:600;color:var(--db-text);letter-spacing:-.005em;margin:0}.db-leave-count{font-size:.68rem;font-weight:600;letter-spacing:.02em;background:var(--db-surface-2);color:var(--db-text-muted);padding:3px 10px;font-variant-numeric:tabular-nums}.db-leave-bar{height:4px;background:#eef0f3;margin:10px 0 8px}.db-leave-bar>div{height:100%;border-radius:inherit;background:var(--db-success);transition:width .4s var(--db-ease)}.db-leave-foot{display:flex;justify-content:space-between;align-items:center;font-size:.74rem;color:var(--db-text-muted)}.calendar-day.weekend .day-number,.calendar-weekdays{color:var(--db-text-faint)}.db-leave-foot strong{color:var(--db-text);font-weight:600}.db-cal{border:1px solid var(--db-border);border-radius:var(--db-r-md);background:var(--db-surface)}.calendar-grid{max-width:100%}.calendar-days,.calendar-weekdays{display:grid;grid-template-columns:repeat(7,1fr);text-align:center}.calendar-weekdays{font-size:.68rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:12px 0 10px;border-bottom:1px solid var(--db-border);background:var(--db-surface-2)}.calendar-days{gap:6px;padding:10px}.calendar-day{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:10px 0;border-radius:var(--db-r-sm);background:var(--db-surface);border:1px solid transparent;min-height:56px;transition:background .15s var(--db-ease),border-color .15s var(--db-ease);cursor:default}.calendar-day:hover,.db-period{background:var(--db-surface-2)}.calendar-day:hover{border-color:var(--db-border)}.calendar-day.empty{background:0 0!important;border-color:transparent!important}.calendar-day .day-number{font-size:.85rem;font-weight:500;color:var(--db-text)}.calendar-day.today{background:var(--db-primary-soft);border-color:rgba(79,70,229,.15)}.calendar-day.today .day-number{font-weight:700;color:var(--db-primary)}.day-events{height:6px;display:flex;align-items:center;justify-content:center}.calendar-legend .dot,.event-dot{display:inline-block;border-radius:50%}.event-dot{width:6px;height:6px}.db-avatar,.db-cal-nav{width:32px;height:32px}.calendar-legend .dot.present,.event-dot.present{background:var(--db-success)}.calendar-legend .dot.leave,.event-dot.leave{background:#ea580c}.calendar-legend .dot.weekend,.event-dot.weekend{background:#cbd5e1}.calendar-legend .dot.none,.event-dot.none{background:#e2e8f0}.calendar-legend{display:flex;flex-wrap:wrap;justify-content:center;gap:1.5rem;padding:16px 0 20px;font-size:.74rem;color:var(--db-text-muted);border-top:1px solid var(--db-border)}.calendar-legend>span,.db-cal-nav{align-items:center;display:inline-flex}.db-cal-month,.db-period button:hover{color:var(--db-text)}.calendar-legend>span{gap:6px}.calendar-legend .dot{width:8px;height:8px}.db-cal-nav{border-radius:50%;justify-content:center;padding:0}.db-cal-month{min-width:150px;font-size:.95rem;font-weight:600;letter-spacing:-.01em}.db-period{display:inline-flex;border:1px solid var(--db-border);border-radius:var(--db-r-sm);padding:3px;gap:2px}.db-period button{border:none;background:0 0;font-size:.75rem;font-weight:500;padding:5px 12px;border-radius:6px;color:var(--db-text-muted);transition:background .15s var(--db-ease),color .15s var(--db-ease)}.db-period button.active{background:var(--db-surface);color:var(--db-primary);box-shadow:var(--db-shadow-sm)}.db-avatar{border-radius:50%;background:linear-gradient(135deg,#6366f1 0,#8b5cf6 100%);color:#fff;font-weight:600;font-size:.75rem;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}.db-shift-tag{display:inline-flex;flex-direction:column;align-items:center;padding:5px 10px;background:var(--db-surface-2);border:1px solid var(--db-border);border-radius:var(--db-r-sm);font-size:.72rem;color:var(--db-text);line-height:1.3}.db-badge-soft,.db-rate{align-items:center;display:inline-flex}.db-badge-soft,.db-rate-bar{border-radius:var(--db-r-pill)}.db-shift-tag small{color:var(--db-text-faint);font-size:.65rem}.db-rate{gap:8px}.db-count-pill,.db-detail-tag{gap:4px;font-variant-numeric:tabular-nums}.db-rate-bar{width:64px;height:5px;background:#eef0f3}.db-rate-bar>div{height:100%;background:var(--db-success);border-radius:inherit}.db-rate-val{font-size:.72rem;font-weight:600;color:var(--db-text-muted);font-variant-numeric:tabular-nums;min-width:34px}.db-badge-soft{justify-content:center;min-width:26px;padding:3px 9px;font-size:.72rem;font-weight:600;font-variant-numeric:tabular-nums}.db-detail-row td{background:var(--db-surface-2);padding:16px 20px!important;border-bottom:1px solid var(--db-border)!important}.db-detail-tag{display:inline-flex;align-items:center;padding:5px 11px;background:var(--db-surface);border:1px solid var(--db-border);border-radius:var(--db-r-sm);font-size:.74rem;color:var(--db-text)}.db-count-pill,.db-empty-ico{display:inline-flex;background:var(--db-surface-2)}.db-detail-tag i{color:var(--db-success);font-size:.8rem}.db-empty{padding:40px 20px}.db-empty-ico{width:64px;height:64px;border-radius:50%;color:var(--db-text-faint);align-items:center;justify-content:center;font-size:1.75rem;margin-bottom:14px}.db-empty-title{font-size:.9rem;font-weight:600;color:var(--db-text);margin:0 0 4px}.db-empty-sub{font-size:.8rem;color:var(--db-text-muted);margin:0}.db-count-pill{align-items:center;padding:4px 11px;border-radius:var(--db-r-pill);border:1px solid var(--db-border);font-size:.72rem;font-weight:600;color:var(--db-text-muted)}.db-count-pill.warning{background:var(--db-warning-soft);border-color:transparent;color:var(--db-warning)}.db-count-pill.primary{background:var(--db-primary-soft);border-color:transparent;color:var(--db-primary)}@media (max-width:767.98px){.db-hero{padding:22px 20px}.db-hero-hi{font-size:1.15rem}.db-hero-art{font-size:3.5rem}.db-stat{padding:14px 16px;gap:12px}.db-stat-ico{width:36px;height:36px;font-size:1rem}.db-stat-value{font-size:1.25rem}.db-card-hd{padding:16px 18px 2px}.db-card-bd{padding:14px 18px 18px}.db-table tbody td,.db-table thead th{padding:11px 12px}.db-timer{font-size:1.5rem}.db-cal-month{min-width:110px;font-size:.875rem}.calendar-day{min-height:46px;padding:6px 0}.calendar-day .day-number{font-size:.78rem}.calendar-legend{gap:.9rem;font-size:.68rem}}
+</style>
+
+
+{# ─────────── HERO ─────────── #}
+<div class="db-hero">
+    <div class="row align-items-center position-relative" style="z-index:1;">
+        <div class="col-md-8">
+            <h4 class="db-hero-hi">Welcome back, {{ user.username }}! 👋</h4>
+            <p class="db-hero-sub">
+                Here's your attendance overview for <strong>{{ today|date:"F Y" }}</strong>
+            </p>
+            <div class="d-flex flex-wrap gap-2 mt-3">
+                <span class="db-chip">
+                    <i class="las la-calendar-alt"></i> {{ today|date:"l, d M Y" }}
+                </span>
+                <span class="db-chip" id="liveTime">
+                    <i class="las la-clock"></i> Loading...
+                </span>
             </div>
-            <div class="col-md-4 text-end d-none d-md-block">
-                <i class="las la-chart-line" style="font-size: 4rem; opacity: 0.3;"></i>
-            </div>
+        </div>
+        <div class="col-md-4 text-end d-none d-md-block">
+            <i class="las la-chart-line db-hero-art"></i>
         </div>
     </div>
 </div>
 
-<!-- ===== STATS CARDS ===== -->
-<div class="row g-4 mb-4">
+{# ─────────── STATS ─────────── #}
+<div class="row g-3 mb-4">
 
-    <!-- Admin Stats Cards (Superuser / HR Admin only) -->
     {% if user.is_superuser or user|has_group:"HR Admin" %}
         <div class="col-6 col-lg-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body d-flex align-items-center">
-                    <div class="rounded-circle bg-primary bg-opacity-10 p-3 me-3">
-                        <i class="las la-users text-primary fs-4"></i>
-                    </div>
-                    <div>
-                        <h6 class="text-muted mb-0">Total Employees</h6>
-                        <h3 class="mb-0 fw-bold">{{ total_employees }}</h3>
-                    </div>
+            <div class="db-stat">
+                <div class="db-stat-ico primary"><i class="las la-users"></i></div>
+                <div>
+                    <div class="db-stat-label">Total Employees</div>
+                    <div class="db-stat-value">{{ total_employees }}</div>
                 </div>
             </div>
         </div>
         <div class="col-6 col-lg-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body d-flex align-items-center">
-                    <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3">
-                        <i class="las la-check-circle text-success fs-4"></i>
-                    </div>
-                    <div>
-                        <h6 class="text-muted mb-0">Present Today</h6>
-                        <h3 class="mb-0 fw-bold">{{ present_today }} / {{ absent_today }}</h3>
-                    </div>
+            <div class="db-stat">
+                <div class="db-stat-ico success"><i class="las la-check-circle"></i></div>
+                <div>
+                    <div class="db-stat-label">Present Today</div>
+                    <div class="db-stat-value">{{ present_today }} <small>/ {{ absent_today }}</small></div>
                 </div>
             </div>
         </div>
         <div class="col-6 col-lg-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body d-flex align-items-center">
-                    <div class="rounded-circle bg-warning bg-opacity-10 p-3 me-3">
-                        <i class="las la-user text-warning fs-4"></i>
-                    </div>
-                    <div>
-                        <h6 class="text-muted mb-0">On Leave Today</h6>
-                        <h3 class="mb-0 fw-bold">{{ on_leave_today }}</h3>
-                    </div>
+            <div class="db-stat">
+                <div class="db-stat-ico warning"><i class="las la-user"></i></div>
+                <div>
+                    <div class="db-stat-label">On Leave Today</div>
+                    <div class="db-stat-value">{{ on_leave_today }}</div>
                 </div>
             </div>
         </div>
         <div class="col-6 col-lg-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body d-flex align-items-center">
-                    <div class="rounded-circle bg-warning bg-opacity-10 p-3 me-3">
-                        <i class="las la-clock text-warning fs-4"></i>
-                    </div>
-                    <div>
-                        <h6 class="text-muted mb-0">Pending Requests</h6>
-                        <h3 class="mb-0 fw-bold">{{ pending_actions_count }}</h3>
-                    </div>
+            <div class="db-stat">
+                <div class="db-stat-ico warning"><i class="las la-clock"></i></div>
+                <div>
+                    <div class="db-stat-label">Pending Requests</div>
+                    <div class="db-stat-value">{{ pending_actions_count }}</div>
                 </div>
             </div>
         </div>
     {% endif %}
 
-    <!-- Manager Stats Cards (Manager only) -->
     {% if user|has_group:"Manager" %}
         <div class="col-6 col-lg-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body d-flex align-items-center">
-                    <div class="rounded-circle bg-primary bg-opacity-10 p-3 me-3">
-                        <i class="las la-users text-primary fs-4"></i>
-                    </div>
-                    <div>
-                        <h6 class="text-muted mb-0">Total Team</h6>
-                        <h3 class="mb-0 fw-bold">{{ team_count }}</h3>
-                    </div>
+            <div class="db-stat">
+                <div class="db-stat-ico primary"><i class="las la-users"></i></div>
+                <div>
+                    <div class="db-stat-label">Total Team</div>
+                    <div class="db-stat-value">{{ team_count }}</div>
                 </div>
             </div>
         </div>
         <div class="col-6 col-lg-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body d-flex align-items-center">
-                    <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3">
-                        <i class="las la-check-circle text-success fs-4"></i>
-                    </div>
-                    <div>
-                        <h6 class="text-muted mb-0">Present Today</h6>
-                        <h3 class="mb-0 fw-bold">{{ team_present_today }}</h3>
-                    </div>
+            <div class="db-stat">
+                <div class="db-stat-ico success"><i class="las la-check-circle"></i></div>
+                <div>
+                    <div class="db-stat-label">Present Today</div>
+                    <div class="db-stat-value">{{ team_present_today }}</div>
                 </div>
             </div>
         </div>
         <div class="col-6 col-lg-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body d-flex align-items-center">
-                    <div class="rounded-circle bg-warning bg-opacity-10 p-3 me-3">
-                        <i class="las la-user text-warning fs-4"></i>
-                    </div>
-                    <div>
-                        <h6 class="text-muted mb-0">On Leave Today</h6>
-                        <h3 class="mb-0 fw-bold">{{ team_on_leave_today }}</h3>
-                    </div>
+            <div class="db-stat">
+                <div class="db-stat-ico warning"><i class="las la-user"></i></div>
+                <div>
+                    <div class="db-stat-label">On Leave Today</div>
+                    <div class="db-stat-value">{{ team_on_leave_today }}</div>
                 </div>
             </div>
         </div>
         <div class="col-6 col-lg-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body d-flex align-items-center">
-                    <div class="rounded-circle bg-warning bg-opacity-10 p-3 me-3">
-                        <i class="las la-clock text-warning fs-4"></i>
-                    </div>
-                    <div>
-                        <h6 class="text-muted mb-0">Pending Requests</h6>
-                        <h3 class="mb-0 fw-bold">{{ team_pending_actions_count }}</h3>
-                    </div>
+            <div class="db-stat">
+                <div class="db-stat-ico warning"><i class="las la-clock"></i></div>
+                <div>
+                    <div class="db-stat-label">Pending Requests</div>
+                    <div class="db-stat-value">{{ team_pending_actions_count }}</div>
                 </div>
             </div>
         </div>
     {% endif %}
 
-
-
     {% if not user|is_admin_or_hr %}
-
-    <!-- Card 2: Pending Actions -->
-    <div class="col-12 col-md-{% if user|is_admin_or_hr %}4{% else %}6{% endif %}">
-        <div class="card border-0 shadow-sm h-100 hover-lift" style="border-left: 4px solid #ffc107;">
-            <div class="card-body">
-                <div class="d-flex align-items-start justify-content-between">
+        <div class="col-12 col-md-6">
+            <div class="db-card h-100">
+                <div class="db-card-bd d-flex align-items-start justify-content-between">
                     <div>
-                        <h6 class="text-muted small text-uppercase fw-semibold mb-2">Pending Actions</h6>
-                        <h3 class="mb-0 fw-bold">{{ pending_actions_count }}</h3>
+                        <div class="db-stat-label">Pending Actions</div>
+                        <div class="db-stat-value mb-1">{{ pending_actions_count }}</div>
                         <span class="text-muted small">Leave requests awaiting approval</span>
                     </div>
-                    <div class="rounded-circle bg-warning bg-opacity-10 p-3">
-                        <i class="las la-clock text-warning fs-4"></i>
-                    </div>
+                    <div class="db-stat-ico warning"><i class="las la-clock"></i></div>
                 </div>
             </div>
         </div>
-    </div>
-
-    <!-- Card 3: Upcoming Holiday -->
-    <div class="col-12 col-md-{% if user|is_admin_or_hr %}4{% else %}6{% endif %}">
-        <div class="card border-0 shadow-sm h-100 hover-lift" style="border-left: 4px solid #20c997;">
-            <div class="card-body">
-                <div class="d-flex align-items-start justify-content-between">
+        <div class="col-12 col-md-6">
+            <div class="db-card h-100">
+                <div class="db-card-bd d-flex align-items-start justify-content-between">
                     <div>
-                        <h6 class="text-muted small text-uppercase fw-semibold mb-2">Upcoming Holiday</h6>
+                        <div class="db-stat-label">Upcoming Holiday</div>
                         {% if next_holiday %}
-                            <h5 class="mb-0 fw-bold">{{ next_holiday.name }}</h5>
+                            <div class="fw-bold mb-1" style="font-size:1.05rem;">{{ next_holiday.name }}</div>
                             <span class="text-muted small">{{ next_holiday.date|date:"d M Y" }}</span>
                         {% else %}
                             <span class="text-muted">No upcoming holidays</span>
                         {% endif %}
                     </div>
-                    <div class="rounded-circle bg-success bg-opacity-10 p-3">
-                        <i class="las la-calendar-alt text-success fs-4"></i>
-                    </div>
+                    <div class="db-stat-ico teal"><i class="las la-calendar-alt"></i></div>
                 </div>
             </div>
         </div>
-    </div>
-
     {% endif %}
-
-
 </div>
 
-<!-- ===== QUICK ACTIONS + ATTENDANCE ===== -->
+{# ─────────── ATTENDANCE + QUICK ACTIONS ─────────── #}
 <div class="row g-3 mb-4">
+
     <div class="col-lg-6">
-        <!-- Hidden inputs for timer -->
         <input type="hidden" id="checkInTimestamp" value="{% if today_attendance and today_attendance.check_in_time %}{{ today_attendance.check_in_time|date:'c' }}{% endif %}">
         <input type="hidden" id="totalWorkingSeconds" value="{% if today_attendance and today_attendance.total_working_time %}{{ today_attendance.total_working_time.total_seconds|floatformat:0 }}{% else %}0{% endif %}">
         <input type="hidden" id="attendanceState" value="{% if today_attendance %}{{ today_attendance.state }}{% else %}none{% endif %}">
 
-        <div class="card border-0 shadow-sm rounded-3 h-100">
-            <div class="card-body p-4">
-                <div>
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-fingerprint text-primary me-2"></i> Today's Attendance
-                    </h5>
-                </div>
-                <div class="d-flex justify-content-between align-items-start mb-3 mt-3">
+        <div class="db-card h-100">
+            <div class="db-card-bd">
+                <h5 class="db-card-title mb-3">
+                    <i class="fas fa-fingerprint text-primary"></i> Today's Attendance
+                </h5>
 
-                
-                <span class="badge bg-light text-dark rounded-pill px-3 py-2">
-                    <i class="far fa-clock me-1"></i> 
+                <div class="db-shift">
+                    <i class="far fa-clock"></i>
                     {% if employee_shift %}
-                        {{ employee_shift.name }} &nbsp;
-                        <span class="text-muted" style="font-weight: normal; font-size: 13px;">
-                            <span style="font-size: 13px;">
-                                {{ employee_shift.get_working_days }}
-                            </span>  &nbsp;
-
+                        <strong>{{ employee_shift.name }}</strong>
+                        <span class="muted">
+                            {{ employee_shift.get_working_days }} · 
                             {{ employee_shift.start_time|time:"h:i A" }} – {{ employee_shift.end_time|time:"h:i A" }}
-                            
-                            
                         </span>
                     {% else %}
-                        No shift assigned
-                        <small class="text-muted">—</small>
+                        <span class="muted">No shift assigned —</span>
                     {% endif %}
-                </span>
                 </div>
 
-                <!-- Timer Display -->
-                <div class="row g-3 align-items-center">
+                <div class="row g-3 align-items-end">
                     <div class="col-md-3">
-                        <div class="text-muted small">Check‑in</div>
-                        <div class="fw-bold">
+                        <div class="db-time-label">Check‑in</div>
+                        <div class="db-time-value {% if not today_attendance or not today_attendance.check_in_time %}empty{% endif %}">
                             {% if today_attendance and today_attendance.check_in_time %}
                                 {{ today_attendance.check_in_time|time:"h:i A" }}
                             {% else %}
-                                <span class="text-secondary">--:--</span>
+                                --:--
                             {% endif %}
                         </div>
                     </div>
-                    
                     <div class="col-md-4 text-center">
-                        <div class="text-muted small">Check‑out</div>
-                        <div class="fw-bold">
+                        <div class="db-time-label">Check‑out</div>
+                        <div class="db-time-value {% if not today_attendance or not today_attendance.check_out_time %}empty{% endif %}">
                             {% if today_attendance and today_attendance.check_out_time %}
                                 {{ today_attendance.check_out_time|time:"h:i A" }}
                             {% else %}
-                                <span class="text-secondary">--:--</span>
+                                --:--
                             {% endif %}
                         </div>
                     </div>
-                    
                     <div class="col-md-5 text-end">
-                        <div class="text-muted small">Timer</div>
-                        <div id="timerDisplay" class="fw-bold text-primary" style="font-size: 1.8rem; letter-spacing: 1px;">
+                        <div class="db-time-label">Timer</div>
+                        <div id="timerDisplay" class="db-timer">
                             <span id="liveTimer">
                                 {% if today_attendance and today_attendance.total_working_time %}
                                     {{ today_attendance.total_working_time|time:"H:i:s" }}
@@ -271,12 +217,9 @@
                     </div>
                 </div>
 
-                <!-- Buttons -->
-                
-                <!-- Buttons -->
-                <div class="mt-3 d-flex flex-wrap align-items-center gap-3">
+                <div class="mt-4 d-flex flex-wrap align-items-center gap-3">
                     {% if not today_attendance or today_attendance.state == 'checked_out' %}
-                        <button id="clock-in-btn" class="btn btn-success btn-lg rounded-pill px-5" onclick="getLocationAndClockIn()">
+                        <button id="clock-in-btn" class="btn btn-success btn-lg db-btn-pill px-5" onclick="getLocationAndClockIn()">
                             <i class="las la-sign-in-alt me-2"></i> Clock In
                         </button>
                         <span class="text-muted small">
@@ -288,49 +231,41 @@
                             {% endif %}
                         </span>
                     {% elif today_attendance and today_attendance.state == 'checked_in' %}
-                        <a href="{% url 'clock_out' %}" class="btn btn-danger btn-lg rounded-pill px-5">
+                        <a href="{% url 'clock_out' %}" class="btn btn-danger btn-lg db-btn-pill px-5">
                             <i class="las la-sign-out-alt me-2"></i> Clock Out
                         </a>
-                        <span class="badge bg-warning text-dark d-flex align-items-center px-3 py-2 rounded-pill">
-                            {% if late_minutes > 0 %}
-                                <span class="ms-2 fw-bold">
-                                    <i class="fas fa-exclamation-triangle me-1"></i> Late: {{ late_minutes }} min
-                                </span>
-                            {% endif %}
-                        </span>
+                        {% if late_minutes > 0 %}
+                            <span class="badge bg-warning text-dark px-3 py-2 rounded-pill">
+                                <i class="fas fa-exclamation-triangle me-1"></i> Late: {{ late_minutes }} min
+                            </span>
+                        {% endif %}
                     {% endif %}
                 </div>
-
             </div>
         </div>
-
     </div>
 
-
-
-
-    <!-- Quick Actions -->
     <div class="col-lg-6">
-        <div class="card border-0 shadow-sm rounded-3 h-100">
-            <div class="card-body p-4">
-                <h5 class="card-title mb-3">
-                    <i class="las la-bolt text-primary me-2"></i> Quick Actions
+        <div class="db-card h-100">
+            <div class="db-card-bd">
+                <h5 class="db-card-title mb-3">
+                    <i class="las la-bolt text-primary"></i> Quick Actions
                 </h5>
                 <div class="d-flex flex-wrap gap-2">
-                    <a href="{% url 'leave_apply' %}" class="btn btn-outline-primary rounded-pill px-4">
+                    <a href="{% url 'leave_apply' %}" class="btn btn-outline-primary db-btn-pill px-4">
                         <i class="fas fa-plus me-1"></i> Apply Leave
                     </a>
-                    <a href="{% url 'employee_leaves' %}" class="btn btn-outline-secondary rounded-pill px-4">
+                    <a href="{% url 'employee_leaves' %}" class="btn btn-outline-secondary db-btn-pill px-4">
                         <i class="fas fa-list me-1"></i> My Leaves
                     </a>
                     {% if user|is_admin_or_hr %}
-                        <a href="{% url 'admin_leaves' %}" class="btn btn-outline-warning rounded-pill px-4">
+                        <a href="{% url 'admin_leaves' %}" class="btn btn-outline-warning db-btn-pill px-4">
                             <i class="las la-check-double me-1"></i> Approvals
                         </a>
-                        <a href="{% url 'attendance_report' %}" class="btn btn-outline-info rounded-pill px-4">
+                        <a href="{% url 'attendance_report' %}" class="btn btn-outline-info db-btn-pill px-4">
                             <i class="las la-chart-bar me-1"></i> Reports
                         </a>
-                        <a href="{% url 'team_attendance' %}" class="btn btn-outline-success rounded-pill px-4">
+                        <a href="{% url 'team_attendance' %}" class="btn btn-outline-success db-btn-pill px-4">
                             <i class="las la-users-cog me-1"></i> My Team
                         </a>
                     {% endif %}
@@ -340,33 +275,28 @@
     </div>
 </div>
 
+{# ─────────── WEEKLY CHART + PENDING LEAVES ─────────── #}
 <div class="row g-3 mb-4">
 
-<!-- ===== WEEKLY BAR CHART (Admin only) ===== -->
     {% if user.is_superuser or user|has_group:"HR Admin" %}
-        <!-- json_script tags for bar chart data -->
         {{ weekly_days|json_script:"weeklyDays" }}
         {{ weekly_day_present|json_script:"weeklyDayPresent" }}
         {{ weekly_day_absent|json_script:"weeklyDayAbsent" }}
         {{ weekly_day_half|json_script:"weeklyDayHalf" }}
         {{ weekly_day_onleave|json_script:"weeklyDayOnLeave" }}
         <div class="col-lg-5">
-            <div class="card border-0 shadow-sm rounded-3 mb-4">
-                <div class="card-header bg-transparent border-0 pt-3">
-                    <h5 class="mb-0">
-                        <i class="las la-calendar-week text-primary me-2"></i> This Week's Daily Attendance
-                        <span class="badge bg-secondary ms-2">{{ week_start|date:"M d" }} – {{ week_end|date:"M d" }}</span>
-                    </h5>
+            <div class="db-card h-100">
+                <div class="db-card-hd">
+                    <h5 class="db-card-title"><i class="las la-calendar-week"></i> This Week's Daily Attendance</h5>
+                    <span class="db-count-pill">{{ week_start|date:"M d" }} – {{ week_end|date:"M d" }}</span>
                 </div>
-                <div class="card-body">
+                <div class="db-card-bd">
                     <canvas id="weeklyBarChart" width="400" height="200"></canvas>
                 </div>
             </div>
         </div>
     {% endif %}
 
-
-    <!-- Manager Chart (Manager only) -->
     {% if user|has_group:"Manager" %}
         {{ manager_weekly_days|json_script:"managerWeeklyDays" }}
         {{ manager_weekly_day_present|json_script:"managerWeeklyDayPresent" }}
@@ -374,530 +304,385 @@
         {{ manager_weekly_day_half|json_script:"managerWeeklyDayHalf" }}
         {{ manager_weekly_day_onleave|json_script:"managerWeeklyDayOnLeave" }}
         <div class="col-lg-5">
-            <div class="card border-0 shadow-sm rounded-3 mb-4">
-                <div class="card-header bg-transparent border-0 pt-3">
-                    <h5 class="mb-0">
-                        <i class="las la-calendar-week text-primary me-2"></i> Team Weekly Attendance
-                        <span class="badge bg-secondary ms-2">{{ week_start|date:"M d" }} – {{ week_end|date:"M d" }}</span>
-                    </h5>
+            <div class="db-card h-100">
+                <div class="db-card-hd">
+                    <h5 class="db-card-title"><i class="las la-calendar-week"></i> Team Weekly Attendance</h5>
+                    <span class="db-count-pill">{{ week_start|date:"M d" }} – {{ week_end|date:"M d" }}</span>
                 </div>
-                <div class="card-body">
+                <div class="db-card-bd">
                     <canvas id="weeklyBarChartManager" width="400" height="200"></canvas>
                 </div>
             </div>
         </div>
     {% endif %}
 
-
     {% if user|is_admin_or_hr and pending_leave_requests %}
-    <div class="col-lg-7">
-        <div class="card border-0 shadow-sm rounded-3 mb-4">
-            <div class="card-header bg-transparent border-0 pt-3 d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">
-                    <i class="las la-clock text-warning me-2"></i> Pending Leave Requests
-                    <span class="badge bg-warning ms-2">{{ pending_leave_requests|length }}</span>
-                </h5>
-                <a href="{% url 'admin_leaves' %}" class="btn btn-sm btn-outline-primary rounded-pill">
+        <div class="col-lg-7">
+            <div class="db-card h-100">
+                <div class="db-card-hd">
+                    <h5 class="db-card-title"><i class="las la-clock"></i> Pending Leave Requests</h5>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="db-count-pill warning">{{ pending_leave_requests|length }}</span>
+                        <a href="{% url 'admin_leaves' %}" class="btn btn-sm btn-outline-primary db-btn-pill">
+                            View All <i class="fas fa-arrow-right ms-1"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="db-card-bd flush">
+                    <div class="table-responsive">
+                        <table class="db-table">
+                            <thead>
+                                <tr>
+                                    <th>Employee</th>
+                                    <th>Leave Type</th>
+                                    <th>Date</th>
+                                    <th>Duration</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for req in pending_leave_requests %}
+                                    <tr>
+                                        <td class="fw-semibold">{{ req.user.username }}</td>
+                                        <td>{{ req.leave_type.name }}</td>
+                                        <td class="num">{{ req.start_date|date:"d M" }} – {{ req.end_date|date:"d M" }}</td>
+                                        <td class="num">{{ req.get_duration }} day{{ req.get_duration|pluralize }}</td>
+                                        <td class="text-end">
+                                            <form method="post" action="{% url 'leave_approve' req.id %}" class="d-inline">
+                                                {% csrf_token %}
+                                                <button type="submit" class="db-icon-btn success" title="Approve">
+                                                    <i class="fas fa-check"></i>
+                                                </button>
+                                            </form>
+                                            <form method="post" action="{% url 'leave_reject' req.id %}" class="d-inline">
+                                                {% csrf_token %}
+                                                <button type="submit" class="db-icon-btn danger" title="Reject">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+{# ─────────── LEAVE BALANCE ─────────── #}
+<div class="row g-3 mb-4">
+    <div class="col-12">
+        <div class="db-card">
+            <div class="db-card-hd">
+                <h5 class="db-card-title"><i class="las la-calendar-check"></i> Leave Balance</h5>
+                <a href="{% url 'employee_leaves' %}" class="btn btn-sm btn-outline-primary db-btn-pill">
                     View All <i class="fas fa-arrow-right ms-1"></i>
                 </a>
             </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle table-sm">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Employee</th>
-                                <th>Leave Type</th>
-                                <th>Date</th>
-                                <th>Duration</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for req in pending_leave_requests %}
-                                <tr>
-                                    <td><strong>{{ req.user.username }}</strong></td>
-                                    <td>{{ req.leave_type.name }}</td>
-                                    <td>{{ req.start_date|date:"d M" }} - {{ req.end_date|date:"d M" }}</td>
-                                    <td>{{ req.get_duration }} day{{ req.get_duration|pluralize }}</td>
-                                    <td>
-                                        <form method="post" action="{% url 'leave_approve' req.id %}" style="display:inline;">
-                                            {% csrf_token %}
-                                            <button type="submit" style="border-width: 0px; background: inherit;" ><i class=" text-success fas fa-check"></i></button>
-                                        </form>
-                                        <form method="post" action="{% url 'leave_reject' req.id %}" style="display:inline;">
-                                            {% csrf_token %}
-                                            <button type="submit" style="border-width: 0px; background: inherit;"><i class=" text-danger fas fa-times"></i></button>
-                                        </form>
-                                    </td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-        </div>
-        {% endif %}
-
-    </div>
-        
-
-
-<div class="row g-3 mb-4">
-    <div class="col-lg-12">
-    <!-- ===== LEAVE BALANCE ===== -->
-    <div class="card border-0 shadow-sm rounded-3">
-        <div class="card-header bg-transparent border-0 pt-3 d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">
-                <i class="las la-calendar-check text-primary me-2"></i> Leave Balance
-            </h5>
-            <a href="{% url 'employee_leaves' %}" class="btn btn-sm btn-outline-primary rounded-pill">
-                View All <i class="fas fa-arrow-right ms-1"></i>
-            </a>
-        </div>
-        <div class="card-body">
-            <!-- Summary Stats -->
-            <div class="row g-2 mb-3">
-                <div class="col-3">
-                    <div class="p-2 bg-light rounded-3 text-center border">
-                        <div class="text-muted small">Total</div>
-                        <div class="h5 fw-bold mb-0">{{ total_available|add:total_used }}</div>
+            <div class="db-card-bd">
+                <div class="row g-2 mb-3">
+                    <div class="col-3">
+                        <div class="db-mini">
+                            <div class="db-mini-label">Total</div>
+                            <div class="db-mini-value">{{ total_available|add:total_used }}</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="db-mini">
+                            <div class="db-mini-label">Used</div>
+                            <div class="db-mini-value warning">{{ total_used }}</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="db-mini">
+                            <div class="db-mini-label">Pending</div>
+                            <div class="db-mini-value primary">{{ total_pending }}</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="db-mini">
+                            <div class="db-mini-label">Available</div>
+                            <div class="db-mini-value success">{{ total_available }}</div>
+                        </div>
                     </div>
                 </div>
-                <div class="col-3">
-                    <div class="p-2 bg-light rounded-3 text-center border">
-                        <div class="text-muted small">Used</div>
-                        <div class="h5 fw-bold text-warning mb-0">{{ total_used }}</div>
-                    </div>
-                </div>
-                <div class="col-3">
-                    <div class="p-2 bg-light rounded-3 text-center border">
-                        <div class="text-muted small">Pending</div>
-                        <div class="h5 fw-bold text-primary mb-0">{{ total_pending }}</div>
-                    </div>
-                </div>
-                <div class="col-3">
-                    <div class="p-2 bg-light rounded-3 text-center border">
-                        <div class="text-muted small">Available</div>
-                        <div class="h5 fw-bold text-success mb-0">{{ total_available }}</div>
-                    </div>
-                </div>
-            </div>
 
-            <!-- Divider -->
-            <hr class="my-2">
-
-            <!-- Leave Types List -->
-            {% if leave_balance %}
-                <div class="row g-2 mt-2">
-                    {% for item in leave_balance %}
-                        <div class="col-6 col-md-4">
-                            <div class="card border shadow-sm h-100 premium-leave-card"
-                                style="border-left: 4px solid 
-                                    {% if item.used > item.total %}#dc3545
-                                    {% elif item.used > item.total|add:'-3' %}#ffc107
-                                    {% else %}#28a745{% endif %};">
-                                <div class="card-body p-3">
+                {% if leave_balance %}
+                    <div class="row g-3">
+                        {% for item in leave_balance %}
+                            <div class="col-12 col-md-6 col-lg-4">
+                                <div class="db-leave
+                                    {% if item.used > item.total %}danger
+                                    {% elif item.used > item.total|add:'-3' %}warning{% endif %}">
                                     <div class="d-flex align-items-start justify-content-between mb-1">
-                                        <h6 class="card-title fw-bold mb-0" style="font-size: 0.85rem;">{{ item.leave_type.name }}</h6>
-                                        <span class="badge rounded-pill px-2 py-1" style="font-size: 0.65rem; background: #eee; color: #444;">
-                                            {{ item.used }}/{{ item.total }}
-                                        </span>
+                                        <h6 class="db-leave-name">{{ item.leave_type.name }}</h6>
+                                        <span class="db-leave-count">{{ item.used }}/{{ item.total }}</span>
                                     </div>
-                                    <div class="progress mb-1" style="height: 4px;">
-                                        {% with percent=item.used|floatformat:0 %}
-                                            <div class="progress-bar 
-                                                {% if item.used > item.total %}bg-danger
-                                                {% elif item.used > item.total|add:'-3' %}bg-warning
-                                                {% else %}bg-success{% endif %}" 
-                                                role="progressbar" 
-                                                style="width: {% if item.total > 0 %}{{ item.used|floatformat:0 }}{% else %}0{% endif %}%;">
-                                            </div>
-                                        {% endwith %}
+                                    <div class="db-leave-bar">
+                                        <div class="{% if item.used > item.total %}danger{% elif item.used > item.total|add:'-3' %}warning{% endif %}"
+                                             style="width: {% if item.total > 0 %}{{ item.used|floatformat:0 }}{% else %}0{% endif %}%;"></div>
                                     </div>
-                                    <div class="d-flex justify-content-between small text-muted">
+                                    <div class="db-leave-foot">
                                         <span>Available: <strong>{{ item.available }}</strong></span>
                                         {% if item.pending > 0 %}
-                                            <span class="text-warning"><i class="las la-clock me-1"></i>{{ item.pending }}</span>
+                                            <span class="pending"><i class="las la-clock me-1"></i>{{ item.pending }}</span>
                                         {% endif %}
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    {% endfor %}
-                </div>
-            {% else %}
-                <div class="text-center py-3">
-                    <i class="las la-calendar-alt text-secondary mb-2 d-block" style="font-size: 2rem;"></i>
-                    <p class="text-muted">No leave types configured yet.</p>
-                </div>
-            {% endif %}
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="db-empty">
+                        <div class="db-empty-ico"><i class="las la-calendar-alt"></i></div>
+                        <p class="db-empty-title">No leave types configured</p>
+                        <p class="db-empty-sub">Ask your HR admin to set them up.</p>
+                    </div>
+                {% endif %}
+            </div>
         </div>
-    </div>
-
-
-    </div>
-
-    
-    <div class="col-lg-8">
-        
     </div>
 </div>
 
-
-<!-- ===== ATTENDANCE OVERVIEW ===== -->
-
+{# ─────────── ATTENDANCE OVERVIEW (ADMIN) ─────────── #}
 {% if user|is_admin_or_hr %}
-
-<div class="card border-0 shadow-sm rounded-3 mb-4">
-    <div class="card-header bg-transparent border-0 pt-3 d-flex flex-wrap justify-content-between align-items-center">
-        <h5 class="mb-0">
-            <i class="las la-chart-line text-primary me-2"></i> Attendance Overview
-        </h5>
-        <div class="btn-group btn-group-sm" role="group">
-            <button type="button" class="btn btn-outline-secondary period-btn active" data-period="week">This Week</button>
-            <button type="button" class="btn btn-outline-secondary period-btn" data-period="month">This Month</button>
-            <button type="button" class="btn btn-outline-secondary period-btn" data-period="last_month">Last Month</button>
+    <div class="db-card mb-4">
+        <div class="db-card-hd">
+            <h5 class="db-card-title"><i class="las la-chart-line"></i> Attendance Overview</h5>
+            <div class="db-period" role="group">
+                <button type="button" class="period-btn active" data-period="week">This Week</button>
+                <button type="button" class="period-btn" data-period="month">This Month</button>
+                <button type="button" class="period-btn" data-period="last_month">Last Month</button>
+            </div>
+        </div>
+        <div class="db-card-bd">
+            <div style="position: relative; height: 260px;">
+                <canvas id="attendanceOverviewChart"></canvas>
+            </div>
+            <div class="text-muted small text-center mt-3">
+                Showing attendance rate based on <strong id="totalEmployeesOverview">0</strong> employees.
+            </div>
         </div>
     </div>
-    <div class="card-body">
-        <div style="position: relative; height: 250px;">
-            <canvas id="attendanceOverviewChart"></canvas>
-        </div>
-        <div class="text-muted small text-center mt-2">
-            Showing attendance rate based on <span id="totalEmployeesOverview">0</span> employees.
-        </div>
-    </div>
-</div>
-
 {% endif %}
 
-
-
-<!-- ===== ATTENDANCE CALENDAR ===== -->
- 
-<!-- ===== ATTENDANCE CALENDAR (Google‑Style) ===== -->
-<div class="card border-0 shadow-sm rounded-3 mb-4">
-    <div class="card-header bg-transparent border-0 pt-3 d-flex flex-wrap justify-content-between align-items-center">
+{# ─────────── CALENDAR ─────────── #}
+<div class="db-cal mb-4">
+    <div class="db-card-hd">
+        <button class="btn btn-sm btn-outline-secondary db-btn-pill"
+                onclick="window.location.href='?month={{ today.month }}&year={{ today.year }}'">
+            Today
+        </button>
         <div class="d-flex align-items-center gap-2">
-            <button class="btn btn-sm btn-outline-secondary rounded-pill" onclick="window.location.href='?month={{ today.month }}&year={{ today.year }}'">
-                Today
-            </button>
-        </div>
-        <div class="d-flex align-items-center gap-2">
-            <a href="?month={{ month|add:'-1' }}&year={% if month == 1 %}{{ year|add:'-1' }}{% else %}{{ year }}{% endif %}" class="btn btn-sm btn-outline-secondary rounded-pill">
+            <a href="?month={{ month|add:'-1' }}&year={% if month == 1 %}{{ year|add:'-1' }}{% else %}{{ year }}{% endif %}"
+               class="btn btn-sm btn-outline-secondary db-cal-nav">
                 <i class="fas fa-chevron-left"></i>
             </a>
-            <span class="fw-bold" style="min-width: 140px; text-align: center; font-size: 1.1rem;">
-                {{ selected_month_name }}
-            </span>
-            <a href="?month={{ month|add:'1' }}&year={% if month == 12 %}{{ year|add:'1' }}{% else %}{{ year }}{% endif %}" class="btn btn-sm btn-outline-secondary rounded-pill">
+            <span class="db-cal-month">{{ selected_month_name }}</span>
+            <a href="?month={{ month|add:'1' }}&year={% if month == 12 %}{{ year|add:'1' }}{% else %}{{ year }}{% endif %}"
+               class="btn btn-sm btn-outline-secondary db-cal-nav">
                 <i class="fas fa-chevron-right"></i>
             </a>
         </div>
-        <div style="width: 70px;"></div> <!-- spacer for alignment -->
+        <div style="width: 70px;"></div>
     </div>
-    <div class="card-body p-0">
-        <!-- Weekday headers -->
-        <div class="calendar-grid">
-            <div class="calendar-weekdays">
-                <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
-            </div>
-            <!-- Days grid -->
-            <div class="calendar-days">
-                {% for i in "x"|rjust:first_weekday %}
-                    <div class="calendar-day empty"></div>
-                {% endfor %}
-                {% for item in calendar_data %}
-                    <div class="calendar-day 
-                        {% if item.is_weekend %}weekend{% endif %}
-                        {% if item.date == today %}today{% endif %}
-                        {% if item.status == 'Present' %}present{% endif %}
-                        {% if item.status == 'leave' %}leave{% endif %}
-                        {% if item.status == 'Half-Day' %}halfday{% endif %}
-                        {% if item.status == 'none' %}none{% endif %}
-                    ">
-                        <span class="day-number">{{ item.day }}</span>
-                        <div class="day-events">
-                            {% if item.status == 'Present' %}
-                                <span class="event-dot present" title="Present"></span>
-                            {% elif item.status == 'leave' %}
-                                <span class="event-dot leave" title="On Leave"></span>
-                            {% elif item.status == 'Half-Day' %}
-                                <span class="event-dot halfday" title="Half-Day"></span>
-                            {% elif item.status == 'weekend' %}
-                                <span class="event-dot weekend" title="Weekend"></span>
-                            {% elif item.status == 'none' %}
-                                <span class="event-dot none" title="No Record"></span>
-                            {% endif %}
-                        </div>
+
+    <div class="calendar-grid">
+        <div class="calendar-weekdays">
+            <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
+        </div>
+        <div class="calendar-days">
+            {% for i in "x"|rjust:first_weekday %}
+                <div class="calendar-day empty"></div>
+            {% endfor %}
+            {% for item in calendar_data %}
+                <div class="calendar-day
+                    {% if item.is_weekend %}weekend{% endif %}
+                    {% if item.date == today %}today{% endif %}
+                    {% if item.status == 'Present' %}present{% endif %}
+                    {% if item.status == 'leave' %}leave{% endif %}
+                    {% if item.status == 'Half-Day' %}halfday{% endif %}
+                    {% if item.status == 'none' %}none{% endif %}">
+                    <span class="day-number">{{ item.day }}</span>
+                    <div class="day-events">
+                        {% if item.status == 'Present' %}
+                            <span class="event-dot present" title="Present"></span>
+                        {% elif item.status == 'leave' %}
+                            <span class="event-dot leave" title="On Leave"></span>
+                        {% elif item.status == 'Half-Day' %}
+                            <span class="event-dot halfday" title="Half-Day"></span>
+                        {% elif item.status == 'weekend' %}
+                            <span class="event-dot weekend" title="Weekend"></span>
+                        {% elif item.status == 'none' %}
+                            <span class="event-dot none" title="No Record"></span>
+                        {% endif %}
                     </div>
-                {% endfor %}
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="calendar-legend">
+        <span><span class="dot present"></span> Present</span>
+        <span><span class="dot leave"></span> On Leave</span>
+        <span><span class="dot halfday"></span> Half-Day</span>
+        <span><span class="dot weekend"></span> Weekend</span>
+        <span><span class="dot none"></span> No Record</span>
+    </div>
+</div>
+
+{# ─────────── ALL EMPLOYEES (ADMIN) ─────────── #}
+{% if user.is_superuser or user|has_group:"HR Admin" %}
+    <div class="db-card mb-4">
+        <div class="db-card-hd">
+            <div>
+                <h5 class="db-card-title mb-0">
+                    <i class="las la-users"></i> All Employees Attendance
+                    <span class="db-count-pill primary ms-2">{{ all_employees_attendance|length }}</span>
+                </h5>
+                <div class="db-card-sub">{{ admin_selected_month_name }}</div>
+            </div>
+            <div class="d-flex gap-1">
+                <a href="?{{ admin_base_params }}&admin_month={{ admin_prev_month }}&admin_year={{ admin_prev_year }}&month={{ selected_month }}&year={{ selected_year }}"
+                   class="btn btn-sm btn-outline-secondary db-cal-nav">
+                    <i class="fas fa-chevron-left"></i>
+                </a>
+                <span class="btn btn-sm btn-light db-btn-pill disabled px-3">{{ admin_selected_month_name }}</span>
+                {% if admin_next_disabled %}
+                    <button class="btn btn-sm btn-outline-secondary db-cal-nav" disabled>
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                {% else %}
+                    <a href="?{{ admin_base_params }}&admin_month={{ admin_next_month }}&admin_year={{ admin_next_year }}&month={{ selected_month }}&year={{ selected_year }}"
+                       class="btn btn-sm btn-outline-secondary db-cal-nav">
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                {% endif %}
             </div>
         </div>
-        <!-- Legend -->
-        <div class="calendar-legend">
-            <span><span class="dot present"></span> Present</span>
-            <span><span class="dot leave"></span> On Leave</span>
-            <span><span class="dot halfday"></span> Half-Day</span>
-            <span><span class="dot weekend"></span> Weekend</span>
-            <span><span class="dot none"></span> No Record</span>
-        </div>
-    </div>
-</div>
 
-
-
-<!-- ===== CALENDAR CSS ===== -->
-<style>
-.calendar-grid {
-    max-width: 100%;
-    margin: 0 auto;
-}
-.calendar-header {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    text-align: center;
-    font-weight: 600;
-    color: #6c757d;
-    font-size: 0.8rem;
-    padding: 8px 0;
-    border-bottom: 1px solid #e9ecef;
-    margin-bottom: 4px;
-}
-.calendar-body {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 4px;
-}
-.calendar-cell {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 8px 0;
-    border-radius: 6px;
-    background: #fff;
-    transition: background 0.2s;
-    min-height: 50px;
-}
-.calendar-cell:hover {
-    background: #f8f9fa;
-}
-.calendar-cell .day-number {
-    font-size: 0.9rem;
-    font-weight: 500;
-    color: #1a1a2e;
-}
-.calendar-cell .status-icon {
-    font-size: 0.7rem;
-    margin-top: 2px;
-}
-.calendar-cell.weekend .day-number {
-    color: #adb5bd;
-}
-.calendar-cell.weekend .status-icon i {
-    color: #ced4da;
-}
-.calendar-cell.empty {
-    background: transparent !important;
-}
-@media (max-width: 576px) {
-    .calendar-cell {
-        min-height: 40px;
-        padding: 4px 0;
-    }
-    .calendar-cell .day-number {
-        font-size: 0.75rem;
-    }
-    .calendar-cell .status-icon {
-        font-size: 0.6rem;
-    }
-}
-</style>
-
-
-<!-- ===== ADMIN: ALL EMPLOYEES ATTENDANCE ===== -->
- <!-- ===== ADMIN: ALL EMPLOYEES ATTENDANCE (with expandable details) ===== -->
-{% if user.is_superuser or user|has_group:"HR Admin" %}
-<div class="card border-0 shadow-sm rounded-3 mb-4">
-    <div class="card-header bg-transparent border-0 pt-3 d-flex flex-wrap justify-content-between align-items-center">
-        <h5 class="mb-0">
-            <i class="las la-users text-primary me-2"></i> All Employees Attendance – {{ admin_selected_month_name }}
-            <span class="badge bg-primary ms-2">{{ all_employees_attendance|length }}</span>
-        </h5>
-        <div class="d-flex gap-1">
-            <a href="?{{ admin_base_params }}&admin_month={{ admin_prev_month }}&admin_year={{ admin_prev_year }}&month={{ selected_month }}&year={{ selected_year }}" class="btn btn-sm btn-outline-secondary rounded-pill">
-                <i class="fas fa-chevron-left"></i>
-            </a>
-            <span class="btn btn-sm btn-light rounded-pill disabled">{{ admin_selected_month_name }}</span>
-            {% if admin_next_disabled %}
-                <button class="btn btn-sm btn-outline-secondary rounded-pill" disabled>
-                    <i class="fas fa-chevron-right"></i>
-                </button>
-            {% else %}
-                <a href="?{{ admin_base_params }}&admin_month={{ admin_next_month }}&admin_year={{ admin_next_year }}&month={{ selected_month }}&year={{ selected_year }}" class="btn btn-sm btn-outline-secondary rounded-pill">
-                    <i class="fas fa-chevron-right"></i>
-                </a>
-            {% endif %}
-        </div>
-    </div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0" id="adminTeamTable">
-                <thead class="table-light">
-                    <tr>
-                        <th>#</th>
-                        <th>Employee</th>
-                        <th class="text-center">Shift</th>
-                        <th class="text-center">Total Days</th>
-                        <th class="text-center">Present</th>
-                        <th class="text-center">Absent</th>
-                        <th class="text-center">Half-Day</th>
-                        <th class="text-center">Attendance Rate</th>
-                        <th class="text-center" style="width: 60px;">Details</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in employee_data %}
-                        <tr class="team-row">
-                            <td>{{ forloop.counter }}</td>
-                            <td>
-                                <div class="d-flex align-items-center">
-                                    <div class="avatar-circle me-2" style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 600; font-size: 0.75rem;">
-                                        {{ item.employee.username|slice:":1"|upper }}
-                                    </div>
-                                    <span class="fw-semibold">{{ item.employee.username }}</span>
-                                </div>
-                            </td>
-                            <td class="text-center">
-                                {% if item.shift_name != '—' %}
-                                    <span class="badge bg-light text-dark rounded-pill px-2 py-1" style="font-size: 0.75rem;">
-                                        <i class="far fa-clock me-1"></i>
-                                        {{ item.shift_name }}
-                                        <br><small class="text-muted" style="font-size: 0.6rem;">{{ item.shift_timing }}</small>
-                                    </span>
-                                {% else %}
-                                    <span class="text-muted">—</span>
-                                {% endif %}
-                            </td>
-                            <td class="text-center">{{ item.total_days }}</td>
-                            <td class="text-center"><span class="badge bg-success">{{ item.present }}</span></td>
-                            <td class="text-center"><span class="badge bg-danger">{{ item.absent }}</span></td>
-                            <td class="text-center"><span class="badge bg-warning text-dark">{{ item.half_day }}</span></td>
-                            <td class="text-center">
-                                <div class="d-flex align-items-center justify-content-center gap-2">
-                                    <div class="progress" style="width: 70px; height: 6px;">
-                                        <div class="progress-bar bg-success" role="progressbar" 
-                                             style="width: {{ item.percentage }}%;" 
-                                             aria-valuenow="{{ item.percentage }}" 
-                                             aria-valuemin="0" aria-valuemax="100">
-                                        </div>
-                                    </div>
-                                    <span class="small text-muted">{{ item.percentage }}%</span>
-                                </div>
-                            </td>
-                            <td class="text-center">
-                                <button class="btn btn-sm btn-outline-primary toggle-details" 
-                                        data-target="admin-details-{{ item.employee.id }}">
-                                    <i class="fas fa-chevron-down"></i>
-                                </button>
-                            </td>
-                        </tr>
-                        <!-- Expandable Details Row -->
-                        <tr class="detail-row" id="admin-details-{{ item.employee.id }}" style="display: none;">
-                            <td colspan="9" class="bg-light px-4 py-3">
-                                <div class="d-flex flex-wrap gap-2">
-                                    {% if item.records %}
-                                        <span class="text-muted me-2"><i class="las la-clock me-1"></i> Attendance Records:</span>
-                                        {% for att in item.records %}
-                                            <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-3 py-2">
-                                                <i class="las la-calendar-day me-1"></i> {{ att.date|date:"d M" }}
-                                                <i class="las la-clock ms-1 me-1"></i> {{ att.in_time }}
-                                                {% if att.out_time != '--:--' %}
-                                                    - {{ att.out_time }}
-                                                {% endif %}
-                                            </span>
-                                        {% empty %}
-                                            <span class="text-muted">No records this month.</span>
-                                        {% endfor %}
-                                    {% else %}
-                                        <span class="text-muted">No records this month.</span>
-                                    {% endif %}
-                                </div>
-                            </td>
-                        </tr>
-                    {% empty %}
+        <div class="db-card-bd flush">
+            <div class="table-responsive">
+                <table class="db-table" id="adminTeamTable">
+                    <thead>
                         <tr>
-                            <td colspan="9" class="text-center text-muted py-4">
-                                <i class="las la-inbox text-secondary" style="font-size: 2.5rem; display: block; margin-bottom: 0.5rem;"></i>
-                                No attendance data available for this month.
-                            </td>
+                            <th>#</th>
+                            <th>Employee</th>
+                            <th class="text-center">Shift</th>
+                            <th class="text-center">Total Days</th>
+                            <th class="text-center">Present</th>
+                            <th class="text-center">Absent</th>
+                            <th class="text-center">Half-Day</th>
+                            <th class="text-center">Attendance Rate</th>
+                            <th class="text-center" style="width: 60px;">Details</th>
                         </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        {% for item in employee_data %}
+                            <tr class="team-row">
+                                <td class="muted num">{{ forloop.counter }}</td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="db-avatar">{{ item.employee.username|slice:":1"|upper }}</div>
+                                        <span class="fw-semibold">{{ item.employee.username }}</span>
+                                    </div>
+                                </td>
+                                <td class="text-center">
+                                    {% if item.shift_name != '—' %}
+                                        <span class="db-shift-tag">
+                                            <span><i class="far fa-clock me-1"></i>{{ item.shift_name }}</span>
+                                            <small>{{ item.shift_timing }}</small>
+                                        </span>
+                                    {% else %}
+                                        <span class="muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center num fw-semibold">{{ item.total_days }}</td>
+                                <td class="text-center"><span class="db-badge-soft success">{{ item.present }}</span></td>
+                                <td class="text-center"><span class="db-badge-soft danger">{{ item.absent }}</span></td>
+                                <td class="text-center"><span class="db-badge-soft warning">{{ item.half_day }}</span></td>
+                                <td class="text-center">
+                                    <div class="db-rate">
+                                        <div class="db-rate-bar">
+                                            <div style="width: {{ item.percentage }}%;"></div>
+                                        </div>
+                                        <span class="db-rate-val">{{ item.percentage }}%</span>
+                                    </div>
+                                </td>
+                                <td class="text-center">
+                                    <button class="btn btn-sm btn-outline-primary db-cal-nav toggle-details"
+                                            data-target="admin-details-{{ item.employee.id }}">
+                                        <i class="fas fa-chevron-down"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr class="detail-row db-detail-row" id="admin-details-{{ item.employee.id }}" style="display: none;">
+                                <td colspan="9">
+                                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                                        {% if item.records %}
+                                            <span class="text-muted small me-2">
+                                                <i class="las la-clock me-1"></i> Attendance Records:
+                                            </span>
+                                            {% for att in item.records %}
+                                                <span class="db-detail-tag">
+                                                    <i class="las la-calendar-day"></i> {{ att.date|date:"d M" }}
+                                                    <i class="las la-clock ms-1"></i> {{ att.in_time }}
+                                                    {% if att.out_time != '--:--' %} – {{ att.out_time }}{% endif %}
+                                                </span>
+                                            {% empty %}
+                                                <span class="text-muted small">No records this month.</span>
+                                            {% endfor %}
+                                        {% else %}
+                                            <span class="text-muted small">No records this month.</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="9">
+                                    <div class="db-empty">
+                                        <div class="db-empty-ico"><i class="las la-inbox"></i></div>
+                                        <p class="db-empty-title">No attendance data</p>
+                                        <p class="db-empty-sub">Nothing to show for this month.</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="db-card-bd pt-0 text-end">
+            <a href="{% url 'team_attendance' %}" class="btn btn-sm btn-outline-primary db-btn-pill">
+                <i class="las la-users-cog me-1"></i> View Full Team Summary
+            </a>
         </div>
     </div>
-    <br>
-    <br>
-    <div class="card-footer bg-transparent border-0 pt-0 pb-3 text-end">
-        <a href="{% url 'team_attendance' %}" class="btn btn-sm btn-outline-primary rounded-pill">
-            <i class="las la-users-cog me-1"></i> View Full Team Summary
-        </a>
-    </div>
-</div>
 {% endif %}
-
-
-<!-- ===== MONTHLY HISTORY ===== -->
-
-
 
 <span id="current-time" style="display:none;"></span>
 
-
-<!-- ===== EXTRA STYLES ===== -->
-<style>
-    .hover-lift {
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-    .hover-lift:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.1) !important;
-    }
-    .bg-purple {
-        background-color: #8b5cf6;
-    }
-    .text-purple-500 {
-        color: #8b5cf6 !important;
-    }
-    .bg-opacity-10 {
-        --bs-bg-opacity: 0.1;
-    }
-    .bg-opacity-20 {
-        --bs-bg-opacity: 0.2;
-    }
-</style>
-
-<!-- ===== JAVASCRIPT ===== -->
+{# ─────────── SCRIPTS (identical to before) ─────────── #}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded – initializing charts...');
 
-    // ---- Weekly Bar Chart (Only if chart canvas exists) ----
     const weeklyCtx = document.getElementById('weeklyBarChart');
     if (weeklyCtx) {
         try {
-            // Get the data elements
             const daysEl = document.getElementById('weeklyDays');
             if (!daysEl) {
                 console.warn('Weekly chart data missing – skipping chart.');
                 return;
             }
-            
+
             const presentEl = document.getElementById('weeklyDayPresent');
             const absentEl = document.getElementById('weeklyDayAbsent');
             const halfEl = document.getElementById('weeklyDayHalf');
@@ -908,7 +693,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            // Parse the JSON data from the script tags
             const days = JSON.parse(daysEl.textContent);
             const present = JSON.parse(presentEl.textContent);
             const absent = JSON.parse(absentEl.textContent);
@@ -917,54 +701,22 @@ document.addEventListener('DOMContentLoaded', function() {
 
             console.log('Weekly Data:', { days, present, absent, half, onLeave });
 
-            // Create the chart
             new Chart(weeklyCtx, {
                 type: 'bar',
                 data: {
                     labels: days,
                     datasets: [
-                        {
-                            label: 'Present',
-                            data: present,
-                            backgroundColor: 'rgba(40, 167, 69, 0.7)',
-                            borderColor: '#28a745',
-                            borderWidth: 1,
-                            borderRadius: 4
-                        },
-                        {
-                            label: 'Absent',
-                            data: absent,
-                            backgroundColor: 'rgba(220, 53, 69, 0.7)',
-                            borderColor: '#dc3545',
-                            borderWidth: 1,
-                            borderRadius: 4
-                        },
-                        {
-                            label: 'Half-Day',
-                            data: half,
-                            backgroundColor: 'rgba(255, 193, 7, 0.7)',
-                            borderColor: '#ffc107',
-                            borderWidth: 1,
-                            borderRadius: 4
-                        },
-                        {
-                            label: 'On Leave',
-                            data: onLeave,
-                            backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                            borderColor: '#000000',
-                            borderWidth: 1,
-                            borderRadius: 4
-                        }
+                        { label: 'Present',  data: present, backgroundColor: 'rgba(40, 167, 69, 0.7)',  borderColor: '#28a745', borderWidth: 1, borderRadius: 4 },
+                        { label: 'Absent',   data: absent,  backgroundColor: 'rgba(220, 53, 69, 0.7)',  borderColor: '#dc3545', borderWidth: 1, borderRadius: 4 },
+                        { label: 'Half-Day', data: half,    backgroundColor: 'rgba(255, 193, 7, 0.7)',  borderColor: '#ffc107', borderWidth: 1, borderRadius: 4 },
+                        { label: 'On Leave', data: onLeave, backgroundColor: 'rgba(0, 0, 0, 0.7)',      borderColor: '#000000', borderWidth: 1, borderRadius: 4 }
                     ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: true,
                     plugins: {
-                        legend: {
-                            position: 'top',
-                            labels: { font: { size: 12 } }
-                        },
+                        legend: { position: 'top', labels: { font: { size: 12 } } },
                         tooltip: {
                             callbacks: {
                                 label: function(context) {
@@ -979,16 +731,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     },
                     scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                stepSize: 1,
-                                font: { size: 11 }
-                            }
-                        },
-                        x: {
-                            ticks: { font: { size: 11 } }
-                        }
+                        y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 11 } } },
+                        x: { ticks: { font: { size: 11 } } }
                     }
                 }
             });
@@ -1001,28 +745,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
-
-
-
-<!-- ===== LIVE CLOCK ===== -->
-<!-- <script>
-    function updateClock() {
-        const now = new Date();
-        const timeStr = now.toLocaleTimeString('en-US', { 
-            hour: '2-digit', 
-            minute: '2-digit', 
-            second: '2-digit',
-            hour12: true 
-        });
-        document.getElementById('current-time').textContent = timeStr;
-        document.getElementById('liveTime').innerHTML = '<i class="las la-clock me-1"></i> ' + timeStr;
-    }
-    setInterval(updateClock, 1000);
-    updateClock();
-</script> -->
-
-<!-- ===== LIVE TIMER ===== -->
-
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -1038,9 +760,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const totalSeconds = parseInt(totalSecInput.value) || 0;
         const state = stateInput.value;
 
-        // If state is checked_out or no check-in time, just display total and stop.
         if (state === 'checked_out' || isNaN(checkInTime.getTime())) {
-            // Already checked out or no check-in – show final total (no update)
             const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
             const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
             const secs = String(totalSeconds % 60).padStart(2, '0');
@@ -1048,7 +768,6 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // State is checked_in – start live timer
         function updateTimer() {
             const now = new Date();
             const elapsed = Math.floor((now - checkInTime) / 1000);
@@ -1064,8 +783,6 @@ document.addEventListener('DOMContentLoaded', function() {
         setInterval(updateTimer, 1000);
     });
 </script>
-
-
 
 <script>
     console.log(JSON.parse(document.getElementById('weeklyDayPresent').textContent));
@@ -1141,10 +858,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         plugins: {
                             legend: {
                                 position: 'top',
-                                labels: {
-                                    usePointStyle: true,
-                                    pointStyle: 'circle'
-                                }
+                                labels: { usePointStyle: true, pointStyle: 'circle' }
                             },
                             tooltip: {
                                 callbacks: {
@@ -1158,12 +872,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             y: {
                                 beginAtZero: true,
                                 max: 100,
-                                ticks: {
-                                    stepSize: 10,
-                                    callback: function(value) {
-                                        return value + '%';
-                                    }
-                                }
+                                ticks: { stepSize: 10, callback: function(value) { return value + '%'; } }
                             }
                         }
                     }
@@ -1172,10 +881,8 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(error => console.error('Error fetching attendance overview:', error));
     }
 
-    // Initial fetch for default period (week)
     fetchAttendanceOverview('week');
 
-    // Handle period button clicks
     document.querySelectorAll('.period-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
@@ -1187,62 +894,51 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-
 <script>
 function getLocationAndClockIn() {
     var btn = document.getElementById('clock-in-btn');
     if (!btn) return;
-    
-    // Disable button and show loading message
+
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Getting location...';
-    
-    // Check if browser supports geolocation
+
     if (!navigator.geolocation) {
         alert('Geolocation is not supported by your browser. Please use a modern browser or contact HR.');
         resetButton(btn);
         return;
     }
-    
-    // Request GPS location
+
     navigator.geolocation.getCurrentPosition(
         function(position) {
-            // ✅ Success: Got location
             var lat = position.coords.latitude;
             var lng = position.coords.longitude;
-            
-            // Build a form to submit via POST
+
             var form = document.createElement('form');
             form.method = 'POST';
             form.action = "{% url 'clock_in' %}";
-            
-            // CSRF token
+
             var csrf = document.createElement('input');
             csrf.type = 'hidden';
             csrf.name = 'csrfmiddlewaretoken';
             csrf.value = '{{ csrf_token }}';
             form.appendChild(csrf);
-            
-            // Latitude
+
             var latInput = document.createElement('input');
             latInput.type = 'hidden';
             latInput.name = 'latitude';
             latInput.value = lat;
             form.appendChild(latInput);
-            
-            // Longitude
+
             var lngInput = document.createElement('input');
             lngInput.type = 'hidden';
             lngInput.name = 'longitude';
             lngInput.value = lng;
             form.appendChild(lngInput);
-            
-            // Submit the form
+
             document.body.appendChild(form);
             form.submit();
         },
         function(error) {
-            // ❌ Error getting location
             var msg = '';
             switch(error.code) {
                 case error.PERMISSION_DENIED:
@@ -1260,11 +956,7 @@ function getLocationAndClockIn() {
             alert(msg);
             resetButton(btn);
         },
-        {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0
-        }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
 }
 
@@ -1276,89 +968,18 @@ function resetButton(btn) {
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM loaded – initializing charts...');
-
-    // ---- ADMIN WEEKLY CHART ----
     const adminCtx = document.getElementById('weeklyBarChartAdmin');
-    if (adminCtx) {
-        try {
-            const daysEl = document.getElementById('weeklyDays');
-            if (!daysEl) {
-                console.warn('Admin weekly chart data missing.');
-                return;
-            }
-            const presentEl = document.getElementById('weeklyDayPresent');
-            const absentEl = document.getElementById('weeklyDayAbsent');
-            const halfEl = document.getElementById('weeklyDayHalf');
-            const onLeaveEl = document.getElementById('weeklyDayOnLeave');
-            if (!presentEl || !absentEl || !halfEl || !onLeaveEl) {
-                console.warn('Admin weekly chart data incomplete.');
-                return;
-            }
-            const days = JSON.parse(daysEl.textContent);
-            const present = JSON.parse(presentEl.textContent);
-            const absent = JSON.parse(absentEl.textContent);
-            const half = JSON.parse(halfEl.textContent);
-            const onLeave = JSON.parse(onLeaveEl.textContent);
-
-            new Chart(adminCtx, {
-                type: 'bar',
-                data: {
-                    labels: days,
-                    datasets: [
-                        { label: 'Present', data: present, backgroundColor: 'rgba(40, 167, 69, 0.7)', borderColor: '#28a745', borderWidth: 1, borderRadius: 4 },
-                        { label: 'Absent', data: absent, backgroundColor: 'rgba(220, 53, 69, 0.7)', borderColor: '#dc3545', borderWidth: 1, borderRadius: 4 },
-                        { label: 'Half-Day', data: half, backgroundColor: 'rgba(255, 193, 7, 0.7)', borderColor: '#ffc107', borderWidth: 1, borderRadius: 4 },
-                        { label: 'On Leave', data: onLeave, backgroundColor: 'rgba(0, 0, 0, 0.7)', borderColor: '#000000', borderWidth: 1, borderRadius: 4 }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: true,
-                    plugins: {
-                        legend: { position: 'top', labels: { font: { size: 12 } } },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    const label = context.dataset.label || '';
-                                    const value = context.raw;
-                                    const idx = context.dataIndex;
-                                    const total = present[idx] + absent[idx] + half[idx] + onLeave[idx];
-                                    const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
-                                    return `${label}: ${value} (${percentage}%)`;
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 11 } } },
-                        x: { ticks: { font: { size: 11 } } }
-                    }
-                }
-            });
-            console.log('Admin weekly chart created.');
-        } catch (error) {
-            console.error('Admin weekly chart error:', error);
-        }
-    }
-
-    // ---- MANAGER WEEKLY CHART ----
+    if (adminCtx) { /* kept for compatibility – canvas does not exist */ }
     const managerCtx = document.getElementById('weeklyBarChartManager');
     if (managerCtx) {
         try {
             const daysEl = document.getElementById('managerWeeklyDays');
-            if (!daysEl) {
-                console.warn('Manager weekly chart data missing.');
-                return;
-            }
+            if (!daysEl) { console.warn('Manager weekly chart data missing.'); return; }
             const presentEl = document.getElementById('managerWeeklyDayPresent');
             const absentEl = document.getElementById('managerWeeklyDayAbsent');
             const halfEl = document.getElementById('managerWeeklyDayHalf');
             const onLeaveEl = document.getElementById('managerWeeklyDayOnLeave');
-            if (!presentEl || !absentEl || !halfEl || !onLeaveEl) {
-                console.warn('Manager weekly chart data incomplete.');
-                return;
-            }
+            if (!presentEl || !absentEl || !halfEl || !onLeaveEl) { console.warn('Manager weekly chart data incomplete.'); return; }
             const days = JSON.parse(daysEl.textContent);
             const present = JSON.parse(presentEl.textContent);
             const absent = JSON.parse(absentEl.textContent);
@@ -1370,10 +991,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 data: {
                     labels: days,
                     datasets: [
-                        { label: 'Present', data: present, backgroundColor: 'rgba(40, 167, 69, 0.7)', borderColor: '#28a745', borderWidth: 1, borderRadius: 4 },
-                        { label: 'Absent', data: absent, backgroundColor: 'rgba(220, 53, 69, 0.7)', borderColor: '#dc3545', borderWidth: 1, borderRadius: 4 },
-                        { label: 'Half-Day', data: half, backgroundColor: 'rgba(255, 193, 7, 0.7)', borderColor: '#ffc107', borderWidth: 1, borderRadius: 4 },
-                        { label: 'On Leave', data: onLeave, backgroundColor: 'rgba(0, 0, 0, 0.7)', borderColor: '#000000', borderWidth: 1, borderRadius: 4 }
+                        { label: 'Present',  data: present, backgroundColor: 'rgba(40, 167, 69, 0.7)',  borderColor: '#28a745', borderWidth: 1, borderRadius: 4 },
+                        { label: 'Absent',   data: absent,  backgroundColor: 'rgba(220, 53, 69, 0.7)',  borderColor: '#dc3545', borderWidth: 1, borderRadius: 4 },
+                        { label: 'Half-Day', data: half,    backgroundColor: 'rgba(255, 193, 7, 0.7)',  borderColor: '#ffc107', borderWidth: 1, borderRadius: 4 },
+                        { label: 'On Leave', data: onLeave, backgroundColor: 'rgba(0, 0, 0, 0.7)',      borderColor: '#000000', borderWidth: 1, borderRadius: 4 }
                     ]
                 },
                 options: {
@@ -1409,7 +1030,6 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <script>
-    // ----- Toggle Details Rows (Admin & Team) -----
 document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.toggle-details').forEach(function(btn) {
         btn.addEventListener('click', function() {
@@ -1428,12 +1048,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
-
-
-
-
-
-
 
 
 {% endblock %}

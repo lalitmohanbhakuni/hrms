@@ -1,32 +1,176 @@
 {% extends 'base.html' %}
 
-{% block title %}Approve Leave - HRMS{% endblock %}
-{% block page_icon %}check{% endblock %}
+{% block title %}Approve Leave — HRMS{% endblock %}
+{% block page_icon %}check-circle{% endblock %}
 {% block page_title %}Approve Leave Request{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body p-4">
-                <h5 class="mb-3">Approve Leave for {{ leave.user.username }}</h5>
-                <p><strong>Leave Type:</strong> {{ leave.leave_type.name }}</p>
-                <p><strong>Date:</strong> {{ leave.start_date|date:"d M Y" }} - {{ leave.end_date|date:"d M Y" }}</p>
-                <p><strong>Duration:</strong> {{ leave.get_duration }} day{{ leave.get_duration|pluralize }}</p>
-                <p><strong>Reason:</strong> {{ leave.reason }}</p>
-                <form method="post">
-                    {% csrf_token %}
-                    <div class="mb-3">
-                        <label for="admin_comment" class="form-label">Admin Comment (optional)</label>
-                        <textarea name="admin_comment" id="admin_comment" rows="2" class="form-control" placeholder="Add a comment..."></textarea>
-                    </div>
-                    <button type="submit" class="btn btn-success rounded-pill px-4">
-                        <i class="fas fa-check me-2"></i> Confirm Approval
-                    </button>
-                    <a href="{% url 'admin_leaves' %}" class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
-                </form>
-            </div>
+
+
+<style>
+  .avatar-circle {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #4f46e5, #6366f1);
+    color: #fff;
+    font-weight: 600;
+    font-size: 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, .25);
+  }
+
+  .detail-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .detail-item i {
+    font-size: 1rem;
+    margin-top: 4px;
+    width: 20px;
+    text-align: center;
+  }
+
+  .detail-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #6b7280;
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+
+  .detail-value {
+    font-weight: 500;
+    color: #111827;
+  }
+
+  .card {
+    border-radius: 14px;
+  }
+</style>
+
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-7 col-md-9">
+
+      <!-- Employee header -->
+      <div class="d-flex align-items-center mb-4">
+        <div class="avatar-circle me-3">
+          {{ leave.user.username|first|upper }}
         </div>
+        <div>
+          <h5 class="mb-0 fw-semibold">{{ leave.user.get_full_name|default:leave.user.username }}</h5>
+          <small class="text-muted">Requesting leave approval</small>
+        </div>
+      </div>
+
+      <!-- Leave details card -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body p-4">
+
+          <div class="d-flex justify-content-between align-items-start mb-4">
+            <div>
+              <span class="badge bg-primary-subtle text-primary-emphasis rounded-pill px-3 py-2">
+                {{ leave.leave_type.name }}
+              </span>
+            </div>
+            <span class="badge bg-warning-subtle text-warning-emphasis rounded-pill px-3 py-2">
+              Pending Approval
+            </span>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-sm-6">
+              <div class="detail-item">
+                <i class="fas fa-calendar-day text-primary"></i>
+                <div>
+                  <div class="detail-label">From</div>
+                  <div class="detail-value">{{ leave.start_date|date:"D, d M Y" }}</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-sm-6">
+              <div class="detail-item">
+                <i class="fas fa-calendar-check text-primary"></i>
+                <div>
+                  <div class="detail-label">To</div>
+                  <div class="detail-value">{{ leave.end_date|date:"D, d M Y" }}</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-sm-6">
+              <div class="detail-item">
+                <i class="fas fa-hourglass-half text-primary"></i>
+                <div>
+                  <div class="detail-label">Duration</div>
+                  <div class="detail-value">
+                    {{ leave.get_duration }} day{{ leave.get_duration|pluralize }}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-sm-6">
+              <div class="detail-item">
+                <i class="fas fa-user-tie text-primary"></i>
+                <div>
+                  <div class="detail-label">Requested By</div>
+                  <div class="detail-value">{{ leave.user.username }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {% if leave.reason %}
+          <hr class="my-4">
+          <div class="detail-label mb-2">Reason</div>
+          <p class="mb-0 text-secondary fst-italic">"{{ leave.reason }}"</p>
+          {% endif %}
+
+        </div>
+      </div>
+
+      <!-- Action card -->
+      <div class="card border-0 shadow-sm">
+        <div class="card-body p-4">
+          <form method="post">
+            {% csrf_token %}
+
+            <div class="mb-4">
+              <label for="admin_comment" class="form-label fw-semibold">
+                Comment <span class="text-muted fw-normal">(optional)</span>
+              </label>
+              <textarea name="admin_comment"
+                        id="admin_comment"
+                        rows="3"
+                        class="form-control"
+                        placeholder="Add a note for the employee…"></textarea>
+              <div class="form-text">This will be visible to {{ leave.user.username }}.</div>
+            </div>
+
+            <div class="d-flex flex-wrap gap-2 justify-content-end">
+              <a href="{% url 'admin_leaves' %}"
+                 class="btn btn-light rounded-pill px-4">
+                Cancel
+              </a>
+              <button type="submit"
+                      class="btn btn-success rounded-pill px-4">
+                <i class="fas fa-check me-2"></i> Confirm Approval
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
     </div>
+  </div>
 </div>
+
 {% endblock %}

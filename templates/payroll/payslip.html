@@ -1,228 +1,682 @@
 {% extends 'payroll/base_payroll.html' %}
 
+{% block extra_head %}
+
+
+{% endblock %}
+
 {% block payroll_content %}
-<div class="card border-0 shadow-sm">
-    <div class="card-body p-4">
 
-        <!-- Company Header -->
-        <div class="text-center mb-4 pb-3 border-bottom">
-            <h3 class="mb-1">
-                <i class="fas fa-building text-primary me-2"></i>
-                {{ payroll.company.name|default:"HRMS" }}
-            </h3>
-            <h5 class="text-muted mb-0">Payslip</h5>
-            <div class="text-muted small">
-                {{ payroll.month|stringformat:"02d" }}/{{ payroll.year }}
-            </div>
-        </div>
+<style>
+    /* ═══════════════════════════════════════════════════
+       Payslip Detail — refined design system
+       Prefix: .psl-
+       ═══════════════════════════════════════════════════ */
+    .psl-wrap {
+        --psl-surface:        #ffffff;
+        --psl-surface-2:      #fafbfc;
+        --psl-surface-3:      #f4f6f8;
+        --psl-border:         #e8eaee;
+        --psl-border-hover:   #d5d9e0;
+        --psl-text:           #0f172a;
+        --psl-text-muted:     #64748b;
+        --psl-text-faint:     #94a3b8;
+        --psl-primary:        #4f46e5;
+        --psl-primary-soft:   #eef2ff;
+        --psl-primary-hover:  #4338ca;
+        --psl-success:        #059669;
+        --psl-success-soft:   #ecfdf5;
+        --psl-warning:        #d97706;
+        --psl-warning-soft:   #fffbeb;
+        --psl-danger:         #dc2626;
+        --psl-danger-soft:    #fef2f2;
+        --psl-danger-hover:   #b91c1c;
+        --psl-info:           #0284c7;
+        --psl-info-soft:      #f0f9ff;
+        --psl-pill:           999px;
+        --psl-shadow-xs:      0 1px 2px rgba(15,23,42,.04);
+        --psl-ease:           cubic-bezier(.4, 0, .2, 1);
+    }
 
-        <!-- Employee Details -->
-        <h6 class="fw-bold text-primary mb-3">
-            <i class="fas fa-user me-1"></i> Employee Details
-        </h6>
-        <div class="row mb-4">
-            <div class="col-md-6">
-                <table class="table table-sm table-borderless mb-0">
-                    <tr>
-                        <td class="text-muted" width="45%">Employee Name:</td>
-                        <td><strong>{{ payroll.employee.full_name|default:payroll.employee.user.username }}</strong></td>
-                    </tr>
-                    <tr>
-                        <td class="text-muted">Employee ID:</td>
-                        <td><strong>{{ payroll.employee.employee_id }}</strong></td>
-                    </tr>
-                    <tr>
-                        <td class="text-muted">Department:</td>
-                        <td>{{ payroll.employee.department|default:"—" }}</td>
-                    </tr>
-                </table>
-            </div>
-            <div class="col-md-6">
-                <table class="table table-sm table-borderless mb-0">
-                    <tr>
-                        <td class="text-muted" width="45%">Designation:</td>
-                        <td>{{ payroll.employee.designation|default:"—" }}</td>
-                    </tr>
-                    <tr>
-                        <td class="text-muted">Payroll Month:</td>
-                        <td><strong>{{ payroll.month|stringformat:"02d" }}/{{ payroll.year }}</strong></td>
-                    </tr>
-                    <tr>
-                        <td class="text-muted">Status:</td>
-                        <td>
-                            {% if payroll.status == 'paid' %}
-                                <span class="badge bg-success">Paid</span>
-                            {% elif payroll.status == 'processed' %}
-                                <span class="badge bg-primary">Processed</span>
-                            {% else %}
-                                <span class="badge bg-secondary">Draft</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                </table>
-            </div>
-        </div>
+    .psl-card {
+        background: var(--psl-surface);
+        border: 1px solid var(--psl-border);
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow: var(--psl-shadow-xs);
+    }
 
-        <!-- Attendance & Leave Summary -->
-        <h6 class="fw-bold text-primary mb-3">
-            <i class="fas fa-calendar-alt me-1"></i> Attendance & Leave
-        </h6>
-        <div class="row mb-4 text-center">
-            <div class="col">
-                <div class="border rounded p-2">
-                    <div class="text-muted small">Working Days</div>
-                    <div class="fw-bold fs-5">{{ payroll.working_days }}</div>
-                </div>
-            </div>
-            <div class="col">
-                <div class="border rounded p-2">
-                    <div class="text-muted small">Present</div>
-                    <div class="fw-bold fs-5 text-success">{{ payroll.present_days }}</div>
-                </div>
-            </div>
-            <div class="col">
-                <div class="border rounded p-2">
-                    <div class="text-muted small">Absent</div>
-                    <div class="fw-bold fs-5 text-danger">{{ payroll.absent_days }}</div>
-                </div>
-            </div>
-            <div class="col">
-                <div class="border rounded p-2">
-                    <div class="text-muted small">Paid Leave</div>
-                    <div class="fw-bold fs-5 text-info">{{ payroll.paid_leave_days }}</div>
-                </div>
-            </div>
-            <div class="col">
-                <div class="border rounded p-2">
-                    <div class="text-muted small">Unpaid Leave</div>
-                    <div class="fw-bold fs-5 text-danger">{{ payroll.unpaid_leave_days }}</div>
-                </div>
-            </div>
-        </div>
+    /* ─── Hero ─── */
+    .psl-hero {
+        position: relative;
+        overflow: hidden;
+        background: #0f1729;
+        background-image:
+            radial-gradient(circle at 88% 15%, rgba(99, 102, 241, 0.45), transparent 45%),
+            radial-gradient(circle at 12% 110%, rgba(139, 92, 246, 0.28), transparent 55%);
+        color: #fff;
+        padding: 26px 32px;
+        text-align: center;
+    }
+    .psl-hero::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image:
+            linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+        background-size: 32px 32px;
+        pointer-events: none;
+        mask-image: linear-gradient(to bottom, rgba(0,0,0,.6), transparent 80%);
+    }
+    .psl-hero-inner { position: relative; z-index: 1; }
+    .psl-company {
+        display: inline-flex; align-items: center; gap: 10px;
+        font-size: 1.15rem; font-weight: 600;
+        letter-spacing: -.015em; margin: 0 0 6px;
+    }
+    .psl-company-ico {
+        width: 34px; height: 34px; border-radius: 10px;
+        background: rgba(255,255,255,.1);
+        border: 1px solid rgba(255,255,255,.08);
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: .95rem;
+        backdrop-filter: blur(6px);
+    }
+    .psl-hero-title {
+        font-size: .82rem; color: rgba(255,255,255,.65);
+        letter-spacing: .16em; text-transform: uppercase;
+        font-weight: 500; margin: 0 0 4px;
+    }
+    .psl-hero-period {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 5px 14px;
+        background: rgba(255,255,255,.1);
+        border: 1px solid rgba(255,255,255,.1);
+        border-radius: var(--psl-pill);
+        font-size: .78rem; color: rgba(255,255,255,.9);
+        font-variant-numeric: tabular-nums;
+        backdrop-filter: blur(6px);
+    }
 
-        <!-- Earnings & Deductions -->
-        <div class="row">
-            <!-- Earnings -->
-            <div class="col-md-6">
-                <h6 class="fw-bold text-success mb-3">
-                    <i class="fas fa-arrow-up me-1"></i> Earnings
-                </h6>
-                <table class="table table-sm">
-                    <tbody>
-                        <tr>
-                            <td>Basic Salary</td>
-                            <td class="text-end">₹{{ payroll.basic_salary|floatformat:2 }}</td>
-                        </tr>
-                        <tr>
-                            <td>HRA</td>
-                            <td class="text-end">₹{{ payroll.hra|floatformat:2 }}</td>
-                        </tr>
-                        <tr>
-                            <td>Allowance</td>
-                            <td class="text-end">₹{{ payroll.allowance|floatformat:2 }}</td>
-                        </tr>
-                        {% if payroll.overtime_amount and payroll.overtime_amount > 0 %}
-                        <tr>
-                            <td>
-                                Overtime Earnings
-                                <small class="text-muted">({{ payroll.overtime_hours|floatformat:2 }} hrs × ₹{{ payroll.overtime_rate|floatformat:2 }})</small>
-                            </td>
-                            <td class="text-end text-primary">₹{{ payroll.overtime_amount|floatformat:2 }}</td>
-                        </tr>
-                        {% endif %}
-                    </tbody>
-                    <tfoot>
-                        <tr class="fw-bold border-top">
-                            <td>Total Earnings</td>
-                            <td class="text-end text-success">
-                                ₹{{ payroll.gross_salary|add:payroll.overtime_amount|floatformat:2 }}
-                            </td>
-                        </tr>
-                    </tfoot>
-                </table>
-            </div>
+    .psl-card-bd { padding: 28px 32px; }
 
-            <!-- Deductions -->
-            <div class="col-md-6">
-                <h6 class="fw-bold text-danger mb-3">
-                    <i class="fas fa-arrow-down me-1"></i> Deductions
-                </h6>
-                <table class="table table-sm">
-                    <tbody>
-                        {% if payroll.absent_deduction and payroll.absent_deduction > 0 %}
-                        <tr>
-                            <td>
-                                Absent Deduction
-                                <small class="text-muted">({{ payroll.absent_days }} days)</small>
-                            </td>
-                            <td class="text-end text-danger">₹{{ payroll.absent_deduction|floatformat:2 }}</td>
-                        </tr>
-                        {% endif %}
+    /* ─── Section ─── */
+    .psl-section { margin-bottom: 28px; }
+    .psl-section:last-of-type { margin-bottom: 0; }
+    .psl-section-hd {
+        display: flex; align-items: center; gap: 10px;
+        margin-bottom: 16px; padding-bottom: 12px;
+        border-bottom: 1px solid var(--psl-border);
+    }
+    .psl-section-ico {
+        width: 28px; height: 28px; border-radius: 8px;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: .78rem; flex-shrink: 0;
+    }
+    .psl-section-ico.primary { background: var(--psl-primary-soft); color: var(--psl-primary); }
+    .psl-section-ico.success { background: var(--psl-success-soft); color: var(--psl-success); }
+    .psl-section-ico.danger  { background: var(--psl-danger-soft);  color: var(--psl-danger); }
+    .psl-section-ico.info    { background: var(--psl-info-soft);    color: var(--psl-info); }
+    .psl-section-title {
+        font-size: .78rem; font-weight: 600;
+        letter-spacing: .06em; text-transform: uppercase;
+        color: var(--psl-text-muted); margin: 0;
+    }
 
-                        {% if payroll.unpaid_leave_deduction and payroll.unpaid_leave_deduction > 0 %}
-                        <tr>
-                            <td>
-                                Unpaid Leave Deduction
-                                <small class="text-muted">({{ payroll.unpaid_leave_days }} days)</small>
-                            </td>
-                            <td class="text-end text-danger">₹{{ payroll.unpaid_leave_deduction|floatformat:2 }}</td>
-                        </tr>
-                        {% endif %}
+    /* ─── Info rows ─── */
+    .psl-info-list { display: grid; grid-template-columns: 1fr; gap: 2px; }
+    .psl-info-row {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 12px; padding: 10px 0;
+        border-bottom: 1px solid var(--psl-border);
+        font-size: .84rem;
+    }
+    .psl-info-row:last-child { border-bottom: none; }
+    .psl-info-label {
+        color: var(--psl-text-faint);
+        font-size: .72rem; font-weight: 600;
+        letter-spacing: .04em; text-transform: uppercase;
+    }
+    .psl-info-value {
+        color: var(--psl-text); font-weight: 500;
+        text-align: right; word-break: break-word; min-width: 0;
+    }
+    .psl-info-value.muted { color: var(--psl-text-faint); font-weight: 400; font-style: italic; }
+    .psl-info-value strong { font-weight: 600; }
 
-                        {% if payroll.other_deduction and payroll.other_deduction > 0 %}
-                        <tr>
-                            <td>Other Deduction</td>
-                            <td class="text-end text-danger">₹{{ payroll.other_deduction|floatformat:2 }}</td>
-                        </tr>
-                        {% endif %}
+    /* ─── Status pill ─── */
+    .psl-status {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 4px 11px; border-radius: var(--psl-pill);
+        font-size: .7rem; font-weight: 600;
+        letter-spacing: .03em; text-transform: uppercase;
+    }
+    .psl-status::before {
+        content: ""; width: 6px; height: 6px; border-radius: 50%;
+        background: currentColor; flex-shrink: 0;
+    }
+    .psl-status.paid      { background: var(--psl-success-soft); color: var(--psl-success); }
+    .psl-status.processed { background: var(--psl-primary-soft); color: var(--psl-primary); }
+    .psl-status.draft     { background: var(--psl-surface-3);    color: var(--psl-text-muted); }
 
-                        {% if not payroll.absent_deduction and not payroll.unpaid_leave_deduction and not payroll.other_deduction %}
-                        <tr>
-                            <td colspan="2" class="text-muted text-center">No deductions</td>
-                        </tr>
-                        {% endif %}
-                    </tbody>
-                    <tfoot>
-                        <tr class="fw-bold border-top">
-                            <td>Total Deduction</td>
-                            <td class="text-end text-danger">
-                                ₹{{ payroll.absent_deduction|add:payroll.unpaid_leave_deduction|add:payroll.other_deduction|floatformat:2 }}
-                            </td>
-                        </tr>
-                    </tfoot>
-                </table>
-            </div>
-        </div>
+    /* ─── KPI grid ─── */
+    .psl-kpi-grid {
+        display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
+    }
+    .psl-kpi {
+        background: var(--psl-surface-2);
+        border: 1px solid var(--psl-border);
+        border-radius: 10px;
+        padding: 12px 10px; text-align: center;
+        transition: border-color .15s var(--psl-ease);
+    }
+    .psl-kpi:hover { border-color: var(--psl-border-hover); }
+    .psl-kpi-label {
+        font-size: .62rem; font-weight: 600;
+        letter-spacing: .06em; text-transform: uppercase;
+        color: var(--psl-text-faint); margin-bottom: 4px;
+    }
+    .psl-kpi-value {
+        font-size: 1.15rem; font-weight: 700;
+        letter-spacing: -.02em; line-height: 1.1;
+        color: var(--psl-text); font-variant-numeric: tabular-nums;
+    }
+    .psl-kpi-value.success { color: var(--psl-success); }
+    .psl-kpi-value.danger  { color: var(--psl-danger); }
+    .psl-kpi-value.info    { color: var(--psl-info); }
 
-        <!-- Net Payable -->
-        <div class="border-top border-2 pt-3 mt-3">
-            <div class="d-flex justify-content-between align-items-center">
-                <h4 class="mb-0">Net Payable</h4>
-                <h3 class="mb-0 text-success fw-bold">
-                    ₹{{ payroll.net_salary|floatformat:2 }}
+    /* ─── Mini cards (Earnings / Deductions) ─── */
+    .psl-mini-card {
+        background: var(--psl-surface-2);
+        border: 1px solid var(--psl-border);
+        border-radius: 11px;
+        overflow: hidden;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+    .psl-mini-hd {
+        display: flex; align-items: center; gap: 8px;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--psl-border);
+        background: var(--psl-surface);
+    }
+    .psl-mini-hd-title {
+        font-size: .78rem; font-weight: 600;
+        letter-spacing: .04em; text-transform: uppercase;
+        color: var(--psl-text); margin: 0;
+        display: inline-flex; align-items: center; gap: 6px;
+    }
+    .psl-mini-hd-title i { font-size: .78rem; }
+    .psl-mini-hd.success .psl-mini-hd-title i { color: var(--psl-success); }
+    .psl-mini-hd.danger  .psl-mini-hd-title i { color: var(--psl-danger); }
+
+    .psl-items { padding: 4px 16px; flex: 1; }
+    .psl-item {
+        display: flex; align-items: flex-start; justify-content: space-between;
+        gap: 14px; padding: 11px 0;
+        border-bottom: 1px solid var(--psl-border);
+        font-size: .84rem;
+    }
+    .psl-item:last-child { border-bottom: none; }
+    .psl-item-label { color: var(--psl-text); font-weight: 500; min-width: 0; }
+    .psl-item-label small {
+        display: block; font-size: .68rem;
+        color: var(--psl-text-faint);
+        font-weight: 400; margin-top: 1px;
+        font-variant-numeric: tabular-nums;
+    }
+    .psl-item-value {
+        color: var(--psl-text); font-weight: 600;
+        text-align: right; font-variant-numeric: tabular-nums;
+        white-space: nowrap; letter-spacing: -.005em;
+    }
+    .psl-item-value.primary { color: var(--psl-primary); }
+    .psl-item-value.danger  { color: var(--psl-danger); }
+    .psl-item-value.empty   { color: var(--psl-text-faint); font-weight: 400; font-style: italic; }
+
+    /* Highlighted row when a deduction is noteworthy */
+    .psl-item.is-notable {
+        background: var(--psl-danger-soft);
+        margin: 0 -16px;
+        padding: 11px 16px;
+    }
+    .psl-item.is-notable .psl-item-label { color: #991b1b; font-weight: 600; }
+    .psl-item.is-notable .psl-item-value { color: var(--psl-danger); font-weight: 700; }
+
+    .psl-item.is-notable-warning {
+        background: var(--psl-warning-soft);
+        margin: 0 -16px;
+        padding: 11px 16px;
+    }
+    .psl-item.is-notable-warning .psl-item-label { color: #92400e; font-weight: 600; }
+    .psl-item.is-notable-warning .psl-item-value { color: var(--psl-warning); font-weight: 700; }
+
+    /* Total footer */
+    .psl-total {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 12px; padding: 14px 16px;
+        background: var(--psl-surface);
+        border-top: 1px solid var(--psl-border);
+        margin-top: auto;
+    }
+    .psl-total-label {
+        font-size: .78rem; font-weight: 600;
+        letter-spacing: .03em; text-transform: uppercase;
+        color: var(--psl-text-muted);
+    }
+    .psl-total-value {
+        font-size: 1rem; font-weight: 700;
+        letter-spacing: -.015em;
+        font-variant-numeric: tabular-nums;
+    }
+    .psl-total-value.success { color: var(--psl-success); }
+    .psl-total-value.danger  { color: var(--psl-danger); }
+
+    /* ─── Absence alert ─── */
+    .psl-alert {
+        display: flex; gap: 10px;
+        margin: 14px 16px 0;
+        padding: 12px 14px;
+        border-radius: 10px;
+        font-size: .78rem;
+        line-height: 1.5;
+        align-items: flex-start;
+    }
+    .psl-alert i { flex-shrink: 0; font-size: 1rem; margin-top: 1px; }
+    .psl-alert.warning {
+        background: var(--psl-warning-soft);
+        border: 1px solid #fde68a;
+        color: #92400e;
+    }
+    .psl-alert.warning i { color: var(--psl-warning); }
+    .psl-alert strong { color: #78350f; font-weight: 600; }
+
+    /* ─── Net payable callout ─── */
+    .psl-net {
+        background: #0f1729;
+        background-image:
+            radial-gradient(circle at 92% 15%, rgba(5, 150, 105, 0.35), transparent 50%),
+            radial-gradient(circle at 8% 110%, rgba(99, 102, 241, 0.25), transparent 55%);
+        border-radius: 14px;
+        color: #fff;
+        padding: 22px 26px;
+        margin-top: 24px;
+        position: relative;
+        overflow: hidden;
+    }
+    .psl-net::after {
+        content: "";
+        position: absolute; inset: 0;
+        background-image:
+            linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+        background-size: 32px 32px;
+        pointer-events: none;
+        mask-image: linear-gradient(to bottom, rgba(0,0,0,.5), transparent 80%);
+    }
+    .psl-net-inner {
+        position: relative; z-index: 1;
+        display: flex; align-items: center; justify-content: space-between;
+        flex-wrap: wrap; gap: 16px;
+    }
+    .psl-net-label {
+        font-size: .72rem; font-weight: 600;
+        letter-spacing: .12em; text-transform: uppercase;
+        color: rgba(255,255,255,.6); margin-bottom: 4px;
+    }
+    .psl-net-title {
+        font-size: 1rem; font-weight: 600;
+        margin: 0; letter-spacing: -.01em;
+    }
+    .psl-net-value {
+        font-size: 2rem; font-weight: 700;
+        letter-spacing: -.03em;
+        font-variant-numeric: tabular-nums;
+        color: #6ee7b7; line-height: 1;
+    }
+    .psl-net-words {
+        margin-top: 14px; padding-top: 14px;
+        border-top: 1px solid rgba(255,255,255,.1);
+        font-size: .78rem; color: rgba(255,255,255,.7);
+        position: relative; z-index: 1;
+    }
+    .psl-net-words em { color: rgba(255,255,255,.95); font-style: italic; }
+
+    /* ─── Footer ─── */
+    .psl-foot {
+        display: flex; align-items: center; justify-content: space-between;
+        flex-wrap: wrap; gap: 12px;
+        margin-top: 24px; padding-top: 20px;
+        border-top: 1px solid var(--psl-border);
+    }
+    .psl-foot-meta {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-size: .74rem; color: var(--psl-text-faint);
+    }
+    .psl-foot-meta i { font-size: .74rem; }
+
+    .psl-actions { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .psl-btn {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 9px 18px; font-size: .78rem; font-weight: 500;
+        border-radius: var(--psl-pill);
+        border: 1px solid transparent;
+        text-decoration: none; cursor: pointer;
+        transition: all .15s var(--psl-ease);
+        line-height: 1.3; white-space: nowrap;
+    }
+    .psl-btn i { font-size: .8rem; }
+    .psl-btn-pdf { background: var(--psl-danger); color: #fff; }
+    .psl-btn-pdf:hover {
+        background: var(--psl-danger-hover); color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(220,38,38,.3);
+    }
+    .psl-btn-ghost {
+        background: transparent; color: var(--psl-text-muted);
+        border-color: var(--psl-border);
+    }
+    .psl-btn-ghost:hover {
+        background: var(--psl-surface-2); color: var(--psl-text);
+        border-color: var(--psl-border-hover);
+    }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 767.98px) {
+        .psl-hero { padding: 22px 20px; }
+        .psl-company { font-size: 1rem; }
+        .psl-card-bd { padding: 20px; }
+        .psl-kpi-grid { grid-template-columns: repeat(3, 1fr); }
+        .psl-net { padding: 18px 20px; }
+        .psl-net-value { font-size: 1.6rem; }
+        .psl-info-row { flex-direction: column; align-items: flex-start; gap: 3px; }
+        .psl-info-value { text-align: left; }
+        .psl-foot { flex-direction: column; align-items: stretch; }
+        .psl-actions { width: 100%; }
+        .psl-actions .psl-btn { flex: 1; justify-content: center; }
+    }
+</style>
+
+<div class="psl-wrap">
+    <div class="psl-card">
+
+        <!-- ═══════════ Company header (hero) ═══════════ -->
+        <div class="psl-hero">
+            <div class="psl-hero-inner">
+                <h3 class="psl-company">
+                    <span class="psl-company-ico"><i class="fas fa-building"></i></span>
+                    {{ payroll.company.name|default:"HRMS" }}
                 </h3>
-            </div>
-            <div class="text-muted small mt-1">
-                Net Payable in words: <em>{{ net_in_words }}</em>
-            </div>
-        </div>
-
-        <!-- Footer -->
-        <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
-            <div class="text-muted small">
-                <i class="fas fa-clock me-1"></i>
-                Generated: {{ payroll.updated_at|date:"d M Y, H:i A" }}
-            </div>
-            <div>
-                <a href="{% url 'payslip_pdf' payroll.id %}" class="btn btn-danger btn-sm">
-                    <i class="fas fa-file-pdf me-1"></i> Download PDF
-                </a>
-                <a href="{% url 'payroll_list' %}" class="btn btn-outline-secondary btn-sm">
-                    <i class="fas fa-arrow-left me-1"></i> Back
-                </a>
+                <p class="psl-hero-title">Payslip</p>
+                <span class="psl-hero-period">
+                    <i class="las la-calendar-alt"></i>
+                    {{ payroll.month|stringformat:"02d" }}/{{ payroll.year }}
+                </span>
             </div>
         </div>
 
+        <div class="psl-card-bd">
+
+            <!-- ═══════════ Employee Details ═══════════ -->
+            <div class="psl-section">
+                <div class="psl-section-hd">
+                    <span class="psl-section-ico primary"><i class="fas fa-user"></i></span>
+                    <h6 class="psl-section-title">Employee Details</h6>
+                </div>
+
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <div class="psl-info-list">
+                            <div class="psl-info-row">
+                                <span class="psl-info-label">Employee Name</span>
+                                <span class="psl-info-value">
+                                    <strong>{{ payroll.employee.full_name|default:payroll.employee.user.username }}</strong>
+                                </span>
+                            </div>
+                            <div class="psl-info-row">
+                                <span class="psl-info-label">Employee ID</span>
+                                <span class="psl-info-value">
+                                    <strong>{{ payroll.employee.employee_id }}</strong>
+                                </span>
+                            </div>
+                            <div class="psl-info-row">
+                                <span class="psl-info-label">Department</span>
+                                <span class="psl-info-value {% if not payroll.employee.department %}muted{% endif %}">
+                                    {{ payroll.employee.department|default:"—" }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="psl-info-list">
+                            <div class="psl-info-row">
+                                <span class="psl-info-label">Designation</span>
+                                <span class="psl-info-value {% if not payroll.employee.designation %}muted{% endif %}">
+                                    {{ payroll.employee.designation|default:"—" }}
+                                </span>
+                            </div>
+                            <div class="psl-info-row">
+                                <span class="psl-info-label">Payroll Month</span>
+                                <span class="psl-info-value">
+                                    <strong>{{ payroll.month|stringformat:"02d" }}/{{ payroll.year }}</strong>
+                                </span>
+                            </div>
+                            <div class="psl-info-row">
+                                <span class="psl-info-label">Status</span>
+                                <span class="psl-info-value">
+                                    {% if payroll.status == 'paid' %}
+                                        <span class="psl-status paid">Paid</span>
+                                    {% elif payroll.status == 'processed' %}
+                                        <span class="psl-status processed">Processed</span>
+                                    {% else %}
+                                        <span class="psl-status draft">Draft</span>
+                                    {% endif %}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══════════ Attendance & Leave ═══════════ -->
+            <div class="psl-section">
+                <div class="psl-section-hd">
+                    <span class="psl-section-ico info"><i class="fas fa-calendar-alt"></i></span>
+                    <h6 class="psl-section-title">Attendance & Leave</h6>
+                </div>
+
+                <div class="psl-kpi-grid">
+                    <div class="psl-kpi">
+                        <div class="psl-kpi-label">Working Days</div>
+                        <div class="psl-kpi-value">{{ payroll.working_days }}</div>
+                    </div>
+                    <div class="psl-kpi">
+                        <div class="psl-kpi-label">Present</div>
+                        <div class="psl-kpi-value success">{{ payroll.present_days }}</div>
+                    </div>
+                    <div class="psl-kpi">
+                        <div class="psl-kpi-label">Absent</div>
+                        <div class="psl-kpi-value {% if payroll.absent_days > 0 %}danger{% endif %}">
+                            {{ payroll.absent_days }}
+                        </div>
+                    </div>
+                    <div class="psl-kpi">
+                        <div class="psl-kpi-label">Paid Leave</div>
+                        <div class="psl-kpi-value info">{{ payroll.paid_leave_days }}</div>
+                    </div>
+                    <div class="psl-kpi">
+                        <div class="psl-kpi-label">Unpaid Leave</div>
+                        <div class="psl-kpi-value {% if payroll.unpaid_leave_days > 0 %}danger{% endif %}">
+                            {{ payroll.unpaid_leave_days }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══════════ Earnings & Deductions ═══════════ -->
+            <div class="psl-section">
+                <div class="row g-4">
+
+                    <!-- Earnings -->
+                    <div class="col-md-6">
+                        <div class="psl-mini-card">
+                            <div class="psl-mini-hd success">
+                                <h6 class="psl-mini-hd-title">
+                                    <i class="fas fa-arrow-up"></i> Earnings
+                                </h6>
+                            </div>
+
+                            <div class="psl-items">
+                                <div class="psl-item">
+                                    <span class="psl-item-label">Basic Salary</span>
+                                    <span class="psl-item-value">₹{{ payroll.basic_salary|floatformat:2 }}</span>
+                                </div>
+                                <div class="psl-item">
+                                    <span class="psl-item-label">HRA</span>
+                                    <span class="psl-item-value">₹{{ payroll.hra|floatformat:2 }}</span>
+                                </div>
+                                <div class="psl-item">
+                                    <span class="psl-item-label">Allowance</span>
+                                    <span class="psl-item-value">₹{{ payroll.allowance|floatformat:2 }}</span>
+                                </div>
+
+                                {% if payroll.overtime_amount and payroll.overtime_amount > 0 %}
+                                    <div class="psl-item">
+                                        <span class="psl-item-label">
+                                            Overtime Earnings
+                                            <small>{{ payroll.overtime_hours|floatformat:2 }} hrs × ₹{{ payroll.overtime_rate|floatformat:2 }}</small>
+                                        </span>
+                                        <span class="psl-item-value primary">₹{{ payroll.overtime_amount|floatformat:2 }}</span>
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <div class="psl-total">
+                                <span class="psl-total-label">Total Earnings</span>
+                                <span class="psl-total-value success">
+                                    ₹{{ payroll.gross_salary|add:payroll.overtime_amount|floatformat:2 }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Deductions — with absence awareness -->
+                    <div class="col-md-6">
+                        <div class="psl-mini-card">
+                            <div class="psl-mini-hd danger">
+                                <h6 class="psl-mini-hd-title">
+                                    <i class="fas fa-arrow-down"></i> Deductions
+                                </h6>
+                            </div>
+
+                            {# ─── Absence alert (only when relevant) ─── #}
+                            {% if payroll.absent_days and payroll.absent_days > 0 %}
+                                <div class="psl-alert warning">
+                                    <i class="las la-exclamation-triangle"></i>
+                                    <div>
+                                        <strong>{{ payroll.absent_days }} day{{ payroll.absent_days|pluralize }} absent</strong>
+                                        this month. Salary has been reduced proportionally.
+                                    </div>
+                                </div>
+                            {% endif %}
+
+                            <div class="psl-items">
+                                {# Absent Deduction — highlighted when > 0 #}
+                                {% if payroll.absent_deduction and payroll.absent_deduction > 0 %}
+                                    <div class="psl-item is-notable">
+                                        <span class="psl-item-label">
+                                            Absent Deduction
+                                            <small>{{ payroll.absent_days }} day{{ payroll.absent_days|pluralize }} absent × per-day rate</small>
+                                        </span>
+                                        <span class="psl-item-value danger">₹{{ payroll.absent_deduction|floatformat:2 }}</span>
+                                    </div>
+                                {% endif %}
+
+                                {# Unpaid Leave Deduction — highlighted when > 0 #}
+                                {% if payroll.unpaid_leave_deduction and payroll.unpaid_leave_deduction > 0 %}
+                                    <div class="psl-item is-notable-warning">
+                                        <span class="psl-item-label">
+                                            Unpaid Leave Deduction
+                                            <small>{{ payroll.unpaid_leave_days }} day{{ payroll.unpaid_leave_days|pluralize }} unpaid leave</small>
+                                        </span>
+                                        <span class="psl-item-value danger">₹{{ payroll.unpaid_leave_deduction|floatformat:2 }}</span>
+                                    </div>
+                                {% endif %}
+
+                                {# Other Deduction — highlighted when > 0 #}
+                                {% if payroll.other_deduction and payroll.other_deduction > 0 %}
+                                    <div class="psl-item">
+                                        <span class="psl-item-label">Other Deduction</span>
+                                        <span class="psl-item-value danger">₹{{ payroll.other_deduction|floatformat:2 }}</span>
+                                    </div>
+                                {% endif %}
+
+                                {# Zero-deduction case — show all rows muted #}
+                                {% if not payroll.absent_deduction and not payroll.unpaid_leave_deduction and not payroll.other_deduction %}
+                                    <div class="psl-item">
+                                        <span class="psl-item-label">Absent Deduction</span>
+                                        <span class="psl-item-value empty">₹0.00</span>
+                                    </div>
+                                    <div class="psl-item">
+                                        <span class="psl-item-label">Unpaid Leave Deduction</span>
+                                        <span class="psl-item-value empty">₹0.00</span>
+                                    </div>
+                                    <div class="psl-item">
+                                        <span class="psl-item-label">Other Deduction</span>
+                                        <span class="psl-item-value empty">₹0.00</span>
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <div class="psl-total">
+                                <span class="psl-total-label">Total Deduction</span>
+                                <span class="psl-total-value danger">
+                                    ₹{{ payroll.absent_deduction|add:payroll.unpaid_leave_deduction|add:payroll.other_deduction|floatformat:2 }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══════════ Net Payable ═══════════ -->
+            <div class="psl-net">
+                <div class="psl-net-inner">
+                    <div>
+                        <div class="psl-net-label">Net Payable</div>
+                        <h4 class="psl-net-title">Amount Due</h4>
+                    </div>
+                    <div class="psl-net-value">
+                        ₹{{ payroll.net_salary|floatformat:2 }}
+                    </div>
+                </div>
+                <div class="psl-net-words">
+                    In words: <em>{{ net_in_words }}</em>
+                </div>
+            </div>
+
+            <!-- ═══════════ Footer ═══════════ -->
+            <div class="psl-foot">
+                <div class="psl-foot-meta">
+                    <i class="fas fa-clock"></i>
+                    Generated: {{ payroll.updated_at|date:"d M Y, H:i A" }}
+                </div>
+
+                <div class="psl-actions">
+                    <a href="{% url 'payslip_pdf' payroll.id %}" class="psl-btn psl-btn-pdf">
+                        <i class="fas fa-file-pdf"></i> Download PDF
+                    </a>
+                    <a href="{% url 'payroll_list' %}" class="psl-btn psl-btn-ghost">
+                        <i class="fas fa-arrow-left"></i> Back
+                    </a>
+                </div>
+            </div>
+
+        </div>
     </div>
 </div>
+
 {% endblock %}

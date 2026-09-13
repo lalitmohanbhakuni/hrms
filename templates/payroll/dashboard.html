@@ -2,144 +2,407 @@
 
 {% block payroll_content %}
 
-<!-- Top Stats Cards -->
-<div class="row g-4">
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body">
-                <h6 class="text-muted">Total Employees</h6>
-                <h3 class="fw-bold">{{ total_employees }}</h3>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body">
-                <h6 class="text-muted">With Salary</h6>
-                <h3 class="fw-bold text-success">{{ employees_with_salary }}</h3>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body">
-                <h6 class="text-muted">Without Salary</h6>
-                <h3 class="fw-bold text-warning">{{ employees_without_salary }}</h3>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body">
-                <h6 class="text-muted">Total Net Payable</h6>
-                <h3 class="fw-bold text-primary">₹{{ total_net|floatformat:0 }}</h3>
-            </div>
-        </div>
-    </div>
-</div>
+<style>
+    /* ═══════════════════════════════════════════════════
+       Payroll Dashboard — refined design system
+       Prefix: .pay-
+       ═══════════════════════════════════════════════════ */
+    .pay-wrap {
+        --pay-surface:        #ffffff;
+        --pay-surface-2:      #fafbfc;
+        --pay-surface-3:      #f4f6f8;
+        --pay-border:         #e8eaee;
+        --pay-border-hover:   #d5d9e0;
+        --pay-text:           #0f172a;
+        --pay-text-muted:     #64748b;
+        --pay-text-faint:     #94a3b8;
+        --pay-primary:        #4f46e5;
+        --pay-primary-soft:   #eef2ff;
+        --pay-success:        #059669;
+        --pay-success-soft:   #ecfdf5;
+        --pay-warning:        #d97706;
+        --pay-warning-soft:   #fffbeb;
+        --pay-danger:         #dc2626;
+        --pay-danger-soft:    #fef2f2;
+        --pay-info:           #0284c7;
+        --pay-info-soft:      #f0f9ff;
+        --pay-pill:           999px;
+        --pay-shadow-xs:      0 1px 2px rgba(15,23,42,.04);
+        --pay-ease:           cubic-bezier(.4, 0, .2, 1);
+    }
 
-<div class="row mt-4 g-4">
-    <!-- Salary Configuration Breakdown -->
-    <div class="col-md-6">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-header bg-transparent border-0 pt-3">
-                <h6 class="mb-0">
-                    <i class="fas fa-money-bill-wave text-primary me-2"></i>
-                    Salary Configuration
-                </h6>
-                <small class="text-muted">Based on active salaries</small>
+    /* ─── KPI cards ─── */
+    .pay-kpi {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+        background: var(--pay-surface);
+        border: 1px solid var(--pay-border);
+        border-radius: 12px;
+        padding: 18px 20px;
+        height: 100%;
+        transition: border-color .2s var(--pay-ease), transform .15s var(--pay-ease);
+    }
+    .pay-kpi:hover {
+        border-color: var(--pay-border-hover);
+        transform: translateY(-1px);
+    }
+    .pay-kpi-ico {
+        width: 42px;
+        height: 42px;
+        border-radius: 11px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.1rem;
+        flex-shrink: 0;
+    }
+    .pay-kpi-ico.primary { background: var(--pay-primary-soft); color: var(--pay-primary); }
+    .pay-kpi-ico.success { background: var(--pay-success-soft); color: var(--pay-success); }
+    .pay-kpi-ico.warning { background: var(--pay-warning-soft); color: var(--pay-warning); }
+    .pay-kpi-ico.danger  { background: var(--pay-danger-soft);  color: var(--pay-danger); }
+    .pay-kpi-ico.info    { background: var(--pay-info-soft);    color: var(--pay-info); }
+
+    .pay-kpi-body { min-width: 0; flex: 1; }
+    .pay-kpi-label {
+        font-size: .68rem;
+        font-weight: 600;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--pay-text-faint);
+        margin-bottom: 4px;
+    }
+    .pay-kpi-value {
+        font-size: 1.55rem;
+        font-weight: 700;
+        letter-spacing: -.02em;
+        line-height: 1.1;
+        color: var(--pay-text);
+        font-variant-numeric: tabular-nums;
+    }
+    .pay-kpi-value.success { color: var(--pay-success); }
+    .pay-kpi-value.warning { color: var(--pay-warning); }
+    .pay-kpi-value.primary { color: var(--pay-primary); }
+
+    /* ─── Card shell ─── */
+    .pay-card {
+        background: var(--pay-surface);
+        border: 1px solid var(--pay-border);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: var(--pay-shadow-xs);
+        transition: border-color .2s var(--pay-ease);
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+    .pay-card:hover { border-color: var(--pay-border-hover); }
+
+    .pay-card-hd {
+        padding: 18px 22px 4px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .pay-card-hd-ico {
+        width: 32px;
+        height: 32px;
+        border-radius: 9px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .85rem;
+        flex-shrink: 0;
+    }
+    .pay-card-hd-ico.primary { background: var(--pay-primary-soft); color: var(--pay-primary); }
+    .pay-card-hd-ico.success { background: var(--pay-success-soft); color: var(--pay-success); }
+    .pay-card-hd-ico.info    { background: var(--pay-info-soft);    color: var(--pay-info); }
+
+    .pay-card-hd-text { min-width: 0; flex: 1; }
+    .pay-card-title {
+        font-size: .92rem;
+        font-weight: 600;
+        letter-spacing: -.01em;
+        color: var(--pay-text);
+        margin: 0 0 1px;
+    }
+    .pay-card-sub {
+        font-size: .72rem;
+        color: var(--pay-text-faint);
+        margin: 0;
+    }
+
+    .pay-card-bd {
+        padding: 14px 22px 20px;
+        flex: 1;
+    }
+
+    /* ─── Breakdown rows ─── */
+    .pay-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--pay-border);
+        font-size: .875rem;
+    }
+    .pay-row:last-child { border-bottom: none; }
+    .pay-row-label {
+        color: var(--pay-text-muted);
+        font-weight: 500;
+    }
+    .pay-row-value {
+        font-weight: 600;
+        color: var(--pay-text);
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -.005em;
+    }
+    .pay-row-value.success { color: var(--pay-success); }
+    .pay-row-value.danger  { color: var(--pay-danger); }
+    .pay-row-value.primary { color: var(--pay-primary); }
+
+    /* Highlighted total row */
+    .pay-row.total {
+        padding-top: 16px;
+        margin-top: 6px;
+        border-top: 1px solid var(--pay-border);
+        border-bottom: none;
+    }
+    .pay-row.total .pay-row-label {
+        color: var(--pay-text);
+        font-weight: 600;
+        font-size: .875rem;
+    }
+    .pay-row.total .pay-row-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+        letter-spacing: -.02em;
+    }
+
+    /* ─── Status cards ─── */
+    .pay-status-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+    }
+    .pay-status {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 16px 18px;
+        background: var(--pay-surface-2);
+        border: 1px solid var(--pay-border);
+        border-radius: 11px;
+        transition: border-color .15s var(--pay-ease), transform .15s var(--pay-ease);
+    }
+    .pay-status:hover {
+        border-color: var(--pay-border-hover);
+        transform: translateY(-1px);
+    }
+    .pay-status-ico {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .95rem;
+        flex-shrink: 0;
+        background: var(--pay-surface);
+        border: 1px solid var(--pay-border);
+    }
+    .pay-status-ico.draft     { color: var(--pay-text-muted); }
+    .pay-status-ico.processed { color: var(--pay-primary); }
+    .pay-status-ico.paid      { color: var(--pay-success); }
+
+    .pay-status-body { min-width: 0; flex: 1; }
+    .pay-status-label {
+        font-size: .68rem;
+        font-weight: 600;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--pay-text-faint);
+        margin-bottom: 2px;
+    }
+    .pay-status-value {
+        font-size: 1.35rem;
+        font-weight: 700;
+        letter-spacing: -.02em;
+        line-height: 1.05;
+        color: var(--pay-text);
+        font-variant-numeric: tabular-nums;
+    }
+    .pay-status-value.processed { color: var(--pay-primary); }
+    .pay-status-value.paid      { color: var(--pay-success); }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 767.98px) {
+        .pay-kpi { padding: 14px 16px; gap: 12px; }
+        .pay-kpi-ico { width: 36px; height: 36px; font-size: 1rem; }
+        .pay-kpi-value { font-size: 1.25rem; }
+        .pay-card-hd { padding: 16px 18px 2px; }
+        .pay-card-bd { padding: 12px 18px 18px; }
+        .pay-status-grid { grid-template-columns: 1fr; }
+        .pay-row.total .pay-row-value { font-size: 1.15rem; }
+    }
+</style>
+
+<div class="pay-wrap">
+
+    <!-- ═══════════ KPI CARDS ═══════════ -->
+    <div class="row g-3 g-md-4">
+        <div class="col-6 col-md-3">
+            <div class="pay-kpi">
+                <div class="pay-kpi-ico primary"><i class="las la-users"></i></div>
+                <div class="pay-kpi-body">
+                    <div class="pay-kpi-label">Total Employees</div>
+                    <div class="pay-kpi-value">{{ total_employees }}</div>
+                </div>
             </div>
-            <div class="card-body">
-                <div class="d-flex justify-content-between py-2 border-bottom">
-                    <span>Basic Salary</span>
-                    <span class="fw-bold">₹{{ total_basic|floatformat:0 }}</span>
+        </div>
+
+        <div class="col-6 col-md-3">
+            <div class="pay-kpi">
+                <div class="pay-kpi-ico success"><i class="las la-check-circle"></i></div>
+                <div class="pay-kpi-body">
+                    <div class="pay-kpi-label">With Salary</div>
+                    <div class="pay-kpi-value success">{{ employees_with_salary }}</div>
                 </div>
-                <div class="d-flex justify-content-between py-2 border-bottom">
-                    <span>HRA</span>
-                    <span class="fw-bold">₹{{ total_hra|floatformat:0 }}</span>
+            </div>
+        </div>
+
+        <div class="col-6 col-md-3">
+            <div class="pay-kpi">
+                <div class="pay-kpi-ico warning"><i class="las la-exclamation-circle"></i></div>
+                <div class="pay-kpi-body">
+                    <div class="pay-kpi-label">Without Salary</div>
+                    <div class="pay-kpi-value warning">{{ employees_without_salary }}</div>
                 </div>
-                <div class="d-flex justify-content-between py-2 border-bottom">
-                    <span>Allowance</span>
-                    <span class="fw-bold text-success">₹{{ total_allowance|floatformat:0 }}</span>
-                </div>
-                <div class="d-flex justify-content-between py-2">
-                    <span><strong>Gross Salary</strong></span>
-                    <span class="fw-bold text-primary" style="font-size:1.2rem;">
-                        ₹{{ total_gross|floatformat:0 }}
-                    </span>
+            </div>
+        </div>
+
+        <div class="col-6 col-md-3">
+            <div class="pay-kpi">
+                <div class="pay-kpi-ico info"><i class="fas fa-coins"></i></div>
+                <div class="pay-kpi-body">
+                    <div class="pay-kpi-label">Total Net Payable</div>
+                    <div class="pay-kpi-value primary">₹{{ total_net|floatformat:0 }}</div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Payroll Totals -->
-    <div class="col-md-6">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-header bg-transparent border-0 pt-3">
-                <h6 class="mb-0">
-                    <i class="fas fa-file-invoice-dollar text-success me-2"></i>
-                    Payroll Totals
-                </h6>
-                <small class="text-muted">Generated payrolls</small>
-            </div>
-            <div class="card-body">
-                <div class="d-flex justify-content-between py-2 border-bottom">
-                    <span>Overtime Earnings</span>
-                    <span class="fw-bold text-primary">₹{{ total_overtime|floatformat:0 }}</span>
-                </div>
-                <div class="d-flex justify-content-between py-2 border-bottom">
-                    <span>Unpaid Leave Deduction</span>
-                    <span class="fw-bold text-danger">₹{{ total_unpaid_leave_deduction|floatformat:0 }}</span>
-                </div>
-                <div class="d-flex justify-content-between py-2 border-bottom">
-                    <span>Other Deduction</span>
-                    <span class="fw-bold text-danger">₹{{ total_other_deduction|floatformat:0 }}</span>
-                </div>
-                <div class="d-flex justify-content-between py-2">
-                    <span><strong>Net Payable</strong></span>
-                    <span class="fw-bold text-success" style="font-size:1.2rem;">
-                        ₹{{ total_net|floatformat:0 }}
-                    </span>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+    <!-- ═══════════ BREAKDOWN CARDS ═══════════ -->
+    <div class="row mt-4 g-3 g-md-4">
 
-<!-- Payroll Status -->
-<div class="row mt-4">
-    <div class="col-md-12">
-        <div class="card border-0 shadow-sm">
-            <div class="card-header bg-transparent border-0 pt-3">
-                <h6 class="mb-0">
-                    <i class="fas fa-tasks text-info me-2"></i>
-                    Payroll Status
-                </h6>
+        <!-- Salary Configuration -->
+        <div class="col-md-6">
+            <div class="pay-card">
+                <div class="pay-card-hd">
+                    <span class="pay-card-hd-ico primary"><i class="fas fa-money-bill-wave"></i></span>
+                    <div class="pay-card-hd-text">
+                        <h6 class="pay-card-title">Salary Configuration</h6>
+                        <p class="pay-card-sub">Based on active salaries</p>
+                    </div>
+                </div>
+                <div class="pay-card-bd">
+                    <div class="pay-row">
+                        <span class="pay-row-label">Basic Salary</span>
+                        <span class="pay-row-value">₹{{ total_basic|floatformat:0 }}</span>
+                    </div>
+                    <div class="pay-row">
+                        <span class="pay-row-label">HRA</span>
+                        <span class="pay-row-value">₹{{ total_hra|floatformat:0 }}</span>
+                    </div>
+                    <div class="pay-row">
+                        <span class="pay-row-label">Allowance</span>
+                        <span class="pay-row-value success">₹{{ total_allowance|floatformat:0 }}</span>
+                    </div>
+                    <div class="pay-row total">
+                        <span class="pay-row-label">Gross Salary</span>
+                        <span class="pay-row-value primary">₹{{ total_gross|floatformat:0 }}</span>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                <div class="row text-center">
-                    <div class="col-md-4">
-                        <div class="border rounded p-3">
-                            <div class="text-muted small">Draft</div>
-                            <h3 class="mb-0 text-secondary">{{ draft_payroll }}</h3>
-                        </div>
+        </div>
+
+        <!-- Payroll Totals -->
+        <div class="col-md-6">
+            <div class="pay-card">
+                <div class="pay-card-hd">
+                    <span class="pay-card-hd-ico success"><i class="fas fa-file-invoice-dollar"></i></span>
+                    <div class="pay-card-hd-text">
+                        <h6 class="pay-card-title">Payroll Totals</h6>
+                        <p class="pay-card-sub">Generated payrolls</p>
                     </div>
-                    <div class="col-md-4">
-                        <div class="border rounded p-3">
-                            <div class="text-muted small">Processed</div>
-                            <h3 class="mb-0 text-primary">{{ processed_payroll }}</h3>
-                        </div>
+                </div>
+                <div class="pay-card-bd">
+                    <div class="pay-row">
+                        <span class="pay-row-label">Overtime Earnings</span>
+                        <span class="pay-row-value primary">₹{{ total_overtime|floatformat:0 }}</span>
                     </div>
-                    <div class="col-md-4">
-                        <div class="border rounded p-3">
-                            <div class="text-muted small">Paid</div>
-                            <h3 class="mb-0 text-success">{{ paid_payroll }}</h3>
-                        </div>
+                    <div class="pay-row">
+                        <span class="pay-row-label">Unpaid Leave Deduction</span>
+                        <span class="pay-row-value danger">₹{{ total_unpaid_leave_deduction|floatformat:0 }}</span>
+                    </div>
+                    <div class="pay-row">
+                        <span class="pay-row-label">Other Deduction</span>
+                        <span class="pay-row-value danger">₹{{ total_other_deduction|floatformat:0 }}</span>
+                    </div>
+                    <div class="pay-row total">
+                        <span class="pay-row-label">Net Payable</span>
+                        <span class="pay-row-value success">₹{{ total_net|floatformat:0 }}</span>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- ═══════════ PAYROLL STATUS ═══════════ -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="pay-card">
+                <div class="pay-card-hd">
+                    <span class="pay-card-hd-ico info"><i class="fas fa-tasks"></i></span>
+                    <div class="pay-card-hd-text">
+                        <h6 class="pay-card-title">Payroll Status</h6>
+                        <p class="pay-card-sub">Current month pipeline</p>
+                    </div>
+                </div>
+                <div class="pay-card-bd">
+                    <div class="pay-status-grid">
+
+                        <div class="pay-status">
+                            <span class="pay-status-ico draft"><i class="las la-file-alt"></i></span>
+                            <div class="pay-status-body">
+                                <div class="pay-status-label">Draft</div>
+                                <div class="pay-status-value">{{ draft_payroll }}</div>
+                            </div>
+                        </div>
+
+                        <div class="pay-status">
+                            <span class="pay-status-ico processed"><i class="las la-cog"></i></span>
+                            <div class="pay-status-body">
+                                <div class="pay-status-label">Processed</div>
+                                <div class="pay-status-value processed">{{ processed_payroll }}</div>
+                            </div>
+                        </div>
+
+                        <div class="pay-status">
+                            <span class="pay-status-ico paid"><i class="las la-check-double"></i></span>
+                            <div class="pay-status-body">
+                                <div class="pay-status-label">Paid</div>
+                                <div class="pay-status-value paid">{{ paid_payroll }}</div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 {% endblock %}

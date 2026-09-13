@@ -5,28 +5,376 @@
 {% block page_title %}Approve Regularization{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body p-4">
-                <h5 class="card-title mb-3">Approve Regularization for {{ reg_req.user.username }}</h5>
-                <p><strong>Date:</strong> {{ reg_req.date|date:"d M Y" }}</p>
-                <p><strong>Check In:</strong> {{ reg_req.check_in_time|time:"H:i"|default:"--:--" }}</p>
-                <p><strong>Check Out:</strong> {{ reg_req.check_out_time|time:"H:i"|default:"--:--" }}</p>
-                <p><strong>Reason:</strong> {{ reg_req.reason }}</p>
-                <form method="post">
-                    {% csrf_token %}
-                    <div class="mb-3">
-                        <label for="admin_comment" class="form-label">Admin Comment (optional)</label>
-                        <textarea name="admin_comment" id="admin_comment" rows="2" class="form-control" placeholder="Add a comment..."></textarea>
+
+<style>
+    /* ─────────── Scoped tokens ─────────── */
+    .rap-wrap {
+        --rap-surface:       #ffffff;
+        --rap-surface-2:     #fafbfc;
+        --rap-border:        #e8eaee;
+        --rap-border-hover:  #d5d9e0;
+        --rap-text:          #0f172a;
+        --rap-text-muted:    #64748b;
+        --rap-text-faint:    #94a3b8;
+        --rap-success:       #059669;
+        --rap-success-soft:  #ecfdf5;
+        --rap-success-hover: #047857;
+        --rap-primary:       #4f46e5;
+        --rap-primary-soft:  #eef2ff;
+        --rap-pill:          999px;
+        --rap-shadow-sm:     0 1px 2px rgba(15,23,42,.04), 0 1px 3px rgba(15,23,42,.03);
+        --rap-ease:          cubic-bezier(.4, 0, .2, 1);
+    }
+
+    /* ─────────── Page header ─────────── */
+    .rap-head { margin-bottom: 22px; }
+    .rap-head-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 1.15rem;
+        font-weight: 600;
+        letter-spacing: -.015em;
+        color: var(--rap-text);
+        margin: 0 0 4px;
+    }
+    .rap-head-ico {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        background: var(--rap-success-soft);
+        color: var(--rap-success);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .95rem;
+    }
+    .rap-head-sub {
+        font-size: .82rem;
+        color: var(--rap-text-muted);
+        margin: 0;
+        padding-left: 44px;
+    }
+
+    /* ─────────── Card ─────────── */
+    .rap-card {
+        background: var(--rap-surface);
+        border: 1px solid var(--rap-border);
+        border-radius: 12px;
+        overflow: hidden;
+        transition: border-color .2s var(--rap-ease);
+    }
+    .rap-card:hover { border-color: var(--rap-border-hover); }
+    .rap-card-bd { padding: 28px 32px; }
+
+    /* ─────────── Employee hero ─────────── */
+    .rap-employee {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 16px 18px;
+        background: var(--rap-surface-2);
+        border: 1px solid var(--rap-border);
+        border-radius: 10px;
+        margin-bottom: 22px;
+    }
+    .rap-avatar {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        color: #fff;
+        font-weight: 600;
+        font-size: 1rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .rap-employee-info { min-width: 0; }
+    .rap-employee-label {
+        font-size: .68rem;
+        font-weight: 600;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--rap-text-faint);
+        margin-bottom: 2px;
+    }
+    .rap-employee-name {
+        font-size: .95rem;
+        font-weight: 600;
+        color: var(--rap-text);
+        letter-spacing: -.005em;
+        margin: 0;
+    }
+
+    /* ─────────── Detail grid ─────────── */
+    .rap-details {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 2px;
+        border: 1px solid var(--rap-border);
+        border-radius: 10px;
+        overflow: hidden;
+        margin-bottom: 22px;
+    }
+    .rap-detail {
+        background: var(--rap-surface);
+        padding: 14px 16px;
+        border-right: 1px solid var(--rap-border);
+    }
+    .rap-detail:last-child { border-right: none; }
+    .rap-detail-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: .68rem;
+        font-weight: 600;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--rap-text-faint);
+        margin-bottom: 6px;
+    }
+    .rap-detail-label i {
+        font-size: .8rem;
+        color: var(--rap-text-faint);
+    }
+    .rap-detail-value {
+        font-size: .9rem;
+        font-weight: 600;
+        color: var(--rap-text);
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -.005em;
+    }
+    .rap-detail-value.empty {
+        color: var(--rap-text-faint);
+        font-weight: 400;
+    }
+
+    /* ─────────── Reason block ─────────── */
+    .rap-reason {
+        padding: 14px 16px;
+        background: var(--rap-surface-2);
+        border: 1px solid var(--rap-border);
+        border-radius: 10px;
+        margin-bottom: 22px;
+    }
+    .rap-reason-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: .68rem;
+        font-weight: 600;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--rap-text-faint);
+        margin-bottom: 8px;
+    }
+    .rap-reason-text {
+        font-size: .875rem;
+        color: var(--rap-text);
+        line-height: 1.55;
+        margin: 0;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+    }
+
+    /* ─────────── Form field ─────────── */
+    .rap-field { margin-bottom: 22px; }
+    .rap-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: .78rem;
+        font-weight: 600;
+        letter-spacing: .02em;
+        color: var(--rap-text);
+        margin-bottom: 8px;
+    }
+    .rap-label i {
+        color: var(--rap-text-faint);
+        font-size: .85rem;
+    }
+    .rap-optional {
+        font-size: .7rem;
+        font-weight: 400;
+        color: var(--rap-text-faint);
+        margin-left: 4px;
+    }
+    .rap-textarea {
+        width: 100%;
+        padding: 11px 14px;
+        font-size: .875rem;
+        font-family: inherit;
+        color: var(--rap-text);
+        background: var(--rap-surface);
+        border: 1px solid var(--rap-border);
+        border-radius: 10px;
+        outline: none;
+        resize: vertical;
+        min-height: 68px;
+        line-height: 1.5;
+        transition: border-color .15s var(--rap-ease), box-shadow .15s var(--rap-ease);
+    }
+    .rap-textarea::placeholder { color: var(--rap-text-faint); }
+    .rap-textarea:hover { border-color: var(--rap-border-hover); }
+    .rap-textarea:focus {
+        border-color: var(--rap-success);
+        box-shadow: 0 0 0 3px rgba(5, 150, 105, .12);
+    }
+
+    /* ─────────── Footer / buttons ─────────── */
+    .rap-foot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding-top: 20px;
+        border-top: 1px solid var(--rap-border);
+        margin-top: 6px;
+    }
+    .rap-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 22px;
+        font-size: .82rem;
+        font-weight: 500;
+        border-radius: var(--rap-pill);
+        border: 1px solid transparent;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all .15s var(--rap-ease);
+    }
+    .rap-btn i { font-size: .85rem; }
+
+    .rap-btn-success {
+        background: var(--rap-success);
+        color: #fff;
+    }
+    .rap-btn-success:hover {
+        background: var(--rap-success-hover);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(5, 150, 105, .25);
+    }
+
+    .rap-btn-ghost {
+        background: transparent;
+        color: var(--rap-text-muted);
+        border-color: var(--rap-border);
+    }
+    .rap-btn-ghost:hover {
+        background: var(--rap-surface-2);
+        color: var(--rap-text);
+        border-color: var(--rap-border-hover);
+    }
+
+    /* ─────────── Responsive ─────────── */
+    @media (max-width: 767.98px) {
+        .rap-card-bd { padding: 22px 20px; }
+        .rap-head-sub { padding-left: 0; }
+        .rap-details { grid-template-columns: 1fr; }
+        .rap-detail {
+            border-right: none;
+            border-bottom: 1px solid var(--rap-border);
+        }
+        .rap-detail:last-child { border-bottom: none; }
+        .rap-btn { padding: 9px 18px; font-size: .8rem; }
+        .rap-foot { gap: 8px; }
+        .rap-foot .rap-btn { flex: 1; justify-content: center; }
+    }
+</style>
+
+<div class="rap-wrap">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+
+            <!-- Page header -->
+            <div class="rap-head">
+                <h5 class="rap-head-title">
+                    <span class="rap-head-ico"><i class="fas fa-check"></i></span>
+                    Approve Regularization
+                </h5>
+                <p class="rap-head-sub">
+                    Review the request below and confirm to update the employee's attendance.
+                </p>
+            </div>
+
+            <!-- Card -->
+            <div class="rap-card">
+                <div class="rap-card-bd">
+
+                    <!-- Employee -->
+                    <div class="rap-employee">
+                        <div class="rap-avatar">{{ reg_req.user.username|slice:":1"|upper }}</div>
+                        <div class="rap-employee-info">
+                            <div class="rap-employee-label">Employee</div>
+                            <p class="rap-employee-name">{{ reg_req.user.username }}</p>
+                        </div>
                     </div>
-                    <button type="submit" class="btn btn-success rounded-pill px-4">
-                        <i class="fas fa-check me-2"></i> Confirm Approval
-                    </button>
-                    <a href="{% url 'regularize_request_list' %}" class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
-                </form>
+
+                    <!-- Detail grid -->
+                    <div class="rap-details">
+                        <div class="rap-detail">
+                            <div class="rap-detail-label">
+                                <i class="las la-calendar-day"></i> Date
+                            </div>
+                            <div class="rap-detail-value">{{ reg_req.date|date:"d M Y" }}</div>
+                        </div>
+                        <div class="rap-detail">
+                            <div class="rap-detail-label">
+                                <i class="las la-sign-in-alt"></i> Check In
+                            </div>
+                            <div class="rap-detail-value {% if not reg_req.check_in_time %}empty{% endif %}">
+                                {{ reg_req.check_in_time|time:"H:i"|default:"--:--" }}
+                            </div>
+                        </div>
+                        <div class="rap-detail">
+                            <div class="rap-detail-label">
+                                <i class="las la-sign-out-alt"></i> Check Out
+                            </div>
+                            <div class="rap-detail-value {% if not reg_req.check_out_time %}empty{% endif %}">
+                                {{ reg_req.check_out_time|time:"H:i"|default:"--:--" }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Reason -->
+                    <div class="rap-reason">
+                        <div class="rap-reason-label">
+                            <i class="las la-comment-alt"></i> Reason
+                        </div>
+                        <p class="rap-reason-text">{{ reg_req.reason }}</p>
+                    </div>
+
+                    <!-- Form -->
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <div class="rap-field">
+                            <label for="admin_comment" class="rap-label">
+                                <i class="las la-comment-dots"></i> Admin Comment
+                                <span class="rap-optional">(optional)</span>
+                            </label>
+                            <textarea name="admin_comment" id="admin_comment" rows="2"
+                                      class="rap-textarea"
+                                      placeholder="Add a comment..."></textarea>
+                        </div>
+
+                        <div class="rap-foot">
+                            <button type="submit" class="rap-btn rap-btn-success">
+                                <i class="fas fa-check"></i> Confirm Approval
+                            </button>
+                            <a href="{% url 'regularize_request_list' %}" class="rap-btn rap-btn-ghost">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                        </div>
+                    </form>
+
+                </div>
             </div>
         </div>
     </div>
 </div>
+
 {% endblock %}

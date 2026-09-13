@@ -5,18 +5,329 @@
 {% block page_title %}Shift Management{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between mb-3">
-    <h5 class="mb-0">All Shifts</h5>
-    <a href="{% url 'shift_create' %}" class="btn btn-primary rounded-pill">
-        <i class="fas fa-plus me-1"></i> Create Shift
-    </a>
-</div>
 
-<div class="card border-0 shadow-sm">
-    <div class="card-body p-0">
+<style>
+    /* ═══════════════════════════════════════════════════
+       Shift List — refined design system
+       Prefix: .shl-
+       ═══════════════════════════════════════════════════ */
+    .shl-wrap {
+        --shl-surface:        #ffffff;
+        --shl-surface-2:      #fafbfc;
+        --shl-surface-3:      #f4f6f8;
+        --shl-border:         #e8eaee;
+        --shl-border-hover:   #d5d9e0;
+        --shl-text:           #0f172a;
+        --shl-text-muted:     #64748b;
+        --shl-text-faint:     #94a3b8;
+        --shl-primary:        #4f46e5;
+        --shl-primary-soft:   #eef2ff;
+        --shl-primary-hover:  #4338ca;
+        --shl-success:        #059669;
+        --shl-success-soft:   #ecfdf5;
+        --shl-danger:         #dc2626;
+        --shl-danger-soft:    #fef2f2;
+        --shl-pill:           999px;
+        --shl-shadow-xs:      0 1px 2px rgba(15,23,42,.04);
+        --shl-ease:           cubic-bezier(.4, 0, .2, 1);
+    }
+
+    /* ─── Page heading + action ─── */
+    .shl-hd {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+    .shl-hd-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .shl-hd-ico {
+        width: 40px;
+        height: 40px;
+        border-radius: 11px;
+        background: var(--shl-primary-soft);
+        color: var(--shl-primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.05rem;
+        flex-shrink: 0;
+    }
+    .shl-hd-title {
+        font-size: 1.15rem;
+        font-weight: 600;
+        letter-spacing: -.015em;
+        color: var(--shl-text);
+        margin: 0 0 2px;
+        line-height: 1.2;
+    }
+    .shl-hd-sub {
+        font-size: .82rem;
+        color: var(--shl-text-muted);
+        margin: 0;
+    }
+
+    /* ─── Buttons ─── */
+    .shl-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 9px 18px;
+        font-size: .8rem;
+        font-weight: 500;
+        border-radius: var(--shl-pill);
+        border: 1px solid transparent;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all .15s var(--shl-ease);
+        line-height: 1.3;
+        white-space: nowrap;
+    }
+    .shl-btn i { font-size: .82rem; }
+    .shl-btn-primary {
+        background: var(--shl-primary);
+        color: #fff;
+    }
+    .shl-btn-primary:hover {
+        background: var(--shl-primary-hover);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(79,70,229,.25);
+    }
+
+    /* ─── Card shell ─── */
+    .shl-card {
+        background: var(--shl-surface);
+        border: 1px solid var(--shl-border);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: var(--shl-shadow-xs);
+        transition: border-color .2s var(--shl-ease);
+    }
+    .shl-card:hover { border-color: var(--shl-border-hover); }
+
+    /* ─── Table ─── */
+    .shl-table {
+        width: 100%;
+        margin: 0;
+        border-collapse: collapse;
+    }
+    .shl-table thead th {
+        font-size: .68rem;
+        font-weight: 600;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: var(--shl-text-faint);
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--shl-border);
+        background: var(--shl-surface-2);
+        white-space: nowrap;
+        text-align: left;
+    }
+    .shl-table thead th.text-center { text-align: center; }
+    .shl-table thead th.text-end    { text-align: right; }
+
+    .shl-table tbody td {
+        padding: 14px 16px;
+        vertical-align: middle;
+        border-bottom: 1px solid var(--shl-border);
+        font-size: .84rem;
+        color: var(--shl-text);
+    }
+    .shl-table tbody td.text-center { text-align: center; }
+    .shl-table tbody td.text-end    { text-align: right; }
+    .shl-table tbody tr:last-child td { border-bottom: none; }
+    .shl-table tbody tr { transition: background .12s var(--shl-ease); }
+    .shl-table tbody tr:hover { background: var(--shl-surface-2); }
+
+    .shl-table .name {
+        font-weight: 600;
+        color: var(--shl-text);
+        letter-spacing: -.005em;
+    }
+    .shl-table .num {
+        font-variant-numeric: tabular-nums;
+        font-weight: 500;
+    }
+    .shl-table .muted { color: var(--shl-text-faint); }
+
+    /* ─── Time chips ─── */
+    .shl-time {
+        display: inline-flex;
+        align-items: center;
+        padding: 3px 10px;
+        border-radius: var(--shl-pill);
+        background: var(--shl-surface-2);
+        border: 1px solid var(--shl-border);
+        font-size: .74rem;
+        font-weight: 500;
+        color: var(--shl-text);
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+    .shl-time.break {
+        color: var(--shl-text-muted);
+        font-weight: 400;
+    }
+
+    /* ─── Overtime toggle indicator ─── */
+    .shl-ot {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        font-size: .68rem;
+    }
+    .shl-ot.yes {
+        background: var(--shl-success-soft);
+        color: var(--shl-success);
+    }
+    .shl-ot.no {
+        background: var(--shl-surface-3);
+        color: var(--shl-text-faint);
+    }
+
+    /* ─── Overtime limit value ─── */
+    .shl-ot-limit {
+        font-variant-numeric: tabular-nums;
+        font-weight: 500;
+    }
+    .shl-ot-limit small {
+        font-size: .7rem;
+        color: var(--shl-text-faint);
+        font-weight: 400;
+        margin-left: 2px;
+    }
+
+    /* ─── Working days chips ─── */
+    .shl-days {
+        display: inline-flex;
+        gap: 3px;
+        flex-wrap: wrap;
+    }
+    .shl-day {
+        width: 20px;
+        height: 20px;
+        border-radius: 5px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .6rem;
+        font-weight: 700;
+        letter-spacing: .02em;
+        background: var(--shl-surface-3);
+        color: var(--shl-text-faint);
+        border: 1px solid var(--shl-border);
+    }
+    .shl-day.on {
+        background: var(--shl-primary-soft);
+        color: var(--shl-primary);
+        border-color: transparent;
+    }
+
+    /* ─── Actions ─── */
+    .shl-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        justify-content: flex-end;
+    }
+    .shl-action {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        border: 1px solid var(--shl-border);
+        background: var(--shl-surface);
+        color: var(--shl-text-muted);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .78rem;
+        text-decoration: none;
+        transition: all .15s var(--shl-ease);
+        padding: 0;
+    }
+    .shl-action:hover { transform: scale(1.05); }
+    .shl-action.edit:hover {
+        background: var(--shl-primary-soft);
+        color: var(--shl-primary);
+        border-color: transparent;
+    }
+    .shl-action.delete:hover {
+        background: var(--shl-danger-soft);
+        color: var(--shl-danger);
+        border-color: transparent;
+    }
+
+    /* ─── Empty state ─── */
+    .shl-empty {
+        text-align: center;
+        padding: 52px 20px;
+    }
+    .shl-empty-ico {
+        width: 68px;
+        height: 68px;
+        border-radius: 50%;
+        background: var(--shl-surface-2);
+        border: 1px solid var(--shl-border);
+        color: var(--shl-text-faint);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.75rem;
+        margin-bottom: 16px;
+    }
+    .shl-empty-title {
+        font-size: .9rem;
+        font-weight: 600;
+        color: var(--shl-text);
+        margin: 0 0 4px;
+    }
+    .shl-empty-sub {
+        font-size: .8rem;
+        color: var(--shl-text-muted);
+        margin: 0 0 18px;
+    }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 767.98px) {
+        .shl-hd-title { font-size: 1rem; }
+        .shl-hd-ico { width: 34px; height: 34px; font-size: .95rem; }
+        .shl-table thead th,
+        .shl-table tbody td { padding: 11px 12px; font-size: .78rem; }
+        .shl-day { width: 18px; height: 18px; font-size: .55rem; }
+        .shl-action { width: 30px; height: 30px; font-size: .72rem; }
+    }
+</style>
+
+<div class="shl-wrap">
+
+    <!-- ═══════════ Page heading ═══════════ -->
+    <div class="shl-hd">
+        <div class="shl-hd-left">
+            <span class="shl-hd-ico"><i class="las la-clock"></i></span>
+            <div>
+                <h1 class="shl-hd-title">All Shifts</h1>
+                <p class="shl-hd-sub">Manage working hours, breaks, and overtime rules for your team.</p>
+            </div>
+        </div>
+        <a href="{% url 'shift_create' %}" class="shl-btn shl-btn-primary">
+            <i class="fas fa-plus"></i> Create Shift
+        </a>
+    </div>
+
+    <!-- ═══════════ Shifts table ═══════════ -->
+    <div class="shl-card">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
+            <table class="shl-table">
+                <thead>
                     <tr>
                         <th>Shift Name</th>
                         <th>Start</th>
@@ -25,57 +336,77 @@
                         <th>Grace (min)</th>
                         <th>Min Hours</th>
                         <th>Overtime</th>
-                        <th>Overtime Limit</th> 
+                        <th>Overtime Limit</th>
                         <th>Working Days</th>
-                        <th>Actions</th>
+                        <th class="text-end">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for shift in shifts %}
                         <tr>
-                            <td><strong>{{ shift.name }}</strong></td>
-                            <td>{{ shift.start_time|time:"h:i A" }}</td>
-                            <td>{{ shift.end_time|time:"h:i A" }}</td>
+                            <td class="name">{{ shift.name }}</td>
+                            <td><span class="shl-time">{{ shift.start_time|time:"h:i A" }}</span></td>
+                            <td><span class="shl-time">{{ shift.end_time|time:"h:i A" }}</span></td>
                             <td>
                                 {% if shift.break_start and shift.break_end %}
-                                    {{ shift.break_start|time:"h:i A" }} – {{ shift.break_end|time:"h:i A" }}
+                                    <span class="shl-time break">
+                                        {{ shift.break_start|time:"h:i A" }} – {{ shift.break_end|time:"h:i A" }}
+                                    </span>
                                 {% else %}
-                                    —
+                                    <span class="muted">—</span>
                                 {% endif %}
                             </td>
-                            <td>{{ shift.grace_period }}</td>
-                            <td>{{ shift.min_working_hours|floatformat:0 }} min</td>
-                            <td>{% if shift.overtime_allowed %}✅{% else %}❌{% endif %}</td>
+                            <td class="num">{{ shift.grace_period }}</td>
+                            <td class="num">{{ shift.min_working_hours|floatformat:0 }} min</td>
                             <td>
                                 {% if shift.overtime_allowed %}
-                                    {{ shift.overtime_limit }} hrs
+                                    <span class="shl-ot yes"><i class="fas fa-check"></i></span>
                                 {% else %}
-                                    <span class="text-muted">—</span>
+                                    <span class="shl-ot no"><i class="fas fa-times"></i></span>
                                 {% endif %}
                             </td>
                             <td>
-                                {% if shift.mon %}M{% endif %}
-                                {% if shift.tue %}T{% endif %}
-                                {% if shift.wed %}W{% endif %}
-                                {% if shift.thu %}T{% endif %}
-                                {% if shift.fri %}F{% endif %}
-                                {% if shift.sat %}S{% endif %}
-                                {% if shift.sun %}S{% endif %}
+                                {% if shift.overtime_allowed %}
+                                    <span class="shl-ot-limit">
+                                        {{ shift.overtime_limit }}<small>hrs</small>
+                                    </span>
+                                {% else %}
+                                    <span class="muted">—</span>
+                                {% endif %}
                             </td>
                             <td>
-                                <a href="{% url 'shift_edit' shift.id %}" class="btn btn-sm btn-outline-primary">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                                <a href="{% url 'shift_delete' shift.id %}" class="btn btn-sm btn-outline-danger">
-                                    <i class="fas fa-trash-alt"></i>
-                                </a>
+                                <div class="shl-days">
+                                    <span class="shl-day {% if shift.mon %}on{% endif %}">M</span>
+                                    <span class="shl-day {% if shift.tue %}on{% endif %}">T</span>
+                                    <span class="shl-day {% if shift.wed %}on{% endif %}">W</span>
+                                    <span class="shl-day {% if shift.thu %}on{% endif %}">T</span>
+                                    <span class="shl-day {% if shift.fri %}on{% endif %}">F</span>
+                                    <span class="shl-day {% if shift.sat %}on{% endif %}">S</span>
+                                    <span class="shl-day {% if shift.sun %}on{% endif %}">S</span>
+                                </div>
+                            </td>
+                            <td class="text-end">
+                                <div class="shl-actions">
+                                    <a href="{% url 'shift_edit' shift.id %}" class="shl-action edit" title="Edit">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="{% url 'shift_delete' shift.id %}" class="shl-action delete" title="Delete">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </a>
+                                </div>
                             </td>
                         </tr>
                     {% empty %}
                         <tr>
-                            <td colspan="9" class="text-center text-muted py-4">
-                                <i class="las la-clock fa-2x mb-2 d-block"></i>
-                                No shifts defined yet.
+                            <td colspan="9">
+                                <div class="shl-empty">
+                                    <div class="shl-empty-ico"><i class="las la-clock"></i></div>
+                                    <p class="shl-empty-title">No shifts defined yet</p>
+                                    <p class="shl-empty-sub">Create your first shift to start tracking attendance.</p>
+                                    <a href="{% url 'shift_create' %}" class="shl-btn shl-btn-primary">
+                                        <i class="fas fa-plus"></i> Create Shift
+                                    </a>
+                                </div>
                             </td>
                         </tr>
                     {% endfor %}
@@ -83,5 +414,7 @@
             </table>
         </div>
     </div>
+
 </div>
+
 {% endblock %}

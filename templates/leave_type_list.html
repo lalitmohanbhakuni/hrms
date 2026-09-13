@@ -5,41 +5,340 @@
 {% block page_title %}Leave Types{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between mb-3">
-    <h5>Manage Leave Types</h5>
-    <a href="{% url 'leave_type_create' %}" class="btn btn-primary rounded-pill">
-        <i class="fas fa-plus me-1"></i> Add Leave Type
-    </a>
-</div>
-<div class="card border-0 shadow-sm">
-    <div class="card-body">
+
+<style>
+    /* ═══════════════════════════════════════════════════
+       Leave Types — refined design system
+       Prefix: .lvt-
+       ═══════════════════════════════════════════════════ */
+    .lvt-wrap {
+        --lvt-surface:       #ffffff;
+        --lvt-surface-2:     #fafbfc;
+        --lvt-surface-3:     #f4f6f8;
+        --lvt-border:        #e8eaee;
+        --lvt-border-hover:  #d5d9e0;
+        --lvt-text:          #0f172a;
+        --lvt-text-muted:    #64748b;
+        --lvt-text-faint:    #94a3b8;
+        --lvt-primary:       #4f46e5;
+        --lvt-primary-soft:  #eef2ff;
+        --lvt-primary-hover: #4338ca;
+        --lvt-success:       #059669;
+        --lvt-success-soft:  #ecfdf5;
+        --lvt-danger:        #dc2626;
+        --lvt-danger-soft:   #fef2f2;
+        --lvt-pill:          999px;
+        --lvt-shadow-xs:     0 1px 2px rgba(15,23,42,.04);
+        --lvt-ease:          cubic-bezier(.4, 0, .2, 1);
+    }
+
+    /* ─── Page heading ─── */
+    .lvt-hd {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+    .lvt-hd-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        letter-spacing: -.02em;
+        color: var(--lvt-text);
+        margin: 0;
+        line-height: 1.2;
+    }
+    .lvt-hd-sub {
+        font-size: .82rem;
+        color: var(--lvt-text-muted);
+        margin: 4px 0 0;
+    }
+
+    /* ─── Buttons ─── */
+    .lvt-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 16px;
+        font-size: .78rem;
+        font-weight: 500;
+        border-radius: var(--lvt-pill);
+        border: 1px solid transparent;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all .15s var(--lvt-ease);
+        line-height: 1.3;
+        white-space: nowrap;
+    }
+    .lvt-btn i { font-size: .82rem; }
+
+    .lvt-btn-primary {
+        background: var(--lvt-primary);
+        color: #fff;
+    }
+    .lvt-btn-primary:hover {
+        background: var(--lvt-primary-hover);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(79,70,229,.25);
+    }
+
+    /* ─── Action icon buttons ─── */
+    .lvt-action {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        border: 1px solid var(--lvt-border);
+        background: var(--lvt-surface);
+        color: var(--lvt-text-muted);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .78rem;
+        text-decoration: none;
+        transition: all .15s var(--lvt-ease);
+        padding: 0;
+    }
+    .lvt-action + .lvt-action { margin-left: 6px; }
+    .lvt-action:hover { transform: scale(1.05); }
+
+    .lvt-action.edit:hover {
+        background: var(--lvt-primary-soft);
+        color: var(--lvt-primary);
+        border-color: transparent;
+    }
+    .lvt-action.delete:hover {
+        background: var(--lvt-danger-soft);
+        color: var(--lvt-danger);
+        border-color: transparent;
+    }
+
+    /* ─── Card shell ─── */
+    .lvt-card {
+        background: var(--lvt-surface);
+        border: 1px solid var(--lvt-border);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: var(--lvt-shadow-xs);
+        transition: border-color .2s var(--lvt-ease);
+    }
+    .lvt-card:hover { border-color: var(--lvt-border-hover); }
+
+    /* ─── Table ─── */
+    .lvt-table {
+        width: 100%;
+        margin: 0;
+        border-collapse: collapse;
+    }
+    .lvt-table thead th {
+        font-size: .68rem;
+        font-weight: 600;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: var(--lvt-text-faint);
+        padding: 12px 20px;
+        border-bottom: 1px solid var(--lvt-border);
+        background: var(--lvt-surface-2);
+        white-space: nowrap;
+        text-align: left;
+    }
+    .lvt-table tbody td {
+        padding: 14px 20px;
+        vertical-align: middle;
+        border-bottom: 1px solid var(--lvt-border);
+        font-size: .875rem;
+        color: var(--lvt-text);
+    }
+    .lvt-table tbody tr:last-child td { border-bottom: none; }
+    .lvt-table tbody tr { transition: background .12s var(--lvt-ease); }
+    .lvt-table tbody tr:hover { background: var(--lvt-surface-2); }
+
+    .lvt-table .num {
+        font-variant-numeric: tabular-nums;
+        font-weight: 500;
+    }
+
+    /* ─── Leave type name cell ─── */
+    .lvt-name-cell {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .lvt-name-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 9px;
+        background: var(--lvt-primary-soft);
+        color: var(--lvt-primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .82rem;
+        flex-shrink: 0;
+    }
+    .lvt-name {
+        font-weight: 600;
+        color: var(--lvt-text);
+        letter-spacing: -.005em;
+    }
+
+    /* ─── Days allowed chip ─── */
+    .lvt-days {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 4px;
+        padding: 4px 11px;
+        border-radius: var(--lvt-pill);
+        background: var(--lvt-surface-2);
+        border: 1px solid var(--lvt-border);
+        font-size: .74rem;
+        font-weight: 500;
+        color: var(--lvt-text-muted);
+    }
+    .lvt-days strong {
+        font-size: .82rem;
+        font-weight: 700;
+        color: var(--lvt-text);
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* ─── Status pill ─── */
+    .lvt-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 11px;
+        border-radius: var(--lvt-pill);
+        font-size: .72rem;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+    .lvt-status::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+        flex-shrink: 0;
+    }
+    .lvt-status.active   { background: var(--lvt-success-soft); color: var(--lvt-success); }
+    .lvt-status.inactive { background: var(--lvt-surface-3);    color: var(--lvt-text-muted); }
+
+    /* ─── Empty state ─── */
+    .lvt-empty {
+        text-align: center;
+        padding: 56px 20px;
+    }
+    .lvt-empty-ico {
+        width: 68px;
+        height: 68px;
+        border-radius: 50%;
+        background: var(--lvt-surface-2);
+        border: 1px solid var(--lvt-border);
+        color: var(--lvt-text-faint);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.85rem;
+        margin-bottom: 16px;
+    }
+    .lvt-empty-title {
+        font-size: .9rem;
+        font-weight: 600;
+        color: var(--lvt-text);
+        margin: 0 0 4px;
+    }
+    .lvt-empty-sub {
+        font-size: .8rem;
+        color: var(--lvt-text-muted);
+        margin: 0 0 18px;
+    }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 767.98px) {
+        .lvt-hd-title { font-size: 1.1rem; }
+        .lvt-table thead th,
+        .lvt-table tbody td { padding: 11px 14px; font-size: .82rem; }
+        .lvt-name-icon { width: 28px; height: 28px; font-size: .78rem; }
+        .lvt-action { width: 30px; height: 30px; font-size: .72rem; }
+    }
+</style>
+
+<div class="lvt-wrap">
+
+    <!-- ═══════════ Page heading + action ═══════════ -->
+    <div class="lvt-hd">
+        <div>
+            <h1 class="lvt-hd-title">Manage Leave Types</h1>
+            <p class="lvt-hd-sub">Define the categories of leave your team can request.</p>
+        </div>
+        <a href="{% url 'leave_type_create' %}" class="lvt-btn lvt-btn-primary">
+            <i class="fas fa-plus"></i> Add Leave Type
+        </a>
+    </div>
+
+    <!-- ═══════════ Leave types table ═══════════ -->
+    <div class="lvt-card">
         <div class="table-responsive">
-            <table class="table table-hover align-middle">
+            <table class="lvt-table">
                 <thead>
                     <tr>
                         <th>Name</th>
                         <th>Days Allowed</th>
-                        <th>Active</th>
-                        <th>Actions</th>
+                        <th>Status</th>
+                        <th class="text-end">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for lt in leave_types %}
                         <tr>
-                            <td><strong>{{ lt.name }}</strong></td>
-                            <td>{{ lt.days_allowed }}</td>
-                            <td>{% if lt.is_active %}<span class="badge bg-success">Active</span>{% else %}<span class="badge bg-secondary">Inactive</span>{% endif %}</td>
                             <td>
-                                <a href="{% url 'leave_type_edit' lt.id %}" class="btn btn-sm btn-outline-primary"><i class="fas fa-edit"></i></a>
-                                <a href="{% url 'leave_type_delete' lt.id %}" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></a>
+                                <div class="lvt-name-cell">
+                                    <span class="lvt-name-icon"><i class="las la-tag"></i></span>
+                                    <span class="lvt-name">{{ lt.name }}</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="lvt-days">
+                                    <strong>{{ lt.days_allowed }}</strong> days
+                                </span>
+                            </td>
+                            <td>
+                                {% if lt.is_active %}
+                                    <span class="lvt-status active">Active</span>
+                                {% else %}
+                                    <span class="lvt-status inactive">Inactive</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                <a href="{% url 'leave_type_edit' lt.id %}" class="lvt-action edit" title="Edit">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <a href="{% url 'leave_type_delete' lt.id %}" class="lvt-action delete" title="Delete">
+                                    <i class="fas fa-trash"></i>
+                                </a>
                             </td>
                         </tr>
                     {% empty %}
-                        <tr><td colspan="4" class="text-center text-muted">No leave types configured.</td></tr>
+                        <tr>
+                            <td colspan="4">
+                                <div class="lvt-empty">
+                                    <div class="lvt-empty-ico"><i class="las la-tags"></i></div>
+                                    <p class="lvt-empty-title">No leave types configured</p>
+                                    <p class="lvt-empty-sub">Add your first leave category to get started.</p>
+                                    <a href="{% url 'leave_type_create' %}" class="lvt-btn lvt-btn-primary">
+                                        <i class="fas fa-plus"></i> Add Leave Type
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
     </div>
+
 </div>
+
 {% endblock %}

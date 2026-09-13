@@ -5,47 +5,390 @@
 {% block page_title %}{{ action }} Leave Type{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
 
-    {% if user.is_superuser and companies %}
-<div class="col-md-6">
-    <label for="company" class="form-label">Company</label>
-    <select name="company" id="company" class="form-select" required>
-        <option value="">-- Select Company --</option>
-        {% for c in companies %}
-            <option value="{{ c.id }}">{{ c.name }}</option>
-        {% endfor %}
-    </select>
-</div>
-{% endif %}
+<style>
+    /* ═══════════════════════════════════════════════════
+       Leave Type Form — refined design system
+       Prefix: .ltf-
+       ═══════════════════════════════════════════════════ */
+    .ltf-wrap {
+        --ltf-surface:       #ffffff;
+        --ltf-surface-2:     #fafbfc;
+        --ltf-border:        #e8eaee;
+        --ltf-border-hover:  #d5d9e0;
+        --ltf-text:          #0f172a;
+        --ltf-text-muted:    #64748b;
+        --ltf-text-faint:    #94a3b8;
+        --ltf-primary:       #4f46e5;
+        --ltf-primary-soft:  #eef2ff;
+        --ltf-primary-hover: #4338ca;
+        --ltf-success:       #059669;
+        --ltf-success-soft:  #ecfdf5;
+        --ltf-danger:        #dc2626;
+        --ltf-pill:          999px;
+        --ltf-ease:          cubic-bezier(.4, 0, .2, 1);
+    }
 
+    /* ─── Page heading ─── */
+    .ltf-hd { margin-bottom: 22px; }
+    .ltf-hd-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 1.15rem;
+        font-weight: 600;
+        letter-spacing: -.015em;
+        color: var(--ltf-text);
+        margin: 0 0 4px;
+    }
+    .ltf-hd-ico {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        background: var(--ltf-primary-soft);
+        color: var(--ltf-primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .95rem;
+    }
+    .ltf-hd-sub {
+        font-size: .82rem;
+        color: var(--ltf-text-muted);
+        margin: 0;
+        padding-left: 44px;
+    }
 
-    <div class="col-md-6">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body p-4">
-                <form method="post">
-                    {% csrf_token %}
-                    <div class="mb-3">
-                        <label for="name" class="form-label fw-semibold">Leave Type Name</label>
-                        <input type="text" name="name" id="name" class="form-control" value="{{ leave_type.name|default:'' }}" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="days_allowed" class="form-label fw-semibold">Days Allowed</label>
-                        <input type="number" step="0.5" name="days_allowed" id="days_allowed" class="form-control" value="{{ leave_type.days_allowed|default:'' }}" required>
-                    </div>
-                    {% if leave_type %}
-                        <div class="mb-3 form-check">
-                            <input type="checkbox" name="is_active" id="is_active" class="form-check-input" {% if leave_type.is_active %}checked{% endif %}>
-                            <label for="is_active" class="form-check-label">Active</label>
-                        </div>
+    /* ─── Card ─── */
+    .ltf-card {
+        background: var(--ltf-surface);
+        border: 1px solid var(--ltf-border);
+        border-radius: 12px;
+        overflow: hidden;
+        transition: border-color .2s var(--ltf-ease);
+    }
+    .ltf-card:hover { border-color: var(--ltf-border-hover); }
+    .ltf-card-bd { padding: 28px 32px; }
+
+    /* ─── Info note ─── */
+    .ltf-note {
+        display: flex;
+        gap: 10px;
+        padding: 12px 14px;
+        background: var(--ltf-primary-soft);
+        border-radius: 10px;
+        font-size: .78rem;
+        color: #3730a3;
+        line-height: 1.5;
+        margin-bottom: 22px;
+    }
+    .ltf-note i {
+        flex-shrink: 0;
+        font-size: .95rem;
+        margin-top: 1px;
+        color: var(--ltf-primary);
+    }
+
+    /* ─── Fields ─── */
+    .ltf-field { margin-bottom: 20px; }
+    .ltf-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: .78rem;
+        font-weight: 600;
+        letter-spacing: .02em;
+        color: var(--ltf-text);
+        margin-bottom: 8px;
+    }
+    .ltf-label i {
+        color: var(--ltf-text-faint);
+        font-size: .85rem;
+    }
+    .ltf-req {
+        color: var(--ltf-danger);
+        margin-left: 2px;
+    }
+    .ltf-hint {
+        font-size: .7rem;
+        font-weight: 400;
+        color: var(--ltf-text-faint);
+        margin-left: 6px;
+    }
+
+    .ltf-input,
+    .ltf-select {
+        width: 100%;
+        padding: 11px 14px;
+        font-size: .875rem;
+        font-family: inherit;
+        color: var(--ltf-text);
+        background: var(--ltf-surface);
+        border: 1px solid var(--ltf-border);
+        border-radius: 10px;
+        outline: none;
+        transition: border-color .15s var(--ltf-ease), box-shadow .15s var(--ltf-ease);
+        appearance: none;
+        -webkit-appearance: none;
+    }
+    .ltf-select {
+        background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3e%3cpath fill='none' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M3 5l3 3 3-3'/%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right 14px center;
+        background-size: 12px;
+        padding-right: 38px;
+        cursor: pointer;
+    }
+    .ltf-input:hover,
+    .ltf-select:hover { border-color: var(--ltf-border-hover); }
+    .ltf-input:focus,
+    .ltf-select:focus {
+        border-color: var(--ltf-primary);
+        box-shadow: 0 0 0 3px rgba(79,70,229,.12);
+    }
+    .ltf-input::placeholder { color: var(--ltf-text-faint); }
+
+    /* Number input — remove default spin arrows (keeps functionality) */
+    .ltf-input[type="number"]::-webkit-outer-spin-button,
+    .ltf-input[type="number"]::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    .ltf-input[type="number"] {
+        -moz-appearance: textfield;
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* ─── Active toggle ─── */
+    .ltf-toggle {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        background: var(--ltf-surface-2);
+        border: 1px solid var(--ltf-border);
+        border-radius: 10px;
+        cursor: pointer;
+        margin-bottom: 20px;
+        transition: border-color .15s var(--ltf-ease), background .15s var(--ltf-ease);
+    }
+    .ltf-toggle:hover {
+        border-color: var(--ltf-border-hover);
+        background: var(--ltf-surface);
+    }
+    .ltf-toggle .form-check-input {
+        margin: 0;
+        cursor: pointer;
+        width: 16px;
+        height: 16px;
+        border: 1.5px solid var(--ltf-border-hover);
+        transition: all .15s var(--ltf-ease);
+    }
+    .ltf-toggle .form-check-input:checked {
+        background-color: var(--ltf-success);
+        border-color: var(--ltf-success);
+    }
+    .ltf-toggle .form-check-input:focus {
+        box-shadow: 0 0 0 3px rgba(5,150,105,.15);
+        border-color: var(--ltf-success);
+    }
+    .ltf-toggle-label {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+        cursor: pointer;
+    }
+    .ltf-toggle-label strong {
+        font-size: .82rem;
+        font-weight: 600;
+        color: var(--ltf-text);
+    }
+    .ltf-toggle-label small {
+        font-size: .72rem;
+        color: var(--ltf-text-faint);
+    }
+
+    /* ─── Footer / buttons ─── */
+    .ltf-foot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding-top: 20px;
+        border-top: 1px solid var(--ltf-border);
+        margin-top: 4px;
+    }
+    .ltf-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 22px;
+        font-size: .82rem;
+        font-weight: 500;
+        border-radius: var(--ltf-pill);
+        border: 1px solid transparent;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all .15s var(--ltf-ease);
+        line-height: 1.3;
+    }
+    .ltf-btn i { font-size: .85rem; }
+
+    .ltf-btn-primary {
+        background: var(--ltf-primary);
+        color: #fff;
+    }
+    .ltf-btn-primary:hover {
+        background: var(--ltf-primary-hover);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(79,70,229,.25);
+    }
+
+    .ltf-btn-ghost {
+        background: transparent;
+        color: var(--ltf-text-muted);
+        border-color: var(--ltf-border);
+    }
+    .ltf-btn-ghost:hover {
+        background: var(--ltf-surface-2);
+        color: var(--ltf-text);
+        border-color: var(--ltf-border-hover);
+    }
+
+    /* ─── Company picker (Superuser-only) ─── */
+    .ltf-company {
+        background: var(--ltf-surface);
+        border: 1px solid var(--ltf-border);
+        border-radius: 12px;
+        padding: 20px 24px;
+        margin-bottom: 18px;
+    }
+    .ltf-company-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 10px;
+        border-radius: var(--ltf-pill);
+        background: var(--ltf-primary-soft);
+        color: var(--ltf-primary);
+        font-size: .68rem;
+        font-weight: 600;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+        margin-left: 6px;
+    }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 767.98px) {
+        .ltf-card-bd { padding: 22px 20px; }
+        .ltf-hd-sub { padding-left: 0; }
+        .ltf-company { padding: 16px 18px; }
+        .ltf-btn { padding: 9px 18px; font-size: .8rem; }
+        .ltf-foot { gap: 8px; }
+        .ltf-foot .ltf-btn { flex: 1; justify-content: center; }
+    }
+</style>
+
+<div class="ltf-wrap">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+
+            <!-- Page header -->
+            <div class="ltf-hd">
+                <h5 class="ltf-hd-title">
+                    <span class="ltf-hd-ico"><i class="fas fa-tag"></i></span>
+                    {{ action }} Leave Type
+                </h5>
+                <p class="ltf-hd-sub">
+                    {% if action == 'Create' %}
+                        Define a new leave category for your team.
+                    {% else %}
+                        Update the details for this leave category.
                     {% endif %}
-                    <button type="submit" class="btn btn-primary rounded-pill px-4">
-                        <i class="fas fa-save me-2"></i> {% if action == 'Create' %}Create{% else %}Update{% endif %}
-                    </button>
-                    <a href="{% url 'leave_type_list' %}" class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
-                </form>
+                </p>
+            </div>
+
+            <!-- ═══════════ Company picker (Superuser) ═══════════ -->
+            {% if user.is_superuser and companies %}
+                <div class="ltf-company">
+                    <label for="company" class="ltf-label">
+                        <i class="las la-building"></i> Company
+                        <span class="ltf-company-badge">Superuser</span>
+                    </label>
+                    <select name="company" id="company" class="ltf-select" required>
+                        <option value="">-- Select Company --</option>
+                        {% for c in companies %}
+                            <option value="{{ c.id }}">{{ c.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            {% endif %}
+
+            <!-- ═══════════ Card ═══════════ -->
+            <div class="ltf-card">
+                <div class="ltf-card-bd">
+
+                    <div class="ltf-note">
+                        <i class="las la-info-circle"></i>
+                        <span>
+                            Days allowed controls the maximum leave an employee can take per year. You can use half days like <strong>0.5</strong> or <strong>1.5</strong>.
+                        </span>
+                    </div>
+
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <!-- Name -->
+                        <div class="ltf-field">
+                            <label for="name" class="ltf-label">
+                                <i class="las la-tag"></i> Leave Type Name <span class="ltf-req">*</span>
+                            </label>
+                            <input type="text" name="name" id="name" class="ltf-input"
+                                   value="{{ leave_type.name|default:'' }}"
+                                   placeholder="e.g. Sick Leave" required>
+                        </div>
+
+                        <!-- Days Allowed -->
+                        <div class="ltf-field">
+                            <label for="days_allowed" class="ltf-label">
+                                <i class="las la-calendar-check"></i> Days Allowed <span class="ltf-req">*</span>
+                                <span class="ltf-hint">Supports half days</span>
+                            </label>
+                            <input type="number" step="0.5" name="days_allowed" id="days_allowed"
+                                   class="ltf-input"
+                                   value="{{ leave_type.days_allowed|default:'' }}"
+                                   placeholder="e.g. 12" required>
+                        </div>
+
+                        <!-- Active toggle (edit mode only) -->
+                        {% if leave_type %}
+                            <label for="is_active" class="ltf-toggle">
+                                <input type="checkbox" name="is_active" id="is_active"
+                                       class="form-check-input"
+                                       {% if leave_type.is_active %}checked{% endif %}>
+                                <span class="ltf-toggle-label">
+                                    <strong>Active</strong>
+                                    <small>Inactive leave types won't appear in the apply form.</small>
+                                </span>
+                            </label>
+                        {% endif %}
+
+                        <!-- Actions -->
+                        <div class="ltf-foot">
+                            <button type="submit" class="ltf-btn ltf-btn-primary">
+                                <i class="fas fa-save"></i>
+                                {% if action == 'Create' %}Create{% else %}Update{% endif %}
+                            </button>
+                            <a href="{% url 'leave_type_list' %}" class="ltf-btn ltf-btn-ghost">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                        </div>
+                    </form>
+
+                </div>
             </div>
         </div>
     </div>
 </div>
-{% endblock %}  
+
+{% endblock %}

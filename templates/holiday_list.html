@@ -5,41 +5,333 @@
 {% block page_title %}Holidays{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between mb-3">
-    <h5>Manage Holidays</h5>
-    <a href="{% url 'holiday_create' %}" class="btn btn-primary rounded-pill">
-        <i class="fas fa-plus me-1"></i> Add Holiday
-    </a>
-</div>
-<div class="card border-0 shadow-sm">
-    <div class="card-body">
+
+<style>
+    /* ═══════════════════════════════════════════════════
+       Holidays — refined design system
+       Prefix: .hld-
+       ═══════════════════════════════════════════════════ */
+    .hld-wrap {
+        --hld-surface:        #ffffff;
+        --hld-surface-2:      #fafbfc;
+        --hld-surface-3:      #f4f6f8;
+        --hld-border:         #e8eaee;
+        --hld-border-hover:   #d5d9e0;
+        --hld-text:           #0f172a;
+        --hld-text-muted:     #64748b;
+        --hld-text-faint:     #94a3b8;
+        --hld-primary:        #4f46e5;
+        --hld-primary-soft:   #eef2ff;
+        --hld-primary-hover:  #4338ca;
+        --hld-danger:         #dc2626;
+        --hld-danger-soft:    #fef2f2;
+        --hld-success:        #059669;
+        --hld-success-soft:   #ecfdf5;
+        --hld-pill:           999px;
+        --hld-shadow-xs:      0 1px 2px rgba(15,23,42,.04);
+        --hld-ease:           cubic-bezier(.4, 0, .2, 1);
+    }
+
+    /* ─── Page heading ─── */
+    .hld-hd {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+    .hld-hd-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        letter-spacing: -.02em;
+        color: var(--hld-text);
+        margin: 0;
+        line-height: 1.2;
+    }
+    .hld-hd-sub {
+        font-size: .82rem;
+        color: var(--hld-text-muted);
+        margin: 4px 0 0;
+    }
+
+    /* ─── Buttons ─── */
+    .hld-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 16px;
+        font-size: .78rem;
+        font-weight: 500;
+        border-radius: var(--hld-pill);
+        border: 1px solid transparent;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all .15s var(--hld-ease);
+        line-height: 1.3;
+        white-space: nowrap;
+    }
+    .hld-btn i { font-size: .82rem; }
+
+    .hld-btn-primary {
+        background: var(--hld-primary);
+        color: #fff;
+    }
+    .hld-btn-primary:hover {
+        background: var(--hld-primary-hover);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(79,70,229,.25);
+    }
+
+    /* ─── Action icon buttons ─── */
+    .hld-action {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        border: 1px solid var(--hld-border);
+        background: var(--hld-surface);
+        color: var(--hld-text-muted);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .78rem;
+        text-decoration: none;
+        transition: all .15s var(--hld-ease);
+        padding: 0;
+    }
+    .hld-action + .hld-action { margin-left: 6px; }
+    .hld-action:hover { transform: scale(1.05); }
+    .hld-action.edit:hover {
+        background: var(--hld-primary-soft);
+        color: var(--hld-primary);
+        border-color: transparent;
+    }
+    .hld-action.delete:hover {
+        background: var(--hld-danger-soft);
+        color: var(--hld-danger);
+        border-color: transparent;
+    }
+
+    /* ─── Card shell ─── */
+    .hld-card {
+        background: var(--hld-surface);
+        border: 1px solid var(--hld-border);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: var(--hld-shadow-xs);
+        transition: border-color .2s var(--hld-ease);
+    }
+    .hld-card:hover { border-color: var(--hld-border-hover); }
+
+    /* ─── Table ─── */
+    .hld-table {
+        width: 100%;
+        margin: 0;
+        border-collapse: collapse;
+    }
+    .hld-table thead th {
+        font-size: .68rem;
+        font-weight: 600;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: var(--hld-text-faint);
+        padding: 12px 20px;
+        border-bottom: 1px solid var(--hld-border);
+        background: var(--hld-surface-2);
+        white-space: nowrap;
+        text-align: left;
+    }
+    .hld-table tbody td {
+        padding: 14px 20px;
+        vertical-align: middle;
+        border-bottom: 1px solid var(--hld-border);
+        font-size: .875rem;
+        color: var(--hld-text);
+    }
+    .hld-table tbody tr:last-child td { border-bottom: none; }
+    .hld-table tbody tr { transition: background .12s var(--hld-ease); }
+    .hld-table tbody tr:hover { background: var(--hld-surface-2); }
+
+    .hld-table .num {
+        font-variant-numeric: tabular-nums;
+        font-weight: 500;
+    }
+    .hld-table .muted { color: var(--hld-text-faint); }
+
+    /* ─── Holiday name cell ─── */
+    .hld-name-cell {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .hld-name-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 9px;
+        background: linear-gradient(135deg, var(--hld-primary-soft) 0%, #e0e7ff 100%);
+        color: var(--hld-primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .85rem;
+        flex-shrink: 0;
+    }
+    .hld-name {
+        font-weight: 600;
+        color: var(--hld-text);
+        letter-spacing: -.005em;
+    }
+
+    /* ─── Date cell ─── */
+    .hld-date {
+        display: inline-flex;
+        flex-direction: column;
+        gap: 1px;
+        line-height: 1.2;
+    }
+    .hld-date-main {
+        font-weight: 600;
+        font-size: .875rem;
+        color: var(--hld-text);
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* ─── Day pill ─── */
+    .hld-day {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 11px;
+        border-radius: var(--hld-pill);
+        background: var(--hld-surface-2);
+        border: 1px solid var(--hld-border);
+        font-size: .74rem;
+        font-weight: 500;
+        color: var(--hld-text-muted);
+        white-space: nowrap;
+    }
+    .hld-day.weekend {
+        background: var(--hld-primary-soft);
+        border-color: transparent;
+        color: var(--hld-primary);
+    }
+    .hld-day i { font-size: .72rem; }
+
+    /* ─── Empty state ─── */
+    .hld-empty {
+        text-align: center;
+        padding: 56px 20px;
+    }
+    .hld-empty-ico {
+        width: 68px;
+        height: 68px;
+        border-radius: 50%;
+        background: var(--hld-surface-2);
+        border: 1px solid var(--hld-border);
+        color: var(--hld-text-faint);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.85rem;
+        margin-bottom: 16px;
+    }
+    .hld-empty-title {
+        font-size: .9rem;
+        font-weight: 600;
+        color: var(--hld-text);
+        margin: 0 0 4px;
+    }
+    .hld-empty-sub {
+        font-size: .8rem;
+        color: var(--hld-text-muted);
+        margin: 0 0 18px;
+    }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 767.98px) {
+        .hld-hd-title { font-size: 1.1rem; }
+        .hld-table thead th,
+        .hld-table tbody td { padding: 11px 14px; font-size: .82rem; }
+        .hld-name-icon { width: 28px; height: 28px; font-size: .78rem; }
+        .hld-action { width: 30px; height: 30px; font-size: .72rem; }
+    }
+</style>
+
+<div class="hld-wrap">
+
+    <!-- ═══════════ Page heading + action ═══════════ -->
+    <div class="hld-hd">
+        <div>
+            <h1 class="hld-hd-title">Manage Holidays</h1>
+            <p class="hld-hd-sub">Company-wide holidays that appear on everyone's calendar.</p>
+        </div>
+        <a href="{% url 'holiday_create' %}" class="hld-btn hld-btn-primary">
+            <i class="fas fa-plus"></i> Add Holiday
+        </a>
+    </div>
+
+    <!-- ═══════════ Holidays table ═══════════ -->
+    <div class="hld-card">
         <div class="table-responsive">
-            <table class="table table-hover align-middle">
+            <table class="hld-table">
                 <thead>
                     <tr>
-                        <th>Holiday Name</th>
+                        <th>Holiday</th>
                         <th>Date</th>
                         <th>Day</th>
-                        <th>Actions</th>
+                        <th class="text-end">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for holiday in holidays %}
                         <tr>
-                            <td><strong>{{ holiday.name }}</strong></td>
-                            <td>{{ holiday.date|date:"d M Y" }}</td>
-                            <td>{{ holiday.day }}</td>
                             <td>
-                                <a href="{% url 'holiday_edit' holiday.id %}" class="btn btn-sm btn-outline-primary"><i class="fas fa-edit"></i></a>
-                                <a href="{% url 'holiday_delete' holiday.id %}" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></a>
+                                <div class="hld-name-cell">
+                                    <span class="hld-name-icon"><i class="las la-gift"></i></span>
+                                    <span class="hld-name">{{ holiday.name }}</span>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="hld-date">
+                                    <span class="hld-date-main">{{ holiday.date|date:"d M Y" }}</span>
+                                </div>
+                            </td>
+                            <td>
+                                {% if holiday.day == 'Saturday' or holiday.day == 'Sunday' %}
+                                    <span class="hld-day weekend">{{ holiday.day }}</span>
+                                {% else %}
+                                    <span class="hld-day">{{ holiday.day }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                <a href="{% url 'holiday_edit' holiday.id %}" class="hld-action edit" title="Edit">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <a href="{% url 'holiday_delete' holiday.id %}" class="hld-action delete" title="Delete">
+                                    <i class="fas fa-trash"></i>
+                                </a>
                             </td>
                         </tr>
                     {% empty %}
-                        <tr><td colspan="4" class="text-center text-muted">No holidays added yet.</td></tr>
+                        <tr>
+                            <td colspan="4">
+                                <div class="hld-empty">
+                                    <div class="hld-empty-ico"><i class="las la-calendar-alt"></i></div>
+                                    <p class="hld-empty-title">No holidays added yet</p>
+                                    <p class="hld-empty-sub">Add your first company holiday to get started.</p>
+                                    <a href="{% url 'holiday_create' %}" class="hld-btn hld-btn-primary">
+                                        <i class="fas fa-plus"></i> Add Holiday
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
     </div>
+
 </div>
+
 {% endblock %}

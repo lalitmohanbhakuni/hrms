@@ -1,140 +1,521 @@
 {% extends 'payroll/base_payroll.html' %}
 
 {% block payroll_content %}
-<div class="card border-0 shadow-sm mb-3">
-    <div class="card-body">
-        <h5>Payroll Processing</h5>
-        <p class="text-muted">Select month and year, review the calculation, then generate payroll.</p>
 
-        <form method="get" class="row g-3 mb-4">
-            <div class="col-md-3">
-                <label class="form-label">Month</label>
-                <select name="month" class="form-select">
-                    {% for m in months %}
-                        <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ m }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Year</label>
-                <select name="year" class="form-select">
-                    {% for y in years %}
-                        <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-3 d-flex align-items-end">
-                <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-search"></i> Load
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
+<style>
+    /* ═══════════════════════════════════════════════════
+       Payroll Processing — refined design system
+       Prefix: .ppr-
+       ═══════════════════════════════════════════════════ */
+    .ppr-wrap {
+        --ppr-surface:        #ffffff;
+        --ppr-surface-2:      #fafbfc;
+        --ppr-surface-3:      #f4f6f8;
+        --ppr-border:         #e8eaee;
+        --ppr-border-hover:   #d5d9e0;
+        --ppr-text:           #0f172a;
+        --ppr-text-muted:     #64748b;
+        --ppr-text-faint:     #94a3b8;
+        --ppr-primary:        #4f46e5;
+        --ppr-primary-soft:   #eef2ff;
+        --ppr-primary-hover:  #4338ca;
+        --ppr-success:        #059669;
+        --ppr-success-soft:   #ecfdf5;
+        --ppr-success-hover:  #047857;
+        --ppr-warning:        #d97706;
+        --ppr-warning-soft:   #fffbeb;
+        --ppr-danger:         #dc2626;
+        --ppr-danger-soft:    #fef2f2;
+        --ppr-info:           #0284c7;
+        --ppr-info-soft:      #f0f9ff;
+        --ppr-pill:           999px;
+        --ppr-shadow-xs:      0 1px 2px rgba(15,23,42,.04);
+        --ppr-ease:           cubic-bezier(.4, 0, .2, 1);
+    }
 
-{% if payroll_data %}
-<div class="card border-0 shadow-sm">
-    <div class="card-header bg-transparent border-0 pt-3 d-flex justify-content-between align-items-center">
-        <h6 class="mb-0">
-            <i class="fas fa-list text-primary me-2"></i>
-            Payroll Review — {{ month }}/{{ year }}
-            <span class="badge bg-secondary ms-2">{{ payroll_data|length }} employees</span>
-        </h6>
-        <form method="post" action="{% url 'payroll_generate' %}">
-            {% csrf_token %}
-            <input type="hidden" name="month" value="{{ month }}">
-            <input type="hidden" name="year" value="{{ year }}">
-            <button type="submit" class="btn btn-success btn-sm"
-                    onclick="return confirm('Generate payroll for {{ month }}/{{ year }}?')">
-                <i class="fas fa-cogs"></i> Generate Payroll
-            </button>
-        </form>
-    </div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover table-sm align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>#</th>
-                        <th>Employee</th>
-                        <th>ID</th>
-                        <th class="text-end">Basic</th>
-                        <th class="text-end">HRA</th>
-                        <th class="text-end">Allow.</th>
-                        <th class="text-end">Gross</th>
-                        <th class="text-center">WD</th>
-                        <th class="text-center">PD</th>
-                        <th class="text-center">PL</th>
-                        <th class="text-center">UL</th>
-                        <th class="text-center">OT hrs</th>
-                        <th class="text-end">OT Amt</th>
-                        <th class="text-end">UL Ded.</th>
-                        <th class="text-end">Net</th>
-                        <th class="text-center">Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in payroll_data %}
-                        <tr>
-                            <td>{{ forloop.counter }}</td>
-                            <td><strong>{{ item.employee.full_name|default:item.employee.user.username }}</strong></td>
-                            <td>{{ item.employee.employee_id }}</td>
-                            <td class="text-end">₹{{ item.calc.basic_salary|floatformat:0 }}</td>
-                            <td class="text-end">₹{{ item.calc.hra|floatformat:0 }}</td>
-                            <td class="text-end">₹{{ item.calc.allowance|floatformat:0 }}</td>
-                            <td class="text-end fw-bold">₹{{ item.calc.gross_salary|floatformat:0 }}</td>
-                            <td class="text-center">{{ item.calc.working_days }}</td>
-                            <td class="text-center">{{ item.calc.present_days }}</td>
-                            <td class="text-center">{{ item.calc.paid_leave_days|floatformat:1 }}</td>
-                            <td class="text-center text-danger">{{ item.calc.unpaid_leave_days|floatformat:1 }}</td>
-                            <td class="text-center">
-                                {% if item.calc.overtime_hours > 0 %}
-                                    <span class="badge bg-info text-dark">{{ item.calc.overtime_hours }}h</span>
-                                {% else %}
-                                    —
-                                {% endif %}
-                            </td>
-                            <td class="text-end">
-                                {% if item.calc.overtime_amount > 0 %}
-                                    ₹{{ item.calc.overtime_amount|floatformat:0 }}
-                                {% else %}
-                                    —
-                                {% endif %}
-                            </td>
-                            <td class="text-end text-danger">
-                                {% if item.calc.unpaid_leave_deduction > 0 %}
-                                    ₹{{ item.calc.unpaid_leave_deduction|floatformat:0 }}
-                                {% else %}
-                                    —
-                                {% endif %}
-                            </td>
-                            <td class="text-end fw-bold text-success">₹{{ item.calc.net_payable|floatformat:0 }}</td>
-                            <td class="text-center">
-                                {% if item.has_payroll %}
-                                    <span class="badge bg-success">Generated</span>
-                                {% else %}
-                                    <span class="badge bg-secondary">Draft</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+    /* ─── Card shell ─── */
+    .ppr-card {
+        background: var(--ppr-surface);
+        border: 1px solid var(--ppr-border);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: var(--ppr-shadow-xs);
+        transition: border-color .2s var(--ppr-ease);
+        margin-bottom: 18px;
+    }
+    .ppr-card:hover { border-color: var(--ppr-border-hover); }
+    .ppr-card-bd { padding: 24px 26px; }
+
+    /* ─── Filter panel header ─── */
+    .ppr-hd {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+    .ppr-hd-ico {
+        width: 40px;
+        height: 40px;
+        border-radius: 11px;
+        background: var(--ppr-primary-soft);
+        color: var(--ppr-primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.05rem;
+        flex-shrink: 0;
+    }
+    .ppr-hd-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        letter-spacing: -.015em;
+        color: var(--ppr-text);
+        margin: 0 0 2px;
+        line-height: 1.2;
+    }
+    .ppr-hd-sub {
+        font-size: .82rem;
+        color: var(--ppr-text-muted);
+        margin: 0;
+    }
+
+    /* ─── Fields ─── */
+    .ppr-label {
+        display: block;
+        font-size: .72rem;
+        font-weight: 600;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+        color: var(--ppr-text-faint);
+        margin-bottom: 6px;
+    }
+    .ppr-select {
+        width: 100%;
+        padding: 9px 14px;
+        font-size: .875rem;
+        font-family: inherit;
+        color: var(--ppr-text);
+        background: var(--ppr-surface);
+        border: 1px solid var(--ppr-border);
+        border-radius: 10px;
+        outline: none;
+        transition: border-color .15s var(--ppr-ease), box-shadow .15s var(--ppr-ease);
+        appearance: none;
+        -webkit-appearance: none;
+        background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3e%3cpath fill='none' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M3 5l3 3 3-3'/%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right 14px center;
+        background-size: 12px;
+        padding-right: 38px;
+        cursor: pointer;
+        font-variant-numeric: tabular-nums;
+    }
+    .ppr-select:hover { border-color: var(--ppr-border-hover); }
+    .ppr-select:focus {
+        border-color: var(--ppr-primary);
+        box-shadow: 0 0 0 3px rgba(79,70,229,.12);
+    }
+
+    /* ─── Buttons ─── */
+    .ppr-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 9px 20px;
+        font-size: .8rem;
+        font-weight: 500;
+        border-radius: var(--ppr-pill);
+        border: 1px solid transparent;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all .15s var(--ppr-ease);
+        line-height: 1.3;
+        white-space: nowrap;
+    }
+    .ppr-btn i { font-size: .82rem; }
+
+    .ppr-btn-primary {
+        background: var(--ppr-primary);
+        color: #fff;
+    }
+    .ppr-btn-primary:hover {
+        background: var(--ppr-primary-hover);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(79,70,229,.25);
+    }
+
+    .ppr-btn-generate {
+        background: var(--ppr-success);
+        color: #fff;
+    }
+    .ppr-btn-generate:hover {
+        background: var(--ppr-success-hover);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(5,150,105,.25);
+    }
+
+    /* ─── Review card header ─── */
+    .ppr-review-hd {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        padding: 18px 22px 14px;
+        border-bottom: 1px solid var(--ppr-border);
+    }
+    .ppr-review-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: .95rem;
+        font-weight: 600;
+        letter-spacing: -.01em;
+        color: var(--ppr-text);
+        margin: 0;
+    }
+    .ppr-review-title i {
+        color: var(--ppr-text-faint);
+        font-size: .95rem;
+    }
+    .ppr-count-pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 3px 10px;
+        border-radius: var(--ppr-pill);
+        background: var(--ppr-primary-soft);
+        color: var(--ppr-primary);
+        font-size: .7rem;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* ─── Table ─── */
+    .ppr-table {
+        width: 100%;
+        margin: 0;
+        border-collapse: collapse;
+    }
+    .ppr-table thead th {
+        font-size: .62rem;
+        font-weight: 600;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--ppr-text-faint);
+        padding: 11px 12px;
+        border-bottom: 1px solid var(--ppr-border);
+        background: var(--ppr-surface-2);
+        white-space: nowrap;
+        text-align: left;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+    }
+    .ppr-table thead th.text-end    { text-align: right; }
+    .ppr-table thead th.text-center { text-align: center; }
+
+    .ppr-table tbody td {
+        padding: 12px;
+        vertical-align: middle;
+        border-bottom: 1px solid var(--ppr-border);
+        font-size: .78rem;
+        color: var(--ppr-text);
+    }
+    .ppr-table tbody td.text-end    { text-align: right; }
+    .ppr-table tbody td.text-center { text-align: center; }
+    .ppr-table tbody tr:last-child td { border-bottom: none; }
+    .ppr-table tbody tr { transition: background .12s var(--ppr-ease); }
+    .ppr-table tbody tr:hover { background: var(--ppr-surface-2); }
+
+    .ppr-table .idx {
+        color: var(--ppr-text-faint);
+        font-variant-numeric: tabular-nums;
+        font-weight: 500;
+    }
+    .ppr-table .num {
+        font-variant-numeric: tabular-nums;
+        font-weight: 500;
+    }
+    .ppr-table .muted { color: var(--ppr-text-faint); }
+    .ppr-table .danger { color: var(--ppr-danger); }
+
+    /* ─── Employee cell ─── */
+    .ppr-emp {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+    }
+    .ppr-avatar {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        color: #fff;
+        font-weight: 600;
+        font-size: .66rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        letter-spacing: -.02em;
+    }
+    .ppr-emp-name {
+        font-weight: 600;
+        color: var(--ppr-text);
+        white-space: nowrap;
+    }
+
+    /* ─── Gross / Net emphasis ─── */
+    .ppr-gross { font-weight: 600; color: var(--ppr-primary); }
+    .ppr-net   { font-weight: 700; color: var(--ppr-success); }
+
+    /* ─── OT hour badge ─── */
+    .ppr-ot-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 8px;
+        border-radius: var(--ppr-pill);
+        background: var(--ppr-info-soft);
+        color: var(--ppr-info);
+        font-size: .66rem;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* ─── Status pill ─── */
+    .ppr-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 3px 10px;
+        border-radius: var(--ppr-pill);
+        font-size: .68rem;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+    .ppr-status::before {
+        content: "";
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: currentColor;
+        flex-shrink: 0;
+    }
+    .ppr-status.generated { background: var(--ppr-success-soft); color: var(--ppr-success); }
+    .ppr-status.draft     { background: var(--ppr-surface-3);    color: var(--ppr-text-muted); }
+
+    /* ─── Empty state ─── */
+    .ppr-empty {
+        text-align: center;
+        padding: 56px 20px;
+    }
+    .ppr-empty-ico {
+        width: 68px;
+        height: 68px;
+        border-radius: 50%;
+        background: var(--ppr-surface-2);
+        border: 1px solid var(--ppr-border);
+        color: var(--ppr-text-faint);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.85rem;
+        margin-bottom: 16px;
+    }
+    .ppr-empty-title {
+        font-size: .92rem;
+        font-weight: 600;
+        color: var(--ppr-text);
+        margin: 0 0 4px;
+    }
+    .ppr-empty-sub {
+        font-size: .82rem;
+        color: var(--ppr-text-muted);
+        margin: 0;
+    }
+    .ppr-empty-sub a {
+        color: var(--ppr-primary);
+        text-decoration: none;
+        font-weight: 500;
+    }
+    .ppr-empty-sub a:hover {
+        text-decoration: underline;
+        text-underline-offset: 3px;
+    }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 767.98px) {
+        .ppr-card-bd { padding: 18px; }
+        .ppr-hd-title { font-size: .95rem; }
+        .ppr-hd-ico { width: 34px; height: 34px; font-size: .95rem; }
+        .ppr-review-hd { padding: 14px 18px 10px; }
+        .ppr-table thead th,
+        .ppr-table tbody td { padding: 9px 10px; font-size: .72rem; }
+        .ppr-avatar { width: 22px; height: 22px; font-size: .6rem; }
+        .ppr-btn { padding: 8px 16px; font-size: .76rem; }
+    }
+</style>
+
+<div class="ppr-wrap">
+
+    <!-- ═══════════ Filter panel ═══════════ -->
+    <div class="ppr-card">
+        <div class="ppr-card-bd">
+            <div class="ppr-hd">
+                <span class="ppr-hd-ico"><i class="fas fa-cogs"></i></span>
+                <div>
+                    <h1 class="ppr-hd-title">Payroll Processing</h1>
+                    <p class="ppr-hd-sub">Select month and year, review the calculation, then generate payroll.</p>
+                </div>
+            </div>
+
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="ppr-label" for="ppr_month">Month</label>
+                    <select name="month" id="ppr_month" class="ppr-select">
+                        {% for m in months %}
+                            <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ m }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="ppr-label" for="ppr_year">Year</label>
+                    <select name="year" id="ppr_year" class="ppr-select">
+                        {% for y in years %}
+                            <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="ppr-btn ppr-btn-primary">
+                        <i class="fas fa-search"></i> Load
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
-</div>
 
-{% else %}
-<div class="card border-0 shadow-sm">
-    <div class="card-body text-center py-5">
-        <i class="fas fa-users fa-3x text-muted mb-3 d-block"></i>
-        <h5 class="text-muted">No employees with active salaries found</h5>
-        <p class="text-muted small">
-            Add employee salaries first from
-            <a href="{% url 'employee_salary_list' %}">Employee Salary</a>.
-        </p>
-    </div>
+    {% if payroll_data %}
+
+        <!-- ═══════════ Review table ═══════════ -->
+        <div class="ppr-card">
+            <div class="ppr-review-hd">
+                <h6 class="ppr-review-title">
+                    <i class="fas fa-list"></i> Payroll Review — {{ month }}/{{ year }}
+                    <span class="ppr-count-pill">{{ payroll_data|length }} employees</span>
+                </h6>
+
+                <form method="post" action="{% url 'payroll_generate' %}" class="m-0">
+                    {% csrf_token %}
+                    <input type="hidden" name="month" value="{{ month }}">
+                    <input type="hidden" name="year" value="{{ year }}">
+                    <button type="submit" class="ppr-btn ppr-btn-generate"
+                            onclick="return confirm('Generate payroll for {{ month }}/{{ year }}?')">
+                        <i class="fas fa-cogs"></i> Generate Payroll
+                    </button>
+                </form>
+            </div>
+
+            <div class="table-responsive">
+                <table class="ppr-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Employee</th>
+                            <th>ID</th>
+                            <th class="text-end">Basic</th>
+                            <th class="text-end">HRA</th>
+                            <th class="text-end">Allow.</th>
+                            <th class="text-end">Gross</th>
+                            <th class="text-center">WD</th>
+                            <th class="text-center">PD</th>
+                            <th class="text-center">PL</th>
+                            <th class="text-center">UL</th>
+                            <th class="text-center">OT hrs</th>
+                            <th class="text-end">OT Amt</th>
+                            <th class="text-end">UL Ded.</th>
+                            <th class="text-end">Net</th>
+                            <th class="text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in payroll_data %}
+                            <tr>
+                                <td class="idx">{{ forloop.counter }}</td>
+                                <td>
+                                    <div class="ppr-emp">
+                                        <span class="ppr-avatar">
+                                            {{ item.employee.full_name|default:item.employee.user.username|slice:":1"|upper }}
+                                        </span>
+                                        <span class="ppr-emp-name">
+                                            {{ item.employee.full_name|default:item.employee.user.username }}
+                                        </span>
+                                    </div>
+                                </td>
+                                <td class="num muted">{{ item.employee.employee_id }}</td>
+                                <td class="text-end num">₹{{ item.calc.basic_salary|floatformat:0 }}</td>
+                                <td class="text-end num">₹{{ item.calc.hra|floatformat:0 }}</td>
+                                <td class="text-end num">₹{{ item.calc.allowance|floatformat:0 }}</td>
+                                <td class="text-end num ppr-gross">₹{{ item.calc.gross_salary|floatformat:0 }}</td>
+                                <td class="text-center num">{{ item.calc.working_days }}</td>
+                                <td class="text-center num">{{ item.calc.present_days }}</td>
+                                <td class="text-center num">{{ item.calc.paid_leave_days|floatformat:1 }}</td>
+                                <td class="text-center num danger">{{ item.calc.unpaid_leave_days|floatformat:1 }}</td>
+                                <td class="text-center">
+                                    {% if item.calc.overtime_hours > 0 %}
+                                        <span class="ppr-ot-badge">{{ item.calc.overtime_hours }}h</span>
+                                    {% else %}
+                                        <span class="muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end num">
+                                    {% if item.calc.overtime_amount > 0 %}
+                                        ₹{{ item.calc.overtime_amount|floatformat:0 }}
+                                    {% else %}
+                                        <span class="muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end num">
+                                    {% if item.calc.unpaid_leave_deduction > 0 %}
+                                        <span class="danger">₹{{ item.calc.unpaid_leave_deduction|floatformat:0 }}</span>
+                                    {% else %}
+                                        <span class="muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end num ppr-net">₹{{ item.calc.net_payable|floatformat:0 }}</td>
+                                <td class="text-center">
+                                    {% if item.has_payroll %}
+                                        <span class="ppr-status generated">Generated</span>
+                                    {% else %}
+                                        <span class="ppr-status draft">Draft</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    {% else %}
+
+        <!-- ═══════════ Empty state ═══════════ -->
+        <div class="ppr-card">
+            <div class="ppr-empty">
+                <div class="ppr-empty-ico"><i class="fas fa-users"></i></div>
+                <p class="ppr-empty-title">No employees with active salaries found</p>
+                <p class="ppr-empty-sub">
+                    Add employee salaries first from
+                    <a href="{% url 'employee_salary_list' %}">Employee Salary</a>.
+                </p>
+            </div>
+        </div>
+
+    {% endif %}
+
 </div>
-{% endif %}
 
 {% endblock %}

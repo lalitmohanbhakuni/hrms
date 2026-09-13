@@ -1,97 +1,532 @@
 {% extends 'payroll/base_payroll.html' %}
 
+{% block extra_head %}
+
+{% endblock %}
+
 {% block payroll_content %}
-<div class="card border-0 shadow-sm">
-    <div class="card-body">
-        <h5 class="mb-3">{{ action }} Employee Salary</h5>
-        <form method="post">
-            {% csrf_token %}
-            <div class="row g-3">
-                {% if action == 'Add' %}
-                <div class="col-md-6">
-                    <label class="form-label">Employee</label>
-                    <select name="employee" class="form-select" required>
-                        <option value="">-- Select Employee --</option>
-                        {% for emp in employees %}
-                            <option value="{{ emp.id }}">
-                                {{ emp.full_name }} ({{ emp.employee_id }})
-                            </option>
-                        {% endfor %}
-                    </select>
-                </div>
-                {% else %}
-                <div class="col-md-6">
-                    <label class="form-label">Employee</label>
-                    <input type="text" class="form-control" 
-                           value="{{ salary.employee.full_name }} ({{ salary.employee.employee_id }})" disabled>
-                </div>
-                {% endif %}
-                
-                <div class="col-md-6">
-                    <label class="form-label">Salary Type</label>
-                    <select name="salary_type" class="form-select" required>
-                        <option value="monthly" {% if salary.salary_type == 'monthly' %}selected{% endif %}>Monthly</option>
-                        <option value="daily" {% if salary.salary_type == 'daily' %}selected{% endif %}>Daily</option>
-                        <option value="hourly" {% if salary.salary_type == 'hourly' %}selected{% endif %}>Hourly</option>
-                    </select>
-                </div>
-                
-                <!-- Earnings -->
-                <div class="col-md-4">
-                    <label class="form-label">Basic Salary</label>
-                    <input type="number" name="basic_salary" step="0.01" class="form-control" 
-                           value="{{ salary.basic_salary|default:0 }}" required>
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">HRA</label>
-                    <input type="number" name="hra" step="0.01" class="form-control" 
-                           value="{{ salary.hra|default:0 }}" required>
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Allowance</label>
-                    <input type="number" name="allowance" step="0.01" class="form-control" 
-                           value="{{ salary.allowance|default:0 }}" required>
-                </div>
 
-                <!-- Overtime Rate (NEW) -->
-                <div class="col-md-4">
-                    <label class="form-label">
-                        Overtime Rate
-                        <small class="text-muted">(₹ per hour)</small>
-                    </label>
-                    <input type="number" name="overtime_rate" step="0.01" class="form-control" 
-                           value="{{ salary.overtime_rate|default:0 }}" required>
-                    <div class="form-text text-muted small">
-                        Amount paid per hour of approved overtime.
+<style>
+    /* ═══════════════════════════════════════════════════
+       Employee Salary Form — refined design system
+       Prefix: .esf-
+       ═══════════════════════════════════════════════════ */
+    .esf-wrap {
+        --esf-surface:        #ffffff;
+        --esf-surface-2:      #fafbfc;
+        --esf-surface-3:      #f4f6f8;
+        --esf-border:         #e8eaee;
+        --esf-border-hover:   #d5d9e0;
+        --esf-text:           #0f172a;
+        --esf-text-muted:     #64748b;
+        --esf-text-faint:     #94a3b8;
+        --esf-primary:        #4f46e5;
+        --esf-primary-soft:   #eef2ff;
+        --esf-primary-hover:  #4338ca;
+        --esf-success:        #059669;
+        --esf-success-soft:   #ecfdf5;
+        --esf-warning:        #d97706;
+        --esf-warning-soft:   #fffbeb;
+        --esf-danger:         #dc2626;
+        --esf-pill:           999px;
+        --esf-shadow-xs:      0 1px 2px rgba(15,23,42,.04);
+        --esf-ease:           cubic-bezier(.4, 0, .2, 1);
+    }
+
+    /* ─── Page header ─── */
+    .esf-hd {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 22px;
+    }
+    .esf-hd-ico {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        background: var(--esf-primary-soft);
+        color: var(--esf-primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.05rem;
+        flex-shrink: 0;
+    }
+    .esf-hd-title {
+        font-size: 1.15rem;
+        font-weight: 600;
+        letter-spacing: -.015em;
+        color: var(--esf-text);
+        margin: 0 0 2px;
+        line-height: 1.2;
+    }
+    .esf-hd-sub {
+        font-size: .82rem;
+        color: var(--esf-text-muted);
+        margin: 0;
+    }
+
+    /* ─── Card ─── */
+    .esf-card {
+        background: var(--esf-surface);
+        border: 1px solid var(--esf-border);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: var(--esf-shadow-xs);
+        transition: border-color .2s var(--esf-ease);
+    }
+    .esf-card:hover { border-color: var(--esf-border-hover); }
+    .esf-card-bd { padding: 28px 32px; }
+
+    /* ─── Section ─── */
+    .esf-section {
+        padding-bottom: 22px;
+        margin-bottom: 22px;
+        border-bottom: 1px solid var(--esf-border);
+    }
+    .esf-section:last-of-type {
+        border-bottom: none;
+        padding-bottom: 0;
+        margin-bottom: 0;
+    }
+    .esf-section-hd {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 18px;
+    }
+    .esf-section-ico {
+        width: 30px;
+        height: 30px;
+        border-radius: 9px;
+        background: var(--esf-primary-soft);
+        color: var(--esf-primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .82rem;
+        flex-shrink: 0;
+    }
+    .esf-section-title {
+        font-size: .78rem;
+        font-weight: 600;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--esf-text-muted);
+        margin: 0;
+    }
+
+    /* ─── Fields ─── */
+    .esf-field { min-width: 0; }
+    .esf-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: .78rem;
+        font-weight: 600;
+        letter-spacing: .02em;
+        color: var(--esf-text);
+        margin-bottom: 8px;
+    }
+    .esf-label i {
+        color: var(--esf-text-faint);
+        font-size: .85rem;
+    }
+    .esf-req {
+        color: var(--esf-danger);
+        margin-left: 2px;
+    }
+    .esf-optional {
+        font-size: .68rem;
+        font-weight: 400;
+        color: var(--esf-text-faint);
+        margin-left: 4px;
+    }
+
+    .esf-input,
+    .esf-select {
+        width: 100%;
+        padding: 11px 14px;
+        font-size: .875rem;
+        font-family: inherit;
+        color: var(--esf-text);
+        background: var(--esf-surface);
+        border: 1px solid var(--esf-border);
+        border-radius: 10px;
+        outline: none;
+        transition: border-color .15s var(--esf-ease), box-shadow .15s var(--esf-ease);
+        appearance: none;
+        -webkit-appearance: none;
+        font-variant-numeric: tabular-nums;
+    }
+    .esf-select {
+        background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3e%3cpath fill='none' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M3 5l3 3 3-3'/%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right 14px center;
+        background-size: 12px;
+        padding-right: 38px;
+        cursor: pointer;
+    }
+    .esf-input::placeholder { color: var(--esf-text-faint); }
+    .esf-input:hover,
+    .esf-select:hover { border-color: var(--esf-border-hover); }
+    .esf-input:focus,
+    .esf-select:focus {
+        border-color: var(--esf-primary);
+        box-shadow: 0 0 0 3px rgba(79,70,229,.12);
+    }
+    .esf-input[type="date"]::-webkit-calendar-picker-indicator {
+        cursor: pointer;
+        opacity: .55;
+        transition: opacity .15s var(--esf-ease);
+    }
+    .esf-input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+    .esf-input[type="number"]::-webkit-outer-spin-button,
+    .esf-input[type="number"]::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    .esf-input[type="number"] { -moz-appearance: textfield; }
+
+    /* Read-only input (edit mode - employee) */
+    .esf-input[disabled],
+    .esf-input[readonly] {
+        background: var(--esf-surface-3);
+        color: var(--esf-text-muted);
+        cursor: not-allowed;
+        border-style: dashed;
+    }
+
+    /* Rupee prefix wrapper */
+    .esf-money {
+        position: relative;
+    }
+    .esf-money::before {
+        content: "₹";
+        position: absolute;
+        left: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--esf-text-faint);
+        font-size: .9rem;
+        font-weight: 500;
+        pointer-events: none;
+        line-height: 1;
+    }
+    .esf-money .esf-input {
+        padding-left: 30px;
+    }
+
+    .esf-hint {
+        font-size: .7rem;
+        color: var(--esf-text-faint);
+        margin-top: 6px;
+        display: flex;
+        align-items: flex-start;
+        gap: 4px;
+        line-height: 1.45;
+    }
+    .esf-hint i {
+        font-size: .72rem;
+        margin-top: 1px;
+        flex-shrink: 0;
+    }
+
+    /* ─── Info note ─── */
+    .esf-note {
+        display: flex;
+        gap: 10px;
+        padding: 12px 14px;
+        background: var(--esf-primary-soft);
+        border-radius: 10px;
+        font-size: .78rem;
+        color: #3730a3;
+        line-height: 1.5;
+        margin-bottom: 22px;
+    }
+    .esf-note i {
+        flex-shrink: 0;
+        font-size: .95rem;
+        margin-top: 1px;
+        color: var(--esf-primary);
+    }
+
+    /* ─── Footer / buttons ─── */
+    .esf-foot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: flex-end;
+        padding-top: 22px;
+        border-top: 1px solid var(--esf-border);
+        margin-top: 26px;
+    }
+    .esf-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 22px;
+        font-size: .82rem;
+        font-weight: 500;
+        border-radius: var(--esf-pill);
+        border: 1px solid transparent;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all .15s var(--esf-ease);
+        line-height: 1.3;
+        white-space: nowrap;
+    }
+    .esf-btn i { font-size: .85rem; }
+
+    .esf-btn-primary {
+        background: var(--esf-primary);
+        color: #fff;
+    }
+    .esf-btn-primary:hover {
+        background: var(--esf-primary-hover);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(79,70,229,.25);
+    }
+
+    .esf-btn-ghost {
+        background: transparent;
+        color: var(--esf-text-muted);
+        border-color: var(--esf-border);
+    }
+    .esf-btn-ghost:hover {
+        background: var(--esf-surface-2);
+        color: var(--esf-text);
+        border-color: var(--esf-border-hover);
+    }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 767.98px) {
+        .esf-card-bd { padding: 22px 20px; }
+        .esf-hd-title { font-size: 1rem; }
+        .esf-hd-ico { width: 34px; height: 34px; font-size: .95rem; }
+        .esf-btn { padding: 9px 18px; font-size: .8rem; }
+        .esf-foot { gap: 8px; }
+        .esf-foot .esf-btn { flex: 1; justify-content: center; }
+    }
+</style>
+
+<div class="esf-wrap">
+    <div class="row justify-content-center">
+        <div class="col-lg-12">
+
+            <!-- ═══════════ Page header ═══════════ -->
+            <div class="esf-hd">
+                <span class="esf-hd-ico"><i class="fas fa-money-bill-wave"></i></span>
+                <div>
+                    <h1 class="esf-hd-title">{{ action }} Employee Salary</h1>
+                    <p class="esf-hd-sub">
+                        {% if action == 'Add' %}
+                            Configure the salary structure for an employee.
+                        {% else %}
+                            Update salary details for {{ salary.employee.full_name }}.
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+
+            <!-- ═══════════ Card ═══════════ -->
+            <div class="esf-card">
+                <div class="esf-card-bd">
+
+                    <div class="esf-note">
+                        <i class="las la-info-circle"></i>
+                        <span>
+                            Gross salary is auto-calculated as <strong>Basic + HRA + Allowance</strong>. Net salary is gross minus deductions applied at payroll time.
+                        </span>
                     </div>
-                </div>
 
-                <!-- ❌ REMOVED: Deduction field -->
-                
-                <div class="col-md-6">
-                    <label class="form-label">Effective From</label>
-                    <input type="date" name="effective_from" class="form-control" 
-                           value="{{ salary.effective_from|date:'Y-m-d'|default:'' }}" required>
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <!-- ═══ SECTION 1: Employee & Salary Type ═══ -->
+                        <div class="esf-section">
+                            <div class="esf-section-hd">
+                                <span class="esf-section-ico"><i class="las la-user-tie"></i></span>
+                                <h6 class="esf-section-title">Employee & Salary Type</h6>
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="esf-field">
+                                        <label class="esf-label" for="employee">
+                                            <i class="las la-user"></i> Employee
+                                            {% if action == 'Add' %}<span class="esf-req">*</span>{% endif %}
+                                        </label>
+                                        {% if action == 'Add' %}
+                                            <select name="employee" id="employee" class="esf-select" required>
+                                                <option value="">-- Select Employee --</option>
+                                                {% for emp in employees %}
+                                                    <option value="{{ emp.id }}">
+                                                        {{ emp.full_name }} ({{ emp.employee_id }})
+                                                    </option>
+                                                {% endfor %}
+                                            </select>
+                                        {% else %}
+                                            <input type="text" class="esf-input"
+                                                   value="{{ salary.employee.full_name }} ({{ salary.employee.employee_id }})"
+                                                   disabled readonly>
+                                            <div class="esf-hint">
+                                                <i class="las la-lock"></i>
+                                                <span>Employee can't be changed after creation.</span>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <div class="esf-field">
+                                        <label class="esf-label" for="salary_type">
+                                            <i class="las la-tag"></i> Salary Type <span class="esf-req">*</span>
+                                        </label>
+                                        <select name="salary_type" id="salary_type" class="esf-select" required>
+                                            <option value="monthly" {% if salary.salary_type == 'monthly' %}selected{% endif %}>Monthly</option>
+                                            <option value="daily"   {% if salary.salary_type == 'daily'   %}selected{% endif %}>Daily</option>
+                                            <option value="hourly"  {% if salary.salary_type == 'hourly'  %}selected{% endif %}>Hourly</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ═══ SECTION 2: Earnings ═══ -->
+                        <div class="esf-section">
+                            <div class="esf-section-hd">
+                                <span class="esf-section-ico"><i class="las la-coins"></i></span>
+                                <h6 class="esf-section-title">Earnings</h6>
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <div class="esf-field">
+                                        <label class="esf-label" for="basic_salary">
+                                            <i class="las la-rupee-sign"></i> Basic Salary <span class="esf-req">*</span>
+                                        </label>
+                                        <div class="esf-money">
+                                            <input type="number" name="basic_salary" id="basic_salary"
+                                                   step="0.01" min="0" class="esf-input"
+                                                   value="{{ salary.basic_salary|default:0 }}" required>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <div class="esf-field">
+                                        <label class="esf-label" for="hra">
+                                            <i class="las la-home"></i> HRA <span class="esf-req">*</span>
+                                        </label>
+                                        <div class="esf-money">
+                                            <input type="number" name="hra" id="hra"
+                                                   step="0.01" min="0" class="esf-input"
+                                                   value="{{ salary.hra|default:0 }}" required>
+                                        </div>
+                                        <div class="esf-hint">
+                                            <i class="las la-info-circle"></i>
+                                            <span>House Rent Allowance</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <div class="esf-field">
+                                        <label class="esf-label" for="allowance">
+                                            <i class="las la-plus-circle"></i> Allowance <span class="esf-req">*</span>
+                                        </label>
+                                        <div class="esf-money">
+                                            <input type="number" name="allowance" id="allowance"
+                                                   step="0.01" min="0" class="esf-input"
+                                                   value="{{ salary.allowance|default:0 }}" required>
+                                        </div>
+                                        <div class="esf-hint">
+                                            <i class="las la-info-circle"></i>
+                                            <span>Other allowances</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ═══ SECTION 3: Overtime & Effective Date ═══ -->
+                        <div class="esf-section">
+                            <div class="esf-section-hd">
+                                <span class="esf-section-ico"><i class="las la-business-time"></i></span>
+                                <h6 class="esf-section-title">Overtime & Effective Date</h6>
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <div class="esf-field">
+                                        <label class="esf-label" for="overtime_rate">
+                                            <i class="las la-clock"></i> Overtime Rate
+                                            <span class="esf-optional">(₹ / hour)</span>
+                                        </label>
+                                        <div class="esf-money">
+                                            <input type="number" name="overtime_rate" id="overtime_rate"
+                                                   step="0.01" min="0" class="esf-input"
+                                                   value="{{ salary.overtime_rate|default:0 }}" required>
+                                        </div>
+                                        <div class="esf-hint">
+                                            <i class="las la-info-circle"></i>
+                                            <span>Amount paid per hour of approved overtime.</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <div class="esf-field">
+                                        <label class="esf-label" for="effective_from">
+                                            <i class="las la-calendar-check"></i> Effective From <span class="esf-req">*</span>
+                                        </label>
+                                        <input type="date" name="effective_from" id="effective_from"
+                                               class="esf-input"
+                                               value="{{ salary.effective_from|date:'Y-m-d'|default:'' }}" required>
+                                        <div class="esf-hint">
+                                            <i class="las la-info-circle"></i>
+                                            <span>Date this salary becomes active.</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {% if action == 'Edit' %}
+                                    <div class="col-md-4">
+                                        <div class="esf-field">
+                                            <label class="esf-label" for="status">
+                                                <i class="las la-toggle-on"></i> Status
+                                            </label>
+                                            <select name="status" id="status" class="esf-select">
+                                                <option value="active"   {% if salary.status == 'active'   %}selected{% endif %}>Active</option>
+                                                <option value="inactive" {% if salary.status == 'inactive' %}selected{% endif %}>Inactive</option>
+                                            </select>
+                                            <div class="esf-hint">
+                                                <i class="las la-info-circle"></i>
+                                                <span>Only active salaries are used in payroll.</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- ═══ FOOTER ═══ -->
+                        <div class="esf-foot">
+                            <a href="{% url 'employee_salary_list' %}" class="esf-btn esf-btn-ghost">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                            <button type="submit" class="esf-btn esf-btn-primary">
+                                <i class="fas fa-save"></i> {{ action }} Salary
+                            </button>
+                        </div>
+                    </form>
+
                 </div>
-                
-                {% if action == 'Edit' %}
-                <div class="col-md-6">
-                    <label class="form-label">Status</label>
-                    <select name="status" class="form-select">
-                        <option value="active" {% if salary.status == 'active' %}selected{% endif %}>Active</option>
-                        <option value="inactive" {% if salary.status == 'inactive' %}selected{% endif %}>Inactive</option>
-                    </select>
-                </div>
-                {% endif %}
             </div>
-            
-            <div class="mt-4 d-flex justify-content-end gap-2">
-                <a href="{% url 'employee_salary_list' %}" class="btn btn-outline-secondary">Cancel</a>
-                <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-save me-1"></i> {{ action }} Salary
-                </button>
-            </div>
-        </form>
+        </div>
     </div>
 </div>
+
 {% endblock %}

@@ -9,24 +9,28 @@
 
 <style>
     /* ═══════════════════════════════════════════════════
-       Notifications Page — two tabs, all notifications shown
-       Processed actions appear greyed with a badge
+       Notifications Page — refined design system
+       Prefix: .nfy-
        ═══════════════════════════════════════════════════ */
     .nfy-wrap {
         --nfy-surface:       #ffffff;
         --nfy-surface-2:     #fafbfc;
         --nfy-border:        #e8eaee;
+        --nfy-border-hover:  #d5d9e0;
         --nfy-text:          #0f172a;
         --nfy-text-muted:    #64748b;
         --nfy-text-faint:    #94a3b8;
         --nfy-primary:       #4f46e5;
         --nfy-primary-soft:  #eef2ff;
+        --nfy-primary-hover: #4338ca;
         --nfy-success:       #059669;
         --nfy-success-soft:  #ecfdf5;
+        --nfy-success-hover: #047857;
         --nfy-warning:       #d97706;
         --nfy-warning-soft:  #fffbeb;
         --nfy-danger:        #dc2626;
         --nfy-danger-soft:   #fef2f2;
+        --nfy-danger-hover:  #b91c1c;
         --nfy-info:          #0284c7;
         --nfy-info-soft:     #f0f9ff;
         --nfy-pill:          999px;
@@ -65,6 +69,7 @@
     }
     .nfy-tabs .nav-link i { font-size: .82rem; opacity: .75; }
     .nfy-tabs .nav-link:hover { color: var(--nfy-text); }
+    .nfy-tabs .nav-link:hover i { opacity: 1; }
     .nfy-tabs .nav-link.active { background: var(--nfy-primary); color: #fff; }
     .nfy-tabs .nav-link.active i { opacity: 1; }
 
@@ -94,9 +99,11 @@
         border-radius: 12px;
         overflow: hidden;
         box-shadow: var(--nfy-shadow-xs);
+        transition: border-color .2s var(--nfy-ease);
     }
+    .nfy-card:hover { border-color: var(--nfy-border-hover); }
 
-    /* ─── Row ─── */
+    /* ─── Notification row ─── */
     .nfy-row {
         display: flex;
         align-items: flex-start;
@@ -109,26 +116,20 @@
     .nfy-row:first-child { border-top: none; }
     .nfy-row:hover { background: var(--nfy-surface-2); }
 
-    /* Unread = has a left accent + light tint */
     .nfy-row.is-unread { background: #f5f8ff; }
     .nfy-row.is-unread::before {
         content: "";
         position: absolute;
-        left: 0; top: 12px; bottom: 12px;
+        left: 0;
+        top: 12px;
+        bottom: 12px;
         width: 3px;
         border-radius: 0 3px 3px 0;
         background: var(--nfy-primary);
     }
+    .nfy-row.is-unread:hover { background: #eef3ff; }
 
-    /* Processed = visually dimmed */
-    .nfy-row.is-processed {
-        background: #fafbfc;
-        opacity: .72;
-    }
-    .nfy-row.is-processed:hover { background: #f5f6f8; opacity: .85; }
-    .nfy-row.is-processed .nfy-message { color: var(--nfy-text-muted); }
-
-    /* ─── Icon ─── */
+    /* ─── Icon circle ─── */
     .nfy-icon {
         width: 40px;
         height: 40px;
@@ -143,7 +144,6 @@
     .nfy-icon.icon-info   { background: var(--nfy-info-soft);    color: var(--nfy-info); }
     .nfy-icon.icon-key    { background: var(--nfy-primary-soft); color: var(--nfy-primary); }
     .nfy-icon.icon-user   { background: var(--nfy-success-soft); color: var(--nfy-success); }
-    .nfy-icon.icon-done   { background: #f1f3f7; color: var(--nfy-text-faint); }
 
     /* ─── Body ─── */
     .nfy-body { flex: 1; min-width: 0; }
@@ -176,22 +176,7 @@
         text-transform: uppercase;
     }
 
-    .nfy-done-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        margin-left: 6px;
-        padding: 2px 9px;
-        background: #ecfdf5;
-        color: #059669;
-        border-radius: var(--nfy-pill);
-        font-size: .62rem;
-        font-weight: 600;
-        letter-spacing: .03em;
-        text-transform: uppercase;
-    }
-
-    /* ─── Actions ─── */
+    /* ─── Action buttons ─── */
     .nfy-actions {
         display: flex;
         flex-wrap: wrap;
@@ -215,21 +200,35 @@
     }
     .nfy-act i { font-size: .75rem; }
 
-    .nfy-act-approve { background: var(--nfy-success-soft); color: var(--nfy-success); }
+    .nfy-act-approve {
+        background: var(--nfy-success-soft);
+        color: var(--nfy-success);
+    }
     .nfy-act-approve:hover {
-        background: var(--nfy-success); color: #fff;
+        background: var(--nfy-success);
+        color: #fff;
         transform: translateY(-1px);
         box-shadow: 0 4px 12px rgba(5,150,105,.25);
     }
-    .nfy-act-reject { background: var(--nfy-danger-soft); color: var(--nfy-danger); }
+
+    .nfy-act-reject {
+        background: var(--nfy-danger-soft);
+        color: var(--nfy-danger);
+    }
     .nfy-act-reject:hover {
-        background: var(--nfy-danger); color: #fff;
+        background: var(--nfy-danger);
+        color: #fff;
         transform: translateY(-1px);
         box-shadow: 0 4px 12px rgba(220,38,38,.25);
     }
-    .nfy-act-review { background: var(--nfy-primary-soft); color: var(--nfy-primary); }
+
+    .nfy-act-review {
+        background: var(--nfy-primary-soft);
+        color: var(--nfy-primary);
+    }
     .nfy-act-review:hover {
-        background: var(--nfy-primary); color: #fff;
+        background: var(--nfy-primary);
+        color: #fff;
         transform: translateY(-1px);
         box-shadow: 0 4px 12px rgba(79,70,229,.25);
     }
@@ -264,6 +263,7 @@
         margin: 0;
     }
 
+    /* ─── Mobile ─── */
     @media (max-width: 576px) {
         .nfy-tabs { width: 100%; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
         .nfy-tabs::-webkit-scrollbar { display: none; }
@@ -277,8 +277,9 @@
 
 <div class="nfy-wrap">
 
-    {# Split into info and action lists — NO unread filter now #}
-    {% with info_notifs=notifications|filter_info_notifications action_notifs=notifications|filter_action_notifications %}
+    {# Split notifications into info & action #}
+    {% with info_notifs=notifications|filter_info_notifications action_notifs=notifications|filter_action_notifications|filter_unread %}
+    
 
     <!-- ═══════════ TABS ═══════════ -->
     <ul class="nav nfy-tabs" id="notifPageTabs" role="tablist">
@@ -315,8 +316,8 @@
             <div class="nfy-card">
                 {% if info_notifs %}
                     {% for notif in info_notifs %}
-                        <div class="nfy-row {% if not notif.is_read %}is-unread{% else %}is-processed{% endif %}">
-                            <div class="nfy-icon {% if notif.is_read %}icon-done{% else %}icon-info{% endif %}">
+                        <div class="nfy-row {% if not notif.is_read %}is-unread{% endif %}">
+                            <div class="nfy-icon icon-info">
                                 <i class="fas fa-info-circle"></i>
                             </div>
                             <div class="nfy-body">
@@ -326,8 +327,6 @@
                                     <span>{{ notif.created_at|date:"d M Y, H:i" }}</span>
                                     {% if not notif.is_read %}
                                         <span class="nfy-new-badge">New</span>
-                                    {% else %}
-                                        <span class="nfy-done-badge"><i class="fas fa-check"></i> Read</span>
                                     {% endif %}
                                 </div>
                             </div>
@@ -348,12 +347,10 @@
             <div class="nfy-card">
                 {% if action_notifs %}
                     {% for notif in action_notifs %}
-                        <div class="nfy-row {% if not notif.is_read %}is-unread{% else %}is-processed{% endif %}">
+                        <div class="nfy-row {% if not notif.is_read %}is-unread{% endif %}">
 
-                            {% if notif.is_read %}
-                                {# Processed — grey icon #}
-                                <div class="nfy-icon icon-done"><i class="las la-check-double"></i></div>
-                            {% elif notif.related_object_type == 'passwordresetrequest' %}
+                            {# Icon by related_object_type #}
+                            {% if notif.related_object_type == 'passwordresetrequest' %}
                                 <div class="nfy-icon icon-key"><i class="las la-key"></i></div>
                             {% elif notif.related_object_type == 'regularizationrequest' %}
                                 <div class="nfy-icon icon-user"><i class="las la-user-clock"></i></div>
@@ -367,16 +364,15 @@
                                     <i class="far fa-clock"></i>
                                     <span>{{ notif.created_at|date:"d M Y, H:i" }}</span>
                                     {% if not notif.is_read %}
-                                        <span class="nfy-new-badge">Needs Action</span>
-                                    {% else %}
-                                        <span class="nfy-done-badge"><i class="fas fa-check"></i> Processed</span>
+                                        <span class="nfy-new-badge">New</span>
                                     {% endif %}
                                 </div>
 
-                                {# ─── Buttons only when NOT processed ─── #}
-                                {% if not notif.is_read and user|is_admin_or_hr %}
+                                {# ─── Contextual action buttons ─── #}
+                                {% if user|is_admin_or_hr %}
                                     <div class="nfy-actions">
 
+                                        {# Password reset requests #}
                                         {% if notif.related_object_type == 'passwordresetrequest' %}
                                             <a href="{% url 'password_reset_request_detail' notif.related_object_id %}"
                                                class="nfy-act nfy-act-review">
@@ -384,6 +380,7 @@
                                             </a>
                                         {% endif %}
 
+                                        {# Regularization requests #}
                                         {% if notif.related_object_type == 'regularizationrequest' %}
                                             <a href="{% url 'regularize_approve' notif.related_object_id %}"
                                                class="nfy-act nfy-act-approve">
@@ -395,6 +392,7 @@
                                             </a>
                                         {% endif %}
 
+                                        {# Leave requests (if you add them later) #}
                                         {% if notif.related_object_type == 'leaverequest' %}
                                             <a href="{% url 'leave_approve' notif.related_object_id %}"
                                                class="nfy-act nfy-act-approve">

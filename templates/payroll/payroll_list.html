@@ -1,11 +1,313 @@
 {% extends 'payroll/base_payroll.html' %}
 
 {% block payroll_content %}
-<div class="card border-0 shadow-sm">
-    <div class="card-body p-0">
+
+<style>
+    /* ═══════════════════════════════════════════════════
+       Payslips List — refined design system
+       Prefix: .psll-
+       ═══════════════════════════════════════════════════ */
+    .psll-wrap {
+        --psll-surface:        #ffffff;
+        --psll-surface-2:      #fafbfc;
+        --psll-surface-3:      #f4f6f8;
+        --psll-border:         #e8eaee;
+        --psll-border-hover:   #d5d9e0;
+        --psll-text:           #0f172a;
+        --psll-text-muted:     #64748b;
+        --psll-text-faint:     #94a3b8;
+        --psll-primary:        #4f46e5;
+        --psll-primary-soft:   #eef2ff;
+        --psll-success:        #059669;
+        --psll-success-soft:   #ecfdf5;
+        --psll-danger:         #dc2626;
+        --psll-danger-soft:    #fef2f2;
+        --psll-pill:           999px;
+        --psll-shadow-xs:      0 1px 2px rgba(15,23,42,.04);
+        --psll-ease:           cubic-bezier(.4, 0, .2, 1);
+    }
+
+    /* ─── Page header ─── */
+    .psll-hd {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+    .psll-hd-ico {
+        width: 40px;
+        height: 40px;
+        border-radius: 11px;
+        background: var(--psll-primary-soft);
+        color: var(--psll-primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.05rem;
+        flex-shrink: 0;
+    }
+    .psll-hd-title {
+        font-size: 1.15rem;
+        font-weight: 600;
+        letter-spacing: -.015em;
+        color: var(--psll-text);
+        margin: 0 0 2px;
+        line-height: 1.2;
+    }
+    .psll-hd-sub {
+        font-size: .82rem;
+        color: var(--psll-text-muted);
+        margin: 0;
+    }
+
+    /* ─── Card shell ─── */
+    .psll-card {
+        background: var(--psll-surface);
+        border: 1px solid var(--psll-border);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: var(--psll-shadow-xs);
+        transition: border-color .2s var(--psll-ease);
+    }
+    .psll-card:hover { border-color: var(--psll-border-hover); }
+
+    /* ─── Table ─── */
+    .psll-table {
+        width: 100%;
+        margin: 0;
+        border-collapse: collapse;
+    }
+    .psll-table thead th {
+        font-size: .68rem;
+        font-weight: 600;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: var(--psll-text-faint);
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--psll-border);
+        background: var(--psll-surface-2);
+        white-space: nowrap;
+        text-align: left;
+    }
+    .psll-table thead th.text-end    { text-align: right; }
+    .psll-table thead th.text-center { text-align: center; }
+
+    .psll-table tbody td {
+        padding: 14px 16px;
+        vertical-align: middle;
+        border-bottom: 1px solid var(--psll-border);
+        font-size: .84rem;
+        color: var(--psll-text);
+    }
+    .psll-table tbody td.text-end    { text-align: right; }
+    .psll-table tbody td.text-center { text-align: center; }
+    .psll-table tbody tr:last-child td { border-bottom: none; }
+    .psll-table tbody tr { transition: background .12s var(--psll-ease); }
+    .psll-table tbody tr:hover { background: var(--psll-surface-2); }
+
+    .psll-table .idx {
+        color: var(--psll-text-faint);
+        font-variant-numeric: tabular-nums;
+        font-weight: 500;
+        width: 44px;
+    }
+    .psll-table .num {
+        font-variant-numeric: tabular-nums;
+        font-weight: 500;
+    }
+    .psll-table .muted { color: var(--psll-text-faint); }
+
+    /* ─── Employee cell ─── */
+    .psll-emp {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+    }
+    .psll-avatar {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        color: #fff;
+        font-weight: 600;
+        font-size: .72rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        letter-spacing: -.02em;
+    }
+    .psll-emp-name {
+        font-weight: 600;
+        color: var(--psll-text);
+        letter-spacing: -.005em;
+        white-space: nowrap;
+    }
+    .psll-emp-id {
+        display: inline-block;
+        margin-left: 4px;
+        padding: 2px 8px;
+        border-radius: 6px;
+        background: var(--psll-surface-2);
+        border: 1px solid var(--psll-border);
+        font-size: .68rem;
+        font-weight: 500;
+        color: var(--psll-text-muted);
+        font-variant-numeric: tabular-nums;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        letter-spacing: .02em;
+    }
+
+    /* ─── Month/Year pill ─── */
+    .psll-period {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 10px;
+        border-radius: var(--psll-pill);
+        background: var(--psll-surface-2);
+        border: 1px solid var(--psll-border);
+        font-size: .74rem;
+        font-weight: 600;
+        color: var(--psll-text-muted);
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+    .psll-period i { color: var(--psll-text-faint); font-size: .72rem; }
+
+    /* ─── Money cell colors ─── */
+    .psll-gross { font-weight: 600; color: var(--psll-primary); }
+    .psll-deduct { font-weight: 600; color: var(--psll-danger); }
+    .psll-net   { font-weight: 700; color: var(--psll-success); }
+
+    /* ─── Status pill ─── */
+    .psll-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 11px;
+        border-radius: var(--psll-pill);
+        font-size: .72rem;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+    .psll-status::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+        flex-shrink: 0;
+    }
+    .psll-status.paid      { background: var(--psll-success-soft); color: var(--psll-success); }
+    .psll-status.processed { background: var(--psll-primary-soft); color: var(--psll-primary); }
+    .psll-status.draft     { background: var(--psll-surface-3);    color: var(--psll-text-muted); }
+
+    /* ─── View action ─── */
+    .psll-view {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 5px 12px;
+        font-size: .72rem;
+        font-weight: 500;
+        border-radius: var(--psll-pill);
+        background: transparent;
+        color: var(--psll-primary);
+        border: 1px solid var(--psll-border);
+        text-decoration: none;
+        cursor: pointer;
+        transition: all .15s var(--psll-ease);
+        white-space: nowrap;
+    }
+    .psll-view:hover {
+        background: var(--psll-primary-soft);
+        color: var(--psll-primary);
+        border-color: transparent;
+        transform: translateY(-1px);
+    }
+    .psll-view i { font-size: .72rem; }
+
+    /* ─── Empty state ─── */
+    .psll-empty {
+        text-align: center;
+        padding: 56px 20px;
+    }
+    .psll-empty-ico {
+        width: 68px;
+        height: 68px;
+        border-radius: 50%;
+        background: var(--psll-surface-2);
+        border: 1px solid var(--psll-border);
+        color: var(--psll-text-faint);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.85rem;
+        margin-bottom: 16px;
+    }
+    .psll-empty-title {
+        font-size: .9rem;
+        font-weight: 600;
+        color: var(--psll-text);
+        margin: 0 0 4px;
+    }
+    .psll-empty-sub {
+        font-size: .8rem;
+        color: var(--psll-text-muted);
+        margin: 0;
+    }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 767.98px) {
+        .psll-hd-title { font-size: 1rem; }
+        .psll-hd-ico { width: 34px; height: 34px; font-size: .95rem; }
+        .psll-table thead th,
+        .psll-table tbody td { padding: 11px 12px; font-size: .78rem; }
+        .psll-avatar { width: 26px; height: 26px; font-size: .66rem; }
+        .psll-emp-id { font-size: .64rem; }
+    }
+
+    .psll-delete {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        border: 1px solid var(--psll-border);
+        background: var(--psll-surface);
+        color: var(--psll-text-muted);
+        text-decoration: none;
+        font-size: .78rem;
+        transition: all .15s cubic-bezier(.4,0,.2,1);
+    }
+    .psll-delete:hover {
+        background: var(--psll-danger-soft);
+        color: var(--psll-danger);
+        border-color: transparent;
+        transform: scale(1.08);
+    }
+
+</style>
+
+<div class="psll-wrap">
+
+    <!-- ═══════════ Page header ═══════════ -->
+    <div class="psll-hd">
+        <span class="psll-hd-ico"><i class="fas fa-file-invoice"></i></span>
+        <div>
+            <h1 class="psll-hd-title">Payslips</h1>
+            <p class="psll-hd-sub">All generated payroll records and downloadable payslips.</p>
+        </div>
+    </div>
+
+    <!-- ═══════════ Payslips table ═══════════ -->
+    <div class="psll-card">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
+            <table class="psll-table">
+                <thead>
                     <tr>
                         <th>#</th>
                         <th>Employee</th>
@@ -22,37 +324,68 @@
                 <tbody>
                     {% for p in payrolls %}
                         <tr>
-                            <td>{{ forloop.counter }}</td>
-                            <td>{{ p.employee.full_name }} ({{ p.employee.employee_id }})</td>
-                            <td>{{ p.month }}/{{ p.year }}</td>
-                            <td class="text-end">₹{{ p.basic_salary|floatformat:2 }}</td>
-                            <td class="text-end">₹{{ p.allowance|floatformat:2 }}</td>
-                            <td class="text-end fw-bold">₹{{ p.gross_salary|floatformat:2 }}</td>
-                            <td class="text-end text-danger">₹{{ p.deduction|floatformat:2 }}</td>
-                            <td class="text-end fw-bold text-success">₹{{ p.net_salary|floatformat:2 }}</td>
+                            <td class="idx">{{ forloop.counter }}</td>
+                            <td>
+                                <div class="psll-emp">
+                                    <span class="psll-avatar">
+                                        {{ p.employee.full_name|slice:":1"|upper }}
+                                    </span>
+                                    <div>
+                                        <span class="psll-emp-name">{{ p.employee.full_name }}</span>
+                                        <span class="psll-emp-id">{{ p.employee.employee_id }}</span>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="psll-period">
+                                    <i class="las la-calendar-alt"></i> {{ p.month }}/{{ p.year }}
+                                </span>
+                            </td>
+                            <td class="text-end num">₹{{ p.basic_salary|floatformat:2 }}</td>
+                            <td class="text-end num">₹{{ p.allowance|floatformat:2 }}</td>
+                            <td class="text-end num psll-gross">₹{{ p.gross_salary|floatformat:2 }}</td>
+                            <td class="text-end num psll-deduct">₹{{ p.deduction|floatformat:2 }}</td>
+                            <td class="text-end num psll-net">₹{{ p.net_salary|floatformat:2 }}</td>
                             <td>
                                 {% if p.status == 'paid' %}
-                                    <span class="badge bg-success">Paid</span>
+                                    <span class="psll-status paid">Paid</span>
                                 {% elif p.status == 'processed' %}
-                                    <span class="badge bg-primary">Processed</span>
+                                    <span class="psll-status processed">Processed</span>
                                 {% else %}
-                                    <span class="badge bg-secondary">Draft</span>
+                                    <span class="psll-status draft">Draft</span>
                                 {% endif %}
                             </td>
+                            
                             <td class="text-center">
-                                <a href="{% url 'payslip_view' p.id %}" class="btn btn-sm btn-outline-primary">
-                                    <i class="fas fa-file-invoice"></i> View
-                                </a>
+                                <div class="d-inline-flex align-items-center gap-1">
+                                    <a href="{% url 'payslip_view' p.id %}" class="psll-view">
+                                        <i class="fas fa-file-invoice"></i> View
+                                    </a>
+                                    {% if p.status|lower == 'draft' %}
+                                        <a href="{% url 'payroll_delete' p.id %}" class="psll-delete" title="Delete Draft">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </a>
+                                    {% endif %}
+                                </div>
                             </td>
+
                         </tr>
                     {% empty %}
                         <tr>
-                            <td colspan="10" class="text-center text-muted py-4">No payroll records</td>
+                            <td colspan="10">
+                                <div class="psll-empty">
+                                    <div class="psll-empty-ico"><i class="fas fa-inbox"></i></div>
+                                    <p class="psll-empty-title">No payroll records yet</p>
+                                    <p class="psll-empty-sub">Generate payroll from the Payroll Processing tab to see records here.</p>
+                                </div>
+                            </td>
                         </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
     </div>
+
 </div>
+
 {% endblock %}

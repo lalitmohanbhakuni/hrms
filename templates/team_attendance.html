@@ -6,52 +6,512 @@
 
 {% block content %}
 
-<!-- Stats Banner -->
-<div class="card border-0 shadow-sm rounded-3 mb-4 overflow-hidden" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-    <div class="card-body p-4 text-white">
-        <div class="row align-items-center">
-            <div class="col-md-8">
-                <h3 class="fw-bold mb-2"><i class="las la-users me-2"></i> My Team</h3>
-                <p class="opacity-75 mb-0">
-                    {{ total_employees }} team members · {{ selected_month_name }}
-                </p>
-            </div>
-            <div class="col-md-4 text-end d-none d-md-block">
-                <i class="las la-chart-bar" style="font-size: 3rem; opacity: 0.3;"></i>
+<style>
+    /* ═══════════════════════════════════════════════════
+       My Team Attendance — refined design system
+       Prefix: .mta-
+       ═══════════════════════════════════════════════════ */
+    .mta-wrap {
+        --mta-surface:        #ffffff;
+        --mta-surface-2:      #fafbfc;
+        --mta-surface-3:      #f4f6f8;
+        --mta-border:         #e8eaee;
+        --mta-border-hover:   #d5d9e0;
+        --mta-text:           #0f172a;
+        --mta-text-muted:     #64748b;
+        --mta-text-faint:     #94a3b8;
+        --mta-primary:        #4f46e5;
+        --mta-primary-soft:   #eef2ff;
+        --mta-primary-hover:  #4338ca;
+        --mta-success:        #059669;
+        --mta-success-soft:   #ecfdf5;
+        --mta-warning:        #d97706;
+        --mta-warning-soft:   #fffbeb;
+        --mta-danger:         #dc2626;
+        --mta-danger-soft:    #fef2f2;
+        --mta-pill:           999px;
+        --mta-shadow-xs:      0 1px 2px rgba(15,23,42,.04);
+        --mta-shadow-sm:      0 1px 3px rgba(15,23,42,.06), 0 1px 2px rgba(15,23,42,.04);
+        --mta-ease:           cubic-bezier(.4, 0, .2, 1);
+    }
+
+    /* ─── Hero banner ─── */
+    .mta-hero {
+        position: relative;
+        overflow: hidden;
+        border-radius: 16px;
+        background: #0f1729;
+        background-image:
+            radial-gradient(circle at 88% 15%, rgba(99, 102, 241, 0.45), transparent 45%),
+            radial-gradient(circle at 12% 110%, rgba(139, 92, 246, 0.28), transparent 55%);
+        color: #fff;
+        padding: 28px 32px;
+        margin-bottom: 22px;
+    }
+    .mta-hero::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image:
+            linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+        background-size: 32px 32px;
+        pointer-events: none;
+        mask-image: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent 80%);
+    }
+    .mta-hero-inner { position: relative; z-index: 1; }
+    .mta-hero-hi {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 1.35rem;
+        font-weight: 600;
+        letter-spacing: -.02em;
+        margin: 0 0 6px;
+    }
+    .mta-hero-hi-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 11px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.15rem;
+        backdrop-filter: blur(6px);
+    }
+    .mta-hero-sub {
+        color: rgba(255, 255, 255, 0.7);
+        font-size: .875rem;
+        margin: 0;
+    }
+    .mta-hero-sub strong {
+        color: rgba(255, 255, 255, 0.95);
+        font-weight: 600;
+    }
+    .mta-hero-art {
+        font-size: 4rem;
+        color: rgba(255, 255, 255, 0.12);
+        line-height: 1;
+    }
+
+    /* ─── Month nav ─── */
+    .mta-monthbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        background: var(--mta-surface);
+        border: 1px solid var(--mta-border);
+        border-radius: 12px;
+        padding: 12px 20px;
+        margin-bottom: 18px;
+        box-shadow: var(--mta-shadow-xs);
+        transition: border-color .2s var(--mta-ease);
+    }
+    .mta-monthbar:hover { border-color: var(--mta-border-hover); }
+
+    .mta-monthbar-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-size: .95rem;
+        font-weight: 600;
+        color: var(--mta-text);
+        letter-spacing: -.01em;
+    }
+    .mta-monthbar-label i {
+        color: var(--mta-text-faint);
+        font-size: 1rem;
+    }
+
+    .mta-monthnav {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        background: var(--mta-surface-2);
+        border: 1px solid var(--mta-border);
+        border-radius: 8px;
+        padding: 3px;
+    }
+    .mta-monthnav a,
+    .mta-monthnav .current,
+    .mta-monthnav button {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        height: 30px;
+        padding: 0 12px;
+        border-radius: 6px;
+        font-size: .75rem;
+        font-weight: 500;
+        text-decoration: none;
+        background: transparent;
+        border: none;
+        color: var(--mta-text-muted);
+        cursor: pointer;
+        transition: background .15s var(--mta-ease), color .15s var(--mta-ease);
+        white-space: nowrap;
+    }
+    .mta-monthnav a:hover { background: var(--mta-surface); color: var(--mta-text); }
+    .mta-monthnav .current {
+        background: var(--mta-surface);
+        color: var(--mta-primary);
+        box-shadow: var(--mta-shadow-xs);
+        cursor: default;
+    }
+    .mta-monthnav button[disabled] {
+        opacity: .45;
+        cursor: not-allowed;
+    }
+
+    /* ─── Card shell ─── */
+    .mta-card {
+        background: var(--mta-surface);
+        border: 1px solid var(--mta-border);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: var(--mta-shadow-xs);
+        transition: border-color .2s var(--mta-ease);
+    }
+    .mta-card:hover { border-color: var(--mta-border-hover); }
+
+    /* ─── Table ─── */
+    .mta-table {
+        width: 100%;
+        margin: 0;
+        border-collapse: collapse;
+    }
+    .mta-table thead th {
+        font-size: .68rem;
+        font-weight: 600;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: var(--mta-text-faint);
+        padding: 12px 18px;
+        border-bottom: 1px solid var(--mta-border);
+        background: var(--mta-surface-2);
+        white-space: nowrap;
+        text-align: left;
+    }
+    .mta-table thead th.text-center { text-align: center; }
+    .mta-table thead th.text-end { text-align: right; }
+
+    .mta-table tbody td {
+        padding: 14px 18px;
+        vertical-align: middle;
+        border-bottom: 1px solid var(--mta-border);
+        font-size: .875rem;
+        color: var(--mta-text);
+    }
+    .mta-table tbody tr.team-row { transition: background .12s var(--mta-ease); }
+    .mta-table tbody tr.team-row:hover { background: var(--mta-surface-2); }
+    .mta-table tbody td.text-center { text-align: center; }
+
+    .mta-table .idx {
+        color: var(--mta-text-faint);
+        font-variant-numeric: tabular-nums;
+        font-weight: 500;
+        width: 44px;
+    }
+    .mta-table .num {
+        font-variant-numeric: tabular-nums;
+        font-weight: 500;
+    }
+    .mta-table .muted { color: var(--mta-text-faint); }
+
+    /* ─── Employee cell ─── */
+    .mta-emp {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .mta-avatar {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        color: #fff;
+        font-weight: 600;
+        font-size: .78rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        letter-spacing: -.02em;
+    }
+    .mta-emp-name {
+        font-weight: 600;
+        color: var(--mta-text);
+        letter-spacing: -.005em;
+    }
+
+    /* ─── Shift tag ─── */
+    .mta-shift {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1px;
+        padding: 5px 10px;
+        background: var(--mta-surface-2);
+        border: 1px solid var(--mta-border);
+        border-radius: 8px;
+        font-size: .72rem;
+        line-height: 1.25;
+        color: var(--mta-text);
+    }
+    .mta-shift-name {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-weight: 500;
+    }
+    .mta-shift-name i { color: var(--mta-text-faint); font-size: .72rem; }
+    .mta-shift-time {
+        font-size: .65rem;
+        color: var(--mta-text-faint);
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* ─── Soft badges (counts) ─── */
+    .mta-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 28px;
+        padding: 3px 10px;
+        border-radius: var(--mta-pill);
+        font-size: .72rem;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+    }
+    .mta-badge.success { background: var(--mta-success-soft); color: var(--mta-success); }
+    .mta-badge.danger  { background: var(--mta-danger-soft);  color: var(--mta-danger); }
+    .mta-badge.warning { background: var(--mta-warning-soft); color: var(--mta-warning); }
+
+    /* ─── Attendance rate bar ─── */
+    .mta-rate {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        justify-content: center;
+    }
+    .mta-rate-bar {
+        width: 68px;
+        height: 5px;
+        border-radius: var(--mta-pill);
+        background: var(--mta-surface-3);
+        overflow: hidden;
+    }
+    .mta-rate-bar > div {
+        height: 100%;
+        background: var(--mta-success);
+        border-radius: inherit;
+        transition: width .4s var(--mta-ease);
+    }
+    .mta-rate-val {
+        font-size: .72rem;
+        font-weight: 600;
+        color: var(--mta-text-muted);
+        font-variant-numeric: tabular-nums;
+        min-width: 34px;
+    }
+
+    /* ─── Toggle button (chevron) ─── */
+    .mta-toggle {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        border: 1px solid var(--mta-border);
+        background: var(--mta-surface);
+        color: var(--mta-text-muted);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .78rem;
+        cursor: pointer;
+        padding: 0;
+        transition: all .15s var(--mta-ease);
+    }
+    .mta-toggle:hover {
+        background: var(--mta-primary-soft);
+        color: var(--mta-primary);
+        border-color: transparent;
+        transform: scale(1.05);
+    }
+    .mta-toggle:focus-visible {
+        outline: 2px solid var(--mta-primary);
+        outline-offset: 2px;
+    }
+
+    /* ─── Detail row ─── */
+    .mta-table tbody tr.detail-row > td {
+        background: var(--mta-surface-2);
+        padding: 16px 22px !important;
+        border-bottom: 1px solid var(--mta-border) !important;
+    }
+    .mta-detail-inner {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+    }
+    .mta-detail-label {
+        font-size: .72rem;
+        font-weight: 600;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--mta-text-faint);
+        margin-right: 4px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+    .mta-detail-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 5px 11px;
+        background: var(--mta-surface);
+        border: 1px solid var(--mta-border);
+        border-radius: 8px;
+        font-size: .72rem;
+        font-weight: 500;
+        color: var(--mta-text);
+        font-variant-numeric: tabular-nums;
+    }
+    .mta-detail-tag i {
+        color: var(--mta-success);
+        font-size: .78rem;
+    }
+
+    /* ─── Empty state ─── */
+    .mta-empty {
+        text-align: center;
+        padding: 56px 20px;
+    }
+    .mta-empty-ico {
+        width: 68px;
+        height: 68px;
+        border-radius: 50%;
+        background: var(--mta-surface-2);
+        border: 1px solid var(--mta-border);
+        color: var(--mta-text-faint);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.85rem;
+        margin-bottom: 16px;
+    }
+    .mta-empty-title {
+        font-size: .9rem;
+        font-weight: 600;
+        color: var(--mta-text);
+        margin: 0 0 4px;
+    }
+    .mta-empty-sub {
+        font-size: .8rem;
+        color: var(--mta-text-muted);
+        margin: 0;
+    }
+
+    /* ─── Expand/Collapse all button ─── */
+    .mta-expand-wrap {
+        display: flex;
+        justify-content: center;
+        margin-top: 14px;
+    }
+    .mta-expand-all {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 16px;
+        background: var(--mta-surface);
+        border: 1px solid var(--mta-border);
+        border-radius: var(--mta-pill);
+        font-size: .75rem;
+        font-weight: 500;
+        color: var(--mta-text-muted);
+        cursor: pointer;
+        transition: all .15s var(--mta-ease);
+    }
+    .mta-expand-all:hover {
+        background: var(--mta-primary-soft);
+        color: var(--mta-primary);
+        border-color: transparent;
+    }
+    .mta-expand-all i { font-size: .8rem; }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 767.98px) {
+        .mta-hero { padding: 22px 20px; }
+        .mta-hero-hi { font-size: 1.1rem; }
+        .mta-hero-hi-icon { width: 34px; height: 34px; font-size: 1rem; }
+        .mta-hero-art { font-size: 3rem; }
+
+        .mta-monthbar { padding: 10px 14px; }
+        .mta-monthbar-label { font-size: .85rem; }
+
+        .mta-table thead th,
+        .mta-table tbody td { padding: 11px 12px; font-size: .82rem; }
+        .mta-avatar { width: 30px; height: 30px; font-size: .72rem; }
+        .mta-emp-name { font-size: .82rem; }
+        .mta-rate-bar { width: 48px; }
+
+        .mta-detail-tag { font-size: .68rem; padding: 4px 9px; }
+    }
+</style>
+
+<div class="mta-wrap">
+
+    <!-- ═══════════ Hero banner ═══════════ -->
+    <div class="mta-hero">
+        <div class="mta-hero-inner">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h3 class="mta-hero-hi">
+                        <span class="mta-hero-hi-icon"><i class="las la-users"></i></span>
+                        My Team
+                    </h3>
+                    <p class="mta-hero-sub">
+                        <strong>{{ total_employees }}</strong> team members · {{ selected_month_name }}
+                    </p>
+                </div>
+                <div class="col-md-4 text-end d-none d-md-block">
+                    <i class="las la-chart-bar mta-hero-art"></i>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
-<!-- Month Navigation -->
-<div class="card border-0 shadow-sm rounded-3 mb-4">
-    <div class="card-body d-flex justify-content-between align-items-center flex-wrap">
-        <div>
-            <i class="las la-calendar-alt text-primary me-2"></i>
-            <span class="fw-semibold">{{ selected_month_name }}</span>
+    <!-- ═══════════ Month navigation ═══════════ -->
+    <div class="mta-monthbar">
+        <div class="mta-monthbar-label">
+            <i class="las la-calendar-alt"></i>
+            {{ selected_month_name }}
         </div>
-        <div class="d-flex gap-1">
-            <a href="?month={{ prev_month }}&year={{ prev_year }}" class="btn btn-sm btn-outline-secondary rounded-pill">
+        <div class="mta-monthnav">
+            <a href="?month={{ prev_month }}&year={{ prev_year }}">
                 <i class="fas fa-chevron-left"></i> Prev
             </a>
-            <span class="btn btn-sm btn-light rounded-pill disabled">{{ selected_month_name }}</span>
+            <span class="current">{{ selected_month_name }}</span>
             {% if next_disabled %}
-                <button class="btn btn-sm btn-outline-secondary rounded-pill" disabled>Next <i class="fas fa-chevron-right"></i></button>
+                <button disabled>Next <i class="fas fa-chevron-right"></i></button>
             {% else %}
-                <a href="?month={{ next_month }}&year={{ next_year }}" class="btn btn-sm btn-outline-secondary rounded-pill">
+                <a href="?month={{ next_month }}&year={{ next_year }}">
                     Next <i class="fas fa-chevron-right"></i>
                 </a>
             {% endif %}
         </div>
     </div>
-</div>
 
-<!-- Report Table -->
-<div class="card border-0 shadow-sm rounded-3">
-    <div class="card-body p-0">
+    <!-- ═══════════ Report table ═══════════ -->
+    <div class="mta-card">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0" id="teamTable">
-                <thead class="table-light">
+            <table class="mta-table" id="teamTable">
+                <thead>
                     <tr>
                         <th>#</th>
                         <th>Employee</th>
@@ -67,77 +527,79 @@
                 <tbody>
                     {% for item in employee_data %}
                         <tr class="team-row">
-                            <td>{{ forloop.counter }}</td>
+                            <td class="idx">{{ forloop.counter }}</td>
                             <td>
-                                <div class="d-flex align-items-center">
-                                    <div class="avatar-circle me-2" style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 600; font-size: 0.75rem;">
-                                        {{ item.employee.username|slice:":1"|upper }}
-                                    </div>
-                                    <span class="fw-semibold">{{ item.employee.username }}</span>
+                                <div class="mta-emp">
+                                    <div class="mta-avatar">{{ item.employee.username|slice:":1"|upper }}</div>
+                                    <span class="mta-emp-name">{{ item.employee.username }}</span>
                                 </div>
                             </td>
                             <td class="text-center">
                                 {% if item.shift_name != '—' %}
-                                    <span class="badge bg-light text-dark rounded-pill px-2 py-1" style="font-size: 0.75rem;">
-                                        <i class="far fa-clock me-1"></i>
-                                        {{ item.shift_name }}
-                                        <br><small class="text-muted" style="font-size: 0.6rem;">{{ item.shift_timing }}</small>
+                                    <span class="mta-shift">
+                                        <span class="mta-shift-name">
+                                            <i class="far fa-clock"></i> {{ item.shift_name }}
+                                        </span>
+                                        <span class="mta-shift-time">{{ item.shift_timing }}</span>
                                     </span>
                                 {% else %}
-                                    <span class="text-muted">—</span>
+                                    <span class="muted">—</span>
                                 {% endif %}
                             </td>
-                            <td class="text-center">{{ item.total_days }}</td>
-                            <td class="text-center"><span class="badge bg-success">{{ item.present }}</span></td>
-                            <td class="text-center"><span class="badge bg-danger">{{ item.absent }}</span></td>
-                            <td class="text-center"><span class="badge bg-warning text-dark">{{ item.half_day }}</span></td>
+                            <td class="text-center num">{{ item.total_days }}</td>
+                            <td class="text-center"><span class="mta-badge success">{{ item.present }}</span></td>
+                            <td class="text-center"><span class="mta-badge danger">{{ item.absent }}</span></td>
+                            <td class="text-center"><span class="mta-badge warning">{{ item.half_day }}</span></td>
                             <td class="text-center">
-                                <div class="d-flex align-items-center justify-content-center gap-2">
-                                    <div class="progress" style="width: 70px; height: 6px;">
-                                        <div class="progress-bar bg-success" role="progressbar" 
-                                             style="width: {{ item.percentage }}%;" 
-                                             aria-valuenow="{{ item.percentage }}" 
-                                             aria-valuemin="0" aria-valuemax="100">
-                                        </div>
+                                <div class="mta-rate">
+                                    <div class="mta-rate-bar">
+                                        <div style="width: {{ item.percentage }}%;"></div>
                                     </div>
-                                    <span class="small text-muted">{{ item.percentage }}%</span>
+                                    <span class="mta-rate-val">{{ item.percentage }}%</span>
                                 </div>
                             </td>
                             <td class="text-center">
-                                <button class="btn btn-sm btn-outline-primary toggle-details" 
-                                        data-target="details-{{ item.employee.id }}">
+                                <button class="mta-toggle toggle-details"
+                                        data-target="details-{{ item.employee.id }}"
+                                        title="Show records">
                                     <i class="fas fa-chevron-down"></i>
                                 </button>
                             </td>
                         </tr>
-                        <!-- Expandable Details Row -->
+
+                        <!-- Expandable details row -->
                         <tr class="detail-row" id="details-{{ item.employee.id }}" style="display: none;">
-                            <td colspan="9" class="bg-light px-4 py-3">
-                                <div class="d-flex flex-wrap gap-2">
+                            <td colspan="9">
+                                <div class="mta-detail-inner">
                                     {% if item.records %}
-                                        <span class="text-muted me-2"><i class="las la-clock me-1"></i> Attendance Records:</span>
+                                        <span class="mta-detail-label">
+                                            <i class="las la-clock"></i> Attendance Records:
+                                        </span>
                                         {% for att in item.records %}
-                                            <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-3 py-2">
-                                                <i class="las la-calendar-day me-1"></i> {{ att.date|date:"d M" }}
-                                                <i class="las la-clock ms-1 me-1"></i> {{ att.check_in_time|time:"H:i" }}
+                                            <span class="mta-detail-tag">
+                                                <i class="las la-calendar-day"></i> {{ att.date|date:"d M" }}
+                                                <i class="las la-clock ms-1"></i> {{ att.check_in_time|time:"H:i" }}
                                                 {% if att.check_out_time %}
-                                                    - {{ att.check_out_time|time:"H:i" }}
+                                                    – {{ att.check_out_time|time:"H:i" }}
                                                 {% endif %}
                                             </span>
                                         {% empty %}
-                                            <span class="text-muted">No records this month.</span>
+                                            <span class="muted small">No records this month.</span>
                                         {% endfor %}
                                     {% else %}
-                                        <span class="text-muted">No records this month.</span>
+                                        <span class="muted small">No records this month.</span>
                                     {% endif %}
                                 </div>
                             </td>
                         </tr>
                     {% empty %}
                         <tr>
-                            <td colspan="9" class="text-center text-muted py-4">
-                                <i class="las la-inbox text-secondary" style="font-size: 2.5rem; display: block; margin-bottom: 0.5rem;"></i>
-                                No attendance data available for this month.
+                            <td colspan="9">
+                                <div class="mta-empty">
+                                    <div class="mta-empty-ico"><i class="las la-inbox"></i></div>
+                                    <p class="mta-empty-title">No attendance data</p>
+                                    <p class="mta-empty-sub">Nothing to show for this month.</p>
+                                </div>
                             </td>
                         </tr>
                     {% endfor %}
@@ -145,13 +607,14 @@
             </table>
         </div>
     </div>
-</div>
 
-<!-- Expand/Collapse All -->
-<div class="text-center mt-3">
-    <button class="btn btn-sm btn-outline-secondary" id="toggleAllBtn">
-        <i class="fas fa-expand-alt me-1"></i> Expand All
-    </button>
+    <!-- ═══════════ Expand / Collapse all ═══════════ -->
+    <div class="mta-expand-wrap">
+        <button class="mta-expand-all" id="toggleAllBtn">
+            <i class="fas fa-expand-alt"></i> Expand All
+        </button>
+    </div>
+
 </div>
 
 <script>
@@ -183,10 +646,10 @@
             document.querySelectorAll('.toggle-details i').forEach(icon => {
                 icon.className = allExpanded ? 'fas fa-chevron-up' : 'fas fa-chevron-down';
             });
-            this.innerHTML = allExpanded ? 
-                '<i class="fas fa-compress-alt me-1"></i> Collapse All' : 
+            this.innerHTML = allExpanded ?
+                '<i class="fas fa-compress-alt me-1"></i> Collapse All' :
                 '<i class="fas fa-expand-alt me-1"></i> Expand All';
         });
     });
 </script>
-{% endblock %}  
+{% endblock %}

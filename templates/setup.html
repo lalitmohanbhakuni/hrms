@@ -1,144 +1,713 @@
-{% extends 'base.html' %}
-{% load auth_extras %}
+        {% extends 'base.html' %}
+        {% load auth_extras %}
 
-{% block title %}Setup - HRMS{% endblock %}
-{% block page_icon %}cog{% endblock %}
-{% block page_title %}Setup{% endblock %}
+        {% block title %}Setup - HRMS{% endblock %}
+        {% block page_icon %}cog{% endblock %}
+        {% block page_title %}Setup{% endblock %}
 
-{% block content %}
-{% load auth_extras %}   <!-- ✅ ADD THIS -->
+        {% block content %}
+
+        <style>
+            /* ═══════════════════════════════════════════════════
+            Setup — refined design system
+            Prefix: .stp-
+            ═══════════════════════════════════════════════════ */
+            .stp-wrap {
+                --stp-surface:        #ffffff;
+                --stp-surface-2:      #fafbfc;
+                --stp-surface-3:      #f4f6f8;
+                --stp-border:         #e8eaee;
+                --stp-border-hover:   #d5d9e0;
+                --stp-text:           #0f172a;
+                --stp-text-muted:     #64748b;
+                --stp-text-faint:     #94a3b8;
+                --stp-primary:        #4f46e5;
+                --stp-primary-soft:   #eef2ff;
+                --stp-primary-hover:  #4338ca;
+                --stp-success:        #059669;
+                --stp-success-soft:   #ecfdf5;
+                --stp-danger:         #dc2626;
+                --stp-danger-soft:    #fef2f2;
+                --stp-pill:           999px;
+                --stp-shadow-xs:      0 1px 2px rgba(15,23,42,.04);
+                --stp-ease:           cubic-bezier(.4, 0, .2, 1);
+            }
+
+            /* ─── Segmented tabs (works with Bootstrap's JS) ─── */
+            .stp-tabs {
+                display: inline-flex;
+                gap: 2px;
+                padding: 4px;
+                background: var(--stp-surface);
+                border: 1px solid var(--stp-border);
+                border-radius: 10px;
+                list-style: none;
+                margin: 0 0 22px;
+                box-shadow: var(--stp-shadow-xs);
+                border-bottom: none;
+            }
+            .stp-tabs .nav-item { margin: 0; }
+            .stp-tabs .nav-link {
+                display: inline-flex;
+                align-items: center;
+                gap: 7px;
+                padding: 8px 16px;
+                border-radius: 7px;
+                font-size: .82rem;
+                font-weight: 500;
+                color: var(--stp-text-muted);
+                background: transparent;
+                border: none;
+                cursor: pointer;
+                transition: color .15s var(--stp-ease), background .15s var(--stp-ease);
+                white-space: nowrap;
+            }
+            .stp-tabs .nav-link i {
+                font-size: .82rem;
+                opacity: .75;
+            }
+            .stp-tabs .nav-link:hover { color: var(--stp-text); }
+            .stp-tabs .nav-link:hover i { opacity: 1; }
+            .stp-tabs .nav-link.active {
+                background: var(--stp-primary);
+                color: #fff;
+            }
+            .stp-tabs .nav-link.active i { opacity: 1; }
+
+            /* ─── Section header ─── */
+            .stp-sec {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                flex-wrap: wrap;
+                gap: 12px;
+                margin-bottom: 18px;
+            }
+            .stp-sec-left {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+            .stp-sec-ico {
+                width: 40px;
+                height: 40px;
+                border-radius: 11px;
+                background: var(--stp-primary-soft);
+                color: var(--stp-primary);
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 1.05rem;
+                flex-shrink: 0;
+            }
+            .stp-sec-title {
+                font-size: 1.05rem;
+                font-weight: 600;
+                letter-spacing: -.01em;
+                color: var(--stp-text);
+                margin: 0 0 2px;
+                line-height: 1.2;
+            }
+            .stp-sec-sub {
+                font-size: .78rem;
+                color: var(--stp-text-muted);
+                margin: 0;
+            }
+
+            /* ─── Buttons ─── */
+            .stp-btn {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 9px 18px;
+                font-size: .8rem;
+                font-weight: 500;
+                border-radius: var(--stp-pill);
+                border: 1px solid transparent;
+                text-decoration: none;
+                cursor: pointer;
+                transition: all .15s var(--stp-ease);
+                line-height: 1.3;
+                white-space: nowrap;
+            }
+            .stp-btn i { font-size: .82rem; }
+
+            .stp-btn-primary {
+                background: var(--stp-primary);
+                color: #fff;
+            }
+            .stp-btn-primary:hover {
+                background: var(--stp-primary-hover);
+                color: #fff;
+                transform: translateY(-1px);
+                box-shadow: 0 4px 12px rgba(79,70,229,.25);
+            }
+
+            .stp-btn-ghost {
+                background: transparent;
+                color: var(--stp-text-muted);
+                border-color: var(--stp-border);
+            }
+            .stp-btn-ghost:hover {
+                background: var(--stp-surface-2);
+                color: var(--stp-text);
+                border-color: var(--stp-border-hover);
+            }
+
+            /* ─── Card shell ─── */
+            .stp-card {
+                background: var(--stp-surface);
+                border: 1px solid var(--stp-border);
+                border-radius: 12px;
+                overflow: hidden;
+                box-shadow: var(--stp-shadow-xs);
+                transition: border-color .2s var(--stp-ease);
+            }
+            .stp-card:hover { border-color: var(--stp-border-hover); }
+
+            /* ─── Table ─── */
+            .stp-table {
+                width: 100%;
+                margin: 0;
+                border-collapse: collapse;
+            }
+            .stp-table thead th {
+                font-size: .68rem;
+                font-weight: 600;
+                letter-spacing: .08em;
+                text-transform: uppercase;
+                color: var(--stp-text-faint);
+                padding: 12px 16px;
+                border-bottom: 1px solid var(--stp-border);
+                background: var(--stp-surface-2);
+                white-space: nowrap;
+                text-align: left;
+            }
+            .stp-table tbody td {
+                padding: 14px 16px;
+                vertical-align: middle;
+                border-bottom: 1px solid var(--stp-border);
+                font-size: .84rem;
+                color: var(--stp-text);
+            }
+            .stp-table tbody tr:last-child td { border-bottom: none; }
+            .stp-table tbody tr { transition: background .12s var(--stp-ease); }
+            .stp-table tbody tr:hover { background: var(--stp-surface-2); }
+
+            .stp-table .name {
+                font-weight: 600;
+                color: var(--stp-text);
+                letter-spacing: -.005em;
+            }
+            .stp-table .num {
+                font-variant-numeric: tabular-nums;
+                font-weight: 500;
+            }
+            .stp-table .muted { color: var(--stp-text-faint); }
+
+            /* ─── Time chip ─── */
+            .stp-time {
+                display: inline-flex;
+                align-items: center;
+                padding: 3px 10px;
+                border-radius: var(--stp-pill);
+                background: var(--stp-surface-2);
+                border: 1px solid var(--stp-border);
+                font-size: .74rem;
+                font-weight: 500;
+                color: var(--stp-text);
+                font-variant-numeric: tabular-nums;
+                white-space: nowrap;
+            }
+            .stp-time.break {
+                color: var(--stp-text-muted);
+                font-weight: 400;
+            }
+
+            /* ─── Working days pills ─── */
+            .stp-days {
+                display: inline-flex;
+                gap: 3px;
+                flex-wrap: wrap;
+            }
+            .stp-day {
+                width: 20px;
+                height: 20px;
+                border-radius: 5px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                font-size: .6rem;
+                font-weight: 700;
+                letter-spacing: .02em;
+                background: var(--stp-surface-3);
+                color: var(--stp-text-faint);
+                border: 1px solid var(--stp-border);
+            }
+            .stp-day.on {
+                background: var(--stp-primary-soft);
+                color: var(--stp-primary);
+                border-color: transparent;
+            }
+
+            /* ─── Overtime toggle indicator ─── */
+            .stp-ot {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 22px;
+                height: 22px;
+                border-radius: 50%;
+                font-size: .68rem;
+            }
+            .stp-ot.yes {
+                background: var(--stp-success-soft);
+                color: var(--stp-success);
+            }
+            .stp-ot.no {
+                background: var(--stp-surface-3);
+                color: var(--stp-text-faint);
+            }
+
+            /* ─── Actions (icon circles) ─── */
+            .stp-actions {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+            }
+            .stp-action {
+                width: 32px;
+                height: 32px;
+                border-radius: 50%;
+                border: 1px solid var(--stp-border);
+                background: var(--stp-surface);
+                color: var(--stp-text-muted);
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                font-size: .78rem;
+                text-decoration: none;
+                transition: all .15s var(--stp-ease);
+                padding: 0;
+            }
+            .stp-action:hover { transform: scale(1.05); }
+            .stp-action.edit:hover {
+                background: var(--stp-primary-soft);
+                color: var(--stp-primary);
+                border-color: transparent;
+            }
+            .stp-action.delete:hover {
+                background: var(--stp-danger-soft);
+                color: var(--stp-danger);
+                border-color: transparent;
+            }
+
+            /* ─── Empty state ─── */
+            .stp-empty {
+                text-align: center;
+                padding: 52px 20px;
+            }
+            .stp-empty-ico {
+                width: 68px;
+                height: 68px;
+                border-radius: 50%;
+                background: var(--stp-surface-2);
+                border: 1px solid var(--stp-border);
+                color: var(--stp-text-faint);
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 1.75rem;
+                margin-bottom: 16px;
+            }
+            .stp-empty-title {
+                font-size: .9rem;
+                font-weight: 600;
+                color: var(--stp-text);
+                margin: 0 0 4px;
+            }
+            .stp-empty-sub {
+                font-size: .8rem;
+                color: var(--stp-text-muted);
+                margin: 0;
+            }
+
+            /* ─── Quick link strip ─── */
+            .stp-quicklink {
+                display: flex;
+                justify-content: flex-end;
+                margin-top: 14px;
+            }
+
+            /* ─── Assign tab: description card ─── */
+            .stp-assign-card {
+                background: var(--stp-surface);
+                border: 1px solid var(--stp-border);
+                border-radius: 12px;
+                padding: 32px;
+                text-align: center;
+                box-shadow: var(--stp-shadow-xs);
+            }
+            .stp-assign-ico {
+                width: 60px;
+                height: 60px;
+                border-radius: 16px;
+                background: var(--stp-primary-soft);
+                color: var(--stp-primary);
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 1.5rem;
+                margin-bottom: 18px;
+            }
+            .stp-assign-title {
+                font-size: 1rem;
+                font-weight: 600;
+                letter-spacing: -.01em;
+                color: var(--stp-text);
+                margin: 0 0 6px;
+            }
+            .stp-assign-desc {
+                font-size: .84rem;
+                color: var(--stp-text-muted);
+                margin: 0 0 20px;
+                max-width: 420px;
+                margin-left: auto;
+                margin-right: auto;
+                line-height: 1.55;
+            }
+
+            /* ─── Responsive ─── */
+            @media (max-width: 767.98px) {
+                .stp-tabs {
+                    width: 100%;
+                    overflow-x: auto;
+                    flex-wrap: nowrap;
+                    scrollbar-width: none;
+                }
+                .stp-tabs::-webkit-scrollbar { display: none; }
+                .stp-tabs .nav-item { flex-shrink: 0; }
+                .stp-sec-title { font-size: .95rem; }
+                .stp-sec-ico { width: 34px; height: 34px; font-size: .95rem; }
+                .stp-table thead th,
+                .stp-table tbody td { padding: 11px 12px; font-size: .78rem; }
+                .stp-day { width: 18px; height: 18px; font-size: .55rem; }
+                .stp-assign-card { padding: 24px 20px; }
+            }
+        </style>
+
+        <div class="stp-wrap">
+
+            <!-- ═══════════ Tabs ═══════════ -->
+            <!-- <ul class="nav stp-tabs" id="setupTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="attendance-tab" data-bs-toggle="tab" data-bs-target="#attendance" type="button" role="tab">
+                        <i class="las la-clock"></i> Attendance
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="assign-tab" data-bs-toggle="tab" data-bs-target="#assign" type="button" role="tab">
+                        <i class="las la-users-cog"></i> Shift Assignment
+                    </button>
+                </li>
+            </ul> -->
+
+            <ul class="nav stp-tabs" id="setupTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="attendance-tab" data-bs-toggle="tab" data-bs-target="#attendance" type="button" role="tab">
+                        <i class="las la-clock"></i> Attendance
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="assign-tab" data-bs-toggle="tab" data-bs-target="#assign" type="button" role="tab">
+                        <i class="las la-users-cog"></i> Shift Assignment
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="leave-types-tab" data-bs-toggle="tab" data-bs-target="#leave-types" type="button" role="tab">
+                        <i class="las la-tags"></i> Leave Types
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="holidays-tab" data-bs-toggle="tab" data-bs-target="#holidays" type="button" role="tab">
+                        <i class="las la-calendar-alt"></i> Holidays
+                    </button>
+                </li>
+            </ul>
 
 
+            <div class="tab-content">
 
-<!-- Tabs -->
-<ul class="nav nav-tabs mb-4" id="setupTabs" role="tablist">
-    <li class="nav-item" role="presentation">
-        <button class="nav-link active" id="attendance-tab" data-bs-toggle="tab" data-bs-target="#attendance" type="button" role="tab">
-            <i class="las la-clock me-1"></i> Attendance
-        </button>
-    </li>
-    <!-- NEW: Shift Assignment tab -->
-    <li class="nav-item" role="presentation">
-        <button class="nav-link" id="assign-tab" data-bs-toggle="tab" data-bs-target="#assign" type="button" role="tab">
-            <i class="las la-users-cog me-1"></i> Shift Assignment
-        </button>
-    </li>
-    <!-- Future tabs can be added here -->
-    <!--
-    <li class="nav-item" role="presentation">
-        <button class="nav-link" id="leave-tab" data-bs-toggle="tab" data-bs-target="#leave" type="button" role="tab">
-            <i class="las la-calendar-check me-1"></i> Leave
-        </button>
-    </li>
-    -->
-</ul>
+                <!-- {# ═══════════ ATTENDANCE TAB ═══════════ #} -->
+                {% if user.is_superuser or user|has_group:"HR Admin" %}
+                    <div class="tab-pane fade show active" id="attendance" role="tabpanel">
 
-<div class="tab-content">
-    <!-- ===== Attendance Tab ===== -->
+                        <div class="stp-sec">
+                            <div class="stp-sec-left">
+                                <span class="stp-sec-ico"><i class="las la-clock"></i></span>
+                                <div>
+                                    <h5 class="stp-sec-title">Shift Management</h5>
+                                    <p class="stp-sec-sub">Define working hours, breaks, and grace periods for your team.</p>
+                                </div>
+                            </div>
+                            <a href="{% url 'shift_create' %}" class="stp-btn stp-btn-primary">
+                                <i class="fas fa-plus"></i> Create Shift
+                            </a>
+                        </div>
 
-    {% if user.is_superuser or user|has_group:"HR Admin" %}
+                        <div class="stp-card">
+                            <div class="table-responsive">
+                                <table class="stp-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Shift Name</th>
+                                            <th>Start</th>
+                                            <th>End</th>
+                                            <th>Break</th>
+                                            <th>Grace (min)</th>
+                                            <th>Min Hours</th>
+                                            <th>Overtime</th>
+                                            <th>Working Days</th>
+                                            <th class="text-end">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for shift in shifts %}
+                                            <tr>
+                                                <td class="name">{{ shift.name }}</td>
+                                                <td><span class="stp-time">{{ shift.start_time|time:"h:i A" }}</span></td>
+                                                <td><span class="stp-time">{{ shift.end_time|time:"h:i A" }}</span></td>
+                                                <td>
+                                                    {% if shift.break_start and shift.break_end %}
+                                                        <span class="stp-time break">
+                                                            {{ shift.break_start|time:"h:i A" }} – {{ shift.break_end|time:"h:i A" }}
+                                                        </span>
+                                                    {% else %}
+                                                        <span class="muted">—</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td class="num">{{ shift.grace_period }}</td>
+                                                <td class="num">{{ shift.min_working_hours|floatformat:0 }} min</td>
+                                                <td>
+                                                    {% if shift.overtime_allowed %}
+                                                        <span class="stp-ot yes"><i class="fas fa-check"></i></span>
+                                                    {% else %}
+                                                        <span class="stp-ot no"><i class="fas fa-times"></i></span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <div class="stp-days">
+                                                        <span class="stp-day {% if shift.mon %}on{% endif %}">M</span>
+                                                        <span class="stp-day {% if shift.tue %}on{% endif %}">T</span>
+                                                        <span class="stp-day {% if shift.wed %}on{% endif %}">W</span>
+                                                        <span class="stp-day {% if shift.thu %}on{% endif %}">T</span>
+                                                        <span class="stp-day {% if shift.fri %}on{% endif %}">F</span>
+                                                        <span class="stp-day {% if shift.sat %}on{% endif %}">S</span>
+                                                        <span class="stp-day {% if shift.sun %}on{% endif %}">S</span>
+                                                    </div>
+                                                </td>
+                                                <td class="text-end">
+                                                    <div class="stp-actions">
+                                                        <a href="{% url 'shift_edit' shift.id %}" class="stp-action edit" title="Edit">
+                                                            <i class="fas fa-edit"></i>
+                                                        </a>
+                                                        <a href="{% url 'shift_delete' shift.id %}" class="stp-action delete" title="Delete">
+                                                            <i class="fas fa-trash-alt"></i>
+                                                        </a>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        {% empty %}
+                                            <tr>
+                                                <td colspan="9">
+                                                    <div class="stp-empty">
+                                                        <div class="stp-empty-ico"><i class="las la-clock"></i></div>
+                                                        <p class="stp-empty-title">No shifts defined yet</p>
+                                                        <p class="stp-empty-sub">Create your first shift to get started.</p>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
 
-    <div class="tab-pane fade show active" id="attendance" role="tabpanel">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="mb-0">Shift Management</h5>
-            <a href="{% url 'shift_create' %}" class="btn btn-primary rounded-pill">
-                <i class="fas fa-plus me-1"></i> Create Shift
-            </a>
-        </div>
+                        <div class="stp-quicklink">
+                            <a href="{% url 'shift_list' %}" class="stp-btn stp-btn-ghost">
+                                <i class="fas fa-arrow-right"></i> Manage Shifts (full page)
+                            </a>
+                        </div>
+                    </div>
+                {% endif %}
 
-        <div class="card border-0 shadow-sm">
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Shift Name</th>
-                                <th>Start</th>
-                                <th>End</th>
-                                <th>Break</th>
-                                <th>Grace (min)</th>
-                                <th>Min Hours</th>
-                                <th>Overtime</th>
-                                <th>Working Days</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for shift in shifts %}
-                                <tr>
-                                    <td><strong>{{ shift.name }}</strong></td>
-                                    <td>{{ shift.start_time|time:"h:i A" }}</td>
-                                    <td>{{ shift.end_time|time:"h:i A" }}</td>
-                                    <td>
-                                        {% if shift.break_start and shift.break_end %}
-                                            {{ shift.break_start|time:"h:i A" }} – {{ shift.break_end|time:"h:i A" }}
-                                        {% else %}
-                                            —
-                                        {% endif %}
-                                    </td>
-                                    <td>{{ shift.grace_period }}</td>
-                                    <td>{{ shift.min_working_hours|floatformat:0 }} min</td>
-                                    <td>{% if shift.overtime_allowed %}✅{% else %}❌{% endif %}</td>
-                                    <td>
-                                        {% if shift.mon %}M{% endif %}
-                                        {% if shift.tue %}T{% endif %}
-                                        {% if shift.wed %}W{% endif %}
-                                        {% if shift.thu %}T{% endif %}
-                                        {% if shift.fri %}F{% endif %}
-                                        {% if shift.sat %}S{% endif %}
-                                        {% if shift.sun %}S{% endif %}
-                                    </td>
-                                    <td>
-                                        <a href="{% url 'shift_edit' shift.id %}" class="btn btn-sm btn-outline-primary" title="Edit">
-                                            <i class="fas fa-edit"></i>
-                                        </a>
-                                        <a href="{% url 'shift_delete' shift.id %}" class="btn btn-sm btn-outline-danger" title="Delete">
-                                            <i class="fas fa-trash-alt"></i>
-                                        </a>
-                                    </td>
-                                </tr>
-                            {% empty %}
-                                <tr>
-                                    <td colspan="9" class="text-center text-muted py-4">
-                                        <i class="las la-clock fa-2x mb-2 d-block"></i>
-                                        No shifts defined yet.
-                                    </td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                <!-- {# ═══════════ SHIFT ASSIGNMENT TAB ═══════════ #} -->
+                <div class="tab-pane fade" id="assign" role="tabpanel">
+                    <div class="stp-assign-card">
+                        <span class="stp-assign-ico"><i class="las la-users-cog"></i></span>
+                        <h5 class="stp-assign-title">Bulk Shift Assignment</h5>
+                        <p class="stp-assign-desc">
+                            Select a shift and one or more employees, then click "Assign Shift" to update their schedules in one go.
+                        </p>
+                        <a href="{% url 'assign_shift' %}" class="stp-btn stp-btn-primary">
+                            <i class="fas fa-arrow-right"></i> Go to Shift Assignment
+                        </a>
+                    </div>
                 </div>
+
+                
+                        {# ═══════════ LEAVE TYPES TAB ═══════════ #}
+        {% if user.is_superuser or user|has_group:"HR Admin" %}
+            <div class="tab-pane fade" id="leave-types" role="tabpanel">
+
+                <div class="stp-sec">
+                    <div class="stp-sec-left">
+                        <span class="stp-sec-ico"><i class="las la-tags"></i></span>
+                        <div>
+                            <h5 class="stp-sec-title">Leave Types</h5>
+                            <p class="stp-sec-sub">Categories of leave your team can request.</p>
+                        </div>
+                    </div>
+                    <a href="{% url 'leave_type_create' %}" class="stp-btn stp-btn-primary">
+                        <i class="fas fa-plus"></i> Create Leave Type
+                    </a>
+                </div>
+
+                <div class="stp-card">
+                    <div class="table-responsive">
+                        <table class="stp-table">
+                            <thead>
+                                <tr>
+                                    <th>Leave Type</th>
+                                    <th class="text-center">Days Allowed</th>
+                                    <th class="text-center">Status</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for lt in leave_types %}
+                                    <tr>
+                                        <td class="name">{{ lt.name }}</td>
+                                        <td class="text-center num">{{ lt.days_allowed }}</td>
+                                        <td class="text-center">
+                                            {% if lt.is_active %}
+                                                <span class="stp-ot yes"><i class="fas fa-check"></i></span>
+                                            {% else %}
+                                                <span class="stp-ot no"><i class="fas fa-times"></i></span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-end">
+                                            <div class="stp-actions">
+                                                <a href="{% url 'leave_type_edit' lt.id %}" class="stp-action edit" title="Edit">
+                                                    <i class="fas fa-edit"></i>
+                                                </a>
+                                                <a href="{% url 'leave_type_delete' lt.id %}" class="stp-action delete" title="Delete">
+                                                    <i class="fas fa-trash-alt"></i>
+                                                </a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% empty %}
+                                    <tr>
+                                        <td colspan="4">
+                                            <div class="stp-empty">
+                                                <div class="stp-empty-ico"><i class="las la-tags"></i></div>
+                                                <p class="stp-empty-title">No leave types defined yet</p>
+                                                <p class="stp-empty-sub">Create your first leave type to get started.</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="stp-quicklink">
+                    <a href="{% url 'leave_type_list' %}" class="stp-btn stp-btn-ghost">
+                        <i class="fas fa-arrow-right"></i> Manage Leave Types (full page)
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+
+        {# ═══════════ HOLIDAYS TAB ═══════════ #}
+        {% if user.is_superuser or user|has_group:"HR Admin" %}
+            <div class="tab-pane fade" id="holidays" role="tabpanel">
+
+                <div class="stp-sec">
+                    <div class="stp-sec-left">
+                        <span class="stp-sec-ico"><i class="las la-calendar-alt"></i></span>
+                        <div>
+                            <h5 class="stp-sec-title">Company Holidays</h5>
+                            <p class="stp-sec-sub">Company-wide holidays that appear on everyone's calendar.</p>
+                        </div>
+                    </div>
+                    <a href="{% url 'holiday_create' %}" class="stp-btn stp-btn-primary">
+                        <i class="fas fa-plus"></i> Create Holiday
+                    </a>
+                </div>
+
+                <div class="stp-card">
+                    <div class="table-responsive">
+                        <table class="stp-table">
+                            <thead>
+                                <tr>
+                                    <th>Holiday</th>
+                                    <th>Date</th>
+                                    <th>Day</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for holiday in holidays %}
+                                    <tr>
+                                        <td class="name">{{ holiday.name }}</td>
+                                        <td><span class="stp-time">{{ holiday.date|date:"d M Y" }}</span></td>
+                                        <td>{{ holiday.day }}</td>
+                                        <td class="text-end">
+                                            <div class="stp-actions">
+                                                <a href="{% url 'holiday_edit' holiday.id %}" class="stp-action edit" title="Edit">
+                                                    <i class="fas fa-edit"></i>
+                                                </a>
+                                                <a href="{% url 'holiday_delete' holiday.id %}" class="stp-action delete" title="Delete">
+                                                    <i class="fas fa-trash-alt"></i>
+                                                </a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% empty %}
+                                    <tr>
+                                        <td colspan="4">
+                                            <div class="stp-empty">
+                                                <div class="stp-empty-ico"><i class="las la-calendar-alt"></i></div>
+                                                <p class="stp-empty-title">No holidays added yet</p>
+                                                <p class="stp-empty-sub">Create your first holiday to get started.</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="stp-quicklink">
+                    <a href="{% url 'holiday_list' %}" class="stp-btn stp-btn-ghost">
+                        <i class="fas fa-arrow-right"></i> Manage Holidays (full page)
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+        
+
+
+
+
+
+
+
             </div>
         </div>
 
-        <!-- Quick links (optional) -->
-        <div class="mt-3">
-            <a href="{% url 'shift_list' %}" class="btn btn-sm btn-outline-secondary">
-                <i class="fas fa-arrow-right me-1"></i> Manage Shifts (full page)
-            </a>
-        </div>
-    </div>
-
-    {% endif %}
-
-    <!-- ===== Shift Assignment Tab ===== -->
-    <div class="tab-pane fade" id="assign" role="tabpanel">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="mb-0">Bulk Shift Assignment</h5>
-        </div>
-        <p class="text-muted">Select a shift and one or more employees, then click "Assign Shift".</p>
-        <a href="{% url 'assign_shift' %}" class="btn btn-primary rounded-pill">
-            <i class="fas fa-arrow-right me-1"></i> Go to Shift Assignment
-        </a>
-    </div>
-
-    <!-- Future tabs (commented out) -->
-    <!--
-    <div class="tab-pane fade" id="leave" role="tabpanel">
-        <h5>Leave Settings</h5>
-        <p>Leave type configuration will appear here.</p>
-    </div>
-    -->
-</div>
-
-{% endblock %}
+        {% endblock %}

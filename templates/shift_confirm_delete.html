@@ -5,23 +5,290 @@
 {% block page_title %}Confirm Delete{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card border-0 shadow-sm border-danger">
-            <div class="card-body text-center p-4">
-                <i class="fas fa-exclamation-triangle text-danger" style="font-size: 3rem;"></i>
-                <h5 class="mt-3">Are you sure?</h5>
-                <p>You are about to delete <strong>{{ shift.name }}</strong>.</p>
-                <p class="text-danger">This action cannot be undone.</p>
-                <form method="post">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-danger rounded-pill px-4">
-                        <i class="fas fa-trash me-2"></i> Yes, Delete
-                    </button>
-                    <a href="{% url 'shift_list' %}" class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
-                </form>
+
+<style>
+    /* ═══════════════════════════════════════════════════
+       Delete Shift — refined design system
+       Prefix: .shd-
+       ═══════════════════════════════════════════════════ */
+    .shd-wrap {
+        --shd-surface:       #ffffff;
+        --shd-surface-2:     #fafbfc;
+        --shd-surface-3:     #f4f6f8;
+        --shd-border:        #e8eaee;
+        --shd-border-hover:  #d5d9e0;
+        --shd-text:          #0f172a;
+        --shd-text-muted:    #64748b;
+        --shd-text-faint:    #94a3b8;
+        --shd-danger:        #dc2626;
+        --shd-danger-soft:   #fef2f2;
+        --shd-danger-hover:  #b91c1c;
+        --shd-pill:          999px;
+        --shd-ease:          cubic-bezier(.4, 0, .2, 1);
+    }
+
+    /* ─── Page header ─── */
+    .shd-hd { margin-bottom: 22px; }
+    .shd-hd-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 1.15rem;
+        font-weight: 600;
+        letter-spacing: -.015em;
+        color: var(--shd-text);
+        margin: 0 0 4px;
+    }
+    .shd-hd-ico {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        background: var(--shd-danger-soft);
+        color: var(--shd-danger);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .95rem;
+    }
+    .shd-hd-sub {
+        font-size: .82rem;
+        color: var(--shd-text-muted);
+        margin: 0;
+        padding-left: 44px;
+    }
+
+    /* ─── Card ─── */
+    .shd-card {
+        background: var(--shd-surface);
+        border: 1px solid var(--shd-border);
+        border-radius: 14px;
+        overflow: hidden;
+        transition: border-color .2s var(--shd-ease);
+    }
+    .shd-card:hover { border-color: var(--shd-border-hover); }
+    .shd-card-bd { padding: 32px 32px 28px; }
+
+    /* ─── Warning icon with pulse ─── */
+    .shd-icon-wrap {
+        width: 72px;
+        height: 72px;
+        margin: 0 auto 20px;
+        border-radius: 50%;
+        background: var(--shd-danger-soft);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+    }
+    .shd-icon-wrap::before,
+    .shd-icon-wrap::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        border: 1px solid var(--shd-danger);
+        opacity: 0;
+        animation: shd-pulse 2.4s var(--shd-ease) infinite;
+    }
+    .shd-icon-wrap::after { animation-delay: 1.2s; }
+    @keyframes shd-pulse {
+        0%   { transform: scale(1);    opacity: .5; }
+        100% { transform: scale(1.6);  opacity: 0;  }
+    }
+    .shd-icon-wrap i {
+        font-size: 1.85rem;
+        color: var(--shd-danger);
+    }
+
+    /* ─── Content ─── */
+    .shd-title {
+        font-size: 1.15rem;
+        font-weight: 600;
+        letter-spacing: -.015em;
+        color: var(--shd-text);
+        margin: 0 0 10px;
+        text-align: center;
+    }
+    .shd-message {
+        font-size: .875rem;
+        color: var(--shd-text-muted);
+        line-height: 1.55;
+        text-align: center;
+        margin: 0 0 4px;
+    }
+
+    /* ─── Highlighted shift name ─── */
+    .shd-name {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: var(--shd-surface-2);
+        border: 1px solid var(--shd-border);
+        border-radius: var(--shd-pill);
+        font-size: .875rem;
+        font-weight: 600;
+        color: var(--shd-text);
+        margin: 16px auto;
+        letter-spacing: -.005em;
+        max-width: 100%;
+        word-break: break-word;
+    }
+    .shd-name i {
+        color: var(--shd-text-faint);
+        font-size: .85rem;
+        flex-shrink: 0;
+    }
+
+    /* ─── Warning note ─── */
+    .shd-warning {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 12px 14px;
+        background: var(--shd-danger-soft);
+        border-radius: 10px;
+        font-size: .78rem;
+        color: #991b1b;
+        line-height: 1.5;
+        margin: 20px auto;
+        max-width: 420px;
+        text-align: left;
+    }
+    .shd-warning i {
+        flex-shrink: 0;
+        font-size: .95rem;
+        margin-top: 1px;
+        color: var(--shd-danger);
+    }
+    .shd-warning strong {
+        color: #7f1d1d;
+        font-weight: 600;
+    }
+
+    /* ─── Footer / buttons ─── */
+    .shd-foot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: center;
+        padding-top: 24px;
+        border-top: 1px solid var(--shd-border);
+        margin-top: 8px;
+    }
+    .shd-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 22px;
+        font-size: .82rem;
+        font-weight: 500;
+        border-radius: var(--shd-pill);
+        border: 1px solid transparent;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all .15s var(--shd-ease);
+        line-height: 1.3;
+        min-width: 140px;
+        justify-content: center;
+    }
+    .shd-btn i { font-size: .85rem; }
+
+    .shd-btn-ghost {
+        background: transparent;
+        color: var(--shd-text-muted);
+        border-color: var(--shd-border);
+    }
+    .shd-btn-ghost:hover {
+        background: var(--shd-surface-2);
+        color: var(--shd-text);
+        border-color: var(--shd-border-hover);
+    }
+
+    .shd-btn-danger {
+        background: var(--shd-danger);
+        color: #fff;
+    }
+    .shd-btn-danger:hover {
+        background: var(--shd-danger-hover);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(220,38,38,.3);
+    }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 767.98px) {
+        .shd-card-bd { padding: 26px 20px 22px; }
+        .shd-hd-sub { padding-left: 0; }
+        .shd-icon-wrap { width: 60px; height: 60px; }
+        .shd-icon-wrap i { font-size: 1.5rem; }
+        .shd-title { font-size: 1rem; }
+        .shd-message { font-size: .82rem; }
+        .shd-foot { gap: 8px; }
+        .shd-foot .shd-btn { flex: 1; min-width: 0; }
+    }
+</style>
+
+<div class="shd-wrap">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+
+            <!-- Page header -->
+            <div class="shd-hd">
+                <h5 class="shd-hd-title">
+                    <span class="shd-hd-ico"><i class="fas fa-trash"></i></span>
+                    Confirm Delete
+                </h5>
+                <p class="shd-hd-sub">This action is permanent and cannot be undone.</p>
+            </div>
+
+            <!-- Card -->
+            <div class="shd-card">
+                <div class="shd-card-bd">
+
+                    <!-- Warning icon with pulse -->
+                    <div class="shd-icon-wrap">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+
+                    <!-- Title + message -->
+                    <h4 class="shd-title">Delete this shift?</h4>
+                    <p class="shd-message">
+                        The shift below will be permanently removed from your company.
+                    </p>
+
+                    <!-- Shift name chip -->
+                    <div class="text-center">
+                        <span class="shd-name">
+                            <i class="las la-clock"></i> {{ shift.name }}
+                        </span>
+                    </div>
+
+                    <!-- Warning note -->
+                    <div class="shd-warning">
+                        <i class="las la-exclamation-circle"></i>
+                        <span>
+                            <strong>Warning:</strong> Employees currently assigned to this shift will need to be reassigned to another shift.
+                        </span>
+                    </div>
+
+                    <!-- Actions -->
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="shd-foot">
+                            <a href="{% url 'shift_list' %}" class="shd-btn shd-btn-ghost">
+                                <i class="fas fa-arrow-left"></i> Cancel
+                            </a>
+                            <button type="submit" class="shd-btn shd-btn-danger">
+                                <i class="fas fa-trash"></i> Yes, Delete
+                            </button>
+                        </div>
+                    </form>
+
+                </div>
             </div>
         </div>
     </div>
 </div>
+
 {% endblock %}

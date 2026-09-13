@@ -5,13 +5,22 @@ from django.contrib.auth.models import User, Group
 from django.contrib import messages
 from django.utils import timezone
 from django.http import HttpResponse, JsonResponse, FileResponse
+from django.db import transaction
 from django.db.models import Q, Sum, Count
+from django.views.decorators.http import require_http_methods
 from datetime import date, timedelta, datetime
 from decimal import Decimal
 from calendar import monthrange
 from io import BytesIO
 from math import radians, sin, cos, sqrt, atan2
 import csv
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
+
+from django.contrib.auth import update_session_auth_hash
+from django.contrib.auth.forms import PasswordChangeForm
+from django.contrib.auth.models import User
+
 
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
@@ -24,9 +33,14 @@ from django_ratelimit.decorators import ratelimit
 from .models import (
     Attendance, LeaveType, Holiday, LeaveRequest, Notification,
     RegularizationRequest, EmployeeProfile, Shift, Company,
-    OfficeLocation, EmployeeSalary, Payroll
+    OfficeLocation, EmployeeSalary, Payroll,
+    PasswordResetRequest,
 )
-from .forms import EmployeeForm
+from .forms import (
+    EmployeeForm,
+    ForgotPasswordForm,
+    SetNewPasswordForm,
+)
 from .decorators import (
     admin_or_hr_required, hr_admin_required,
     company_required, payroll_required
@@ -35,7 +49,6 @@ from .utils import (
     get_approver, get_hr_admin, can_approve_request,
     get_company_filtered, get_user_company
 )
-
 
 
 
@@ -843,99 +856,137 @@ def employee_list(request):
 
 
 
+
 @login_required
 @hr_admin_required
 @company_required
 def employee_create(request):
     from .utils import get_user_company
-    
+    from django.contrib.auth.password_validation import validate_password
+    from django.core.exceptions import ValidationError
+
     if request.method == 'POST':
         form = EmployeeForm(request.POST)
         if form.is_valid():
-            username = form.cleaned_data['username']
-            email = form.cleaned_data['email']
-            password = form.cleaned_data['password1']
-            
-            user = User.objects.create_user(
-                username=username, email=email, password=password
-            )
-            
-            # ✅ Auto-assign company from HR Admin's company
-            company = get_user_company(request)
-            if not company and request.user.is_superuser:
-                # Superuser must pick a company from form
-                company_id = request.POST.get('company')
-                if company_id:
-                    from .models import Company
-                    company = Company.objects.filter(id=company_id).first()
-            
-            profile = EmployeeProfile(
-                user=user,
-                company=company,   # ✅ company assigned here
-                full_name=form.cleaned_data['full_name'],
-                date_of_birth=form.cleaned_data.get('date_of_birth'),
-                date_of_joining=form.cleaned_data.get('date_of_joining'),
-                designation=form.cleaned_data.get('designation', ''),
-                department=form.cleaned_data.get('department', ''),
-                phone=form.cleaned_data.get('phone', ''),
-                address=form.cleaned_data.get('address', ''),
-                attendance_type=form.cleaned_data['attendance_type'],
-                office_location=form.cleaned_data.get('office_location'),
-                role=form.cleaned_data.get('role', 'employee'),
-            )
-            
-            # Auto-generate employee_id within the company
-            if company:
-                prefix = company.code_prefix
-                existing_ids = EmployeeProfile.objects.filter(
-                    company=company, employee_id__startswith=prefix
-                ).values_list('employee_id', flat=True)
-                max_num = 0
-                for emp_id in existing_ids:
-                    try:
-                        num = int(emp_id[len(prefix):])
-                        if num > max_num: max_num = num
-                    except ValueError:
-                        continue
-                profile.employee_id = f"{prefix}{max_num + 1:03d}"
+            username  = form.cleaned_data['username']
+            email     = form.cleaned_data['email']
+            password  = form.cleaned_data['password1']
+            password2 = form.cleaned_data.get('password2', '')
+
+            # ✅ ═══════════════════════════════════════════════════
+            # ✅ PASSWORD VALIDATION
+            # ✅ Rejects weak passwords using Django's built-in validators:
+            # ✅   - Minimum 8 characters
+            # ✅   - Not entirely numeric
+            # ✅   - Not a common password
+            # ✅   - Not too similar to username/email
+            # ✅ ═══════════════════════════════════════════════════
+            password_errors = []
+
+            if not password:
+                password_errors.append("Password is required.")
+
+            if password and password2 and password != password2:
+                password_errors.append("Passwords do not match.")
+
+            if password:
+                temp_user = User(username=username, email=email)
+                try:
+                    validate_password(password, user=temp_user)
+                except ValidationError as exc:
+                    password_errors.extend(exc.messages)
+
+            if password_errors:
+                for err in password_errors:
+                    form.add_error('password1', err)
+                    # messages.error(request, err)  
+                # Skip creation — render form with errors below
             else:
-                profile.employee_id = f"EMP{EmployeeProfile.objects.count() + 1:04d}"
-            
-            profile.save()
-            
-            # Manager assignment
-            manager_id = request.POST.get('manager')
-            if manager_id:
-                profile.manager_id = manager_id
-                profile.save(update_fields=['manager_id'])
-            
-            # Shift assignment
-            shift_id = request.POST.get('shift')
-            if shift_id:
-                profile.shift_id = shift_id
-                profile.save(update_fields=['shift_id'])
-            
-            # Role → group
-            from django.contrib.auth.models import Group
-            role = request.POST.get('role', 'employee')
-            if role == 'manager':
-                grp, _ = Group.objects.get_or_create(name='Manager')
-                user.groups.add(grp)
-            elif role == 'hr_admin':
-                grp, _ = Group.objects.get_or_create(name='HR Admin')
-                user.groups.add(grp)
-            else:
-                user.groups.clear()
-            
-            messages.success(request, f'Employee {profile.full_name} created. ID: {profile.employee_id}')
-            return redirect('employee_list')
+                # ✅ Password is valid → proceed with normal creation
+                user = User.objects.create_user(
+                    username=username, email=email, password=password
+                )
+
+                # ✅ Auto-assign company from HR Admin's company
+                company = get_user_company(request)
+                if not company and request.user.is_superuser:
+                    # Superuser must pick a company from form
+                    company_id = request.POST.get('company')
+                    if company_id:
+                        from .models import Company
+                        company = Company.objects.filter(id=company_id).first()
+
+                profile = EmployeeProfile(
+                    user=user,
+                    company=company,
+                    full_name=form.cleaned_data['full_name'],
+                    date_of_birth=form.cleaned_data.get('date_of_birth'),
+                    date_of_joining=form.cleaned_data.get('date_of_joining'),
+                    designation=form.cleaned_data.get('designation', ''),
+                    department=form.cleaned_data.get('department', ''),
+                    phone=form.cleaned_data.get('phone', ''),
+                    address=form.cleaned_data.get('address', ''),
+                    attendance_type=form.cleaned_data['attendance_type'],
+                    office_location=form.cleaned_data.get('office_location'),
+                    role=form.cleaned_data.get('role', 'employee'),
+                )
+
+                # Auto-generate employee_id within the company
+                if company:
+                    prefix = company.code_prefix
+                    existing_ids = EmployeeProfile.objects.filter(
+                        company=company, employee_id__startswith=prefix
+                    ).values_list('employee_id', flat=True)
+                    max_num = 0
+                    for emp_id in existing_ids:
+                        try:
+                            num = int(emp_id[len(prefix):])
+                            if num > max_num:
+                                max_num = num
+                        except ValueError:
+                            continue
+                    profile.employee_id = f"{prefix}{max_num + 1:03d}"
+                else:
+                    profile.employee_id = f"EMP{EmployeeProfile.objects.count() + 1:04d}"
+
+                profile.save()
+
+                # Manager assignment
+                manager_id = request.POST.get('manager')
+                if manager_id:
+                    profile.manager_id = manager_id
+                    profile.save(update_fields=['manager_id'])
+
+                # Shift assignment
+                shift_id = request.POST.get('shift')
+                if shift_id:
+                    profile.shift_id = shift_id
+                    profile.save(update_fields=['shift_id'])
+
+                # Role → group
+                from django.contrib.auth.models import Group
+                role = request.POST.get('role', 'employee')
+                if role == 'manager':
+                    grp, _ = Group.objects.get_or_create(name='Manager')
+                    user.groups.add(grp)
+                elif role == 'hr_admin':
+                    grp, _ = Group.objects.get_or_create(name='HR Admin')
+                    user.groups.add(grp)
+                else:
+                    user.groups.clear()
+
+                messages.success(
+                    request,
+                    f'Employee {profile.full_name} created. ID: {profile.employee_id}'
+                )
+                return redirect('employee_list')
         else:
             for field, errors in form.errors.items():
                 for error in errors:
                     messages.error(request, f'{field}: {error}')
     else:
         form = EmployeeForm()
-    
+
     # Filter dropdowns by company
     from .utils import get_company_filtered
     shifts = get_company_filtered(request, Shift.objects.all()).order_by('name')
@@ -944,7 +995,7 @@ def employee_create(request):
         request,
         EmployeeProfile.objects.filter(role__in=['manager', 'hr_admin'])
     ).order_by('full_name')
-    
+
     context = {
         'form': form,
         'action': 'Create',
@@ -1424,7 +1475,7 @@ def leave_apply(request):
 
         leave_request = LeaveRequest.objects.create(
             user=request.user,
-            company=company,   # ✅ Now defined
+            company=company,
             leave_type=leave_type,
             is_half_day=is_half_day,
             half_day_session=half_day_session if is_half_day else '',
@@ -1434,18 +1485,39 @@ def leave_apply(request):
             attachment=attachment,
             status='Pending'
         )
-        messages.success(request, 'Leave request submitted successfully.')
 
-        approver = get_approver(request.user)
-        if approver:
-            create_notification(
-                approver,
-                f"{request.user.username} has applied for {leave_type.name} leave from {start_date} to {end_date}.",
-                notification_type='action',
-                related_object=leave_request
+        # ─── Route to correct approver(s) ───
+        from .approval_utils import notify_approvers
+
+        profile = getattr(request.user, 'profile', None)
+        full_name = (profile.full_name if profile else '') or request.user.username
+        emp_id = (profile.employee_id if profile else '') or '—'
+
+        msg = (
+            f"Leave Request — {full_name} ({emp_id}) "
+            f"has requested {leave_type.name} "
+            f"from {date.fromisoformat(str(start_date)).strftime('%d %b')} "
+            f"to {date.fromisoformat(str(end_date)).strftime('%d %b %Y')}."
+        )
+
+        approvers, self_approved = notify_approvers(
+            request=request,
+            company=company,
+            msg=msg,
+            obj=leave_request,
+            related_type='leaverequest',
+        )
+
+        if self_approved:
+            messages.success(
+                request,
+                "Leave request auto-approved as Company Owner (flagged for audit)."
             )
+        else:
+            messages.success(request, 'Leave request submitted successfully.')
 
         return redirect('employee_leaves')
+
 
     # ✅ Company-filtered leave types
     leave_types = get_company_filtered(
@@ -1456,73 +1528,54 @@ def leave_apply(request):
 
 
 # ---------- Admin Leave Approvals ----------
-
 @login_required
 @admin_or_hr_required
 @company_required
 def admin_leaves(request):
     from .utils import get_company_filtered
-    
+    from .roles import get_role
+
     user = request.user
-    
-    # ─── Superuser and HR Admin ───
-    if user.is_superuser or user.groups.filter(name='HR Admin').exists():
-        # ✅ Company-filtered (superuser sees all, HR Admin sees own company)
-        pending = get_company_filtered(
-            request,
-            LeaveRequest.objects.filter(
-                status='Pending',
-                user__profile__manager__isnull=True
+    profile = getattr(user, 'profile', None)
+    role = get_role(user)
+    company = get_user_company(request) if not user.is_superuser else None
+
+    # ── Build a base queryset for each status, scoped by role ──
+    def scope_qs(status):
+        if user.is_superuser:
+            return LeaveRequest.objects.filter(status=status)
+
+        base = LeaveRequest.objects.filter(
+            status=status,
+            company=company,
+        ).exclude(user=user)          # ← never own leaves
+
+        if role == 'company_owner':
+            # Company Owner sees everything in company except own
+            return base
+
+        if role == 'hr_admin':
+            # HR Admin sees employees + managers only
+            return base.filter(
+                user__profile__role__in=['employee', 'manager']
             )
-        ).order_by('-applied_on')
-        
-        approved = get_company_filtered(
-            request,
-            LeaveRequest.objects.filter(
-                status='Approved',
-                user__profile__manager__isnull=True
-            )
-        ).order_by('-applied_on')
-        
-        rejected = get_company_filtered(
-            request,
-            LeaveRequest.objects.filter(
-                status='Rejected',
-                user__profile__manager__isnull=True
-            )
-        ).order_by('-applied_on')
-    
-    # ─── Manager (team only) ───
-    else:
-        try:
-            profile = user.profile
-            team_members = EmployeeProfile.objects.filter(
+
+        if role == 'manager':
+            team_ids = EmployeeProfile.objects.filter(
                 manager=profile
             ).values_list('user_id', flat=True)
-            
-            pending = LeaveRequest.objects.filter(
-                status='Pending',
-                user_id__in=team_members
-            ).order_by('-applied_on')
-            approved = LeaveRequest.objects.filter(
-                status='Approved',
-                user_id__in=team_members
-            ).order_by('-applied_on')
-            rejected = LeaveRequest.objects.filter(
-                status='Rejected',
-                user_id__in=team_members
-            ).order_by('-applied_on')
-        except EmployeeProfile.DoesNotExist:
-            pending = LeaveRequest.objects.none()
-            approved = LeaveRequest.objects.none()
-            rejected = LeaveRequest.objects.none()
-    
+            return base.filter(user_id__in=team_ids)
+
+        return LeaveRequest.objects.none()
+
     context = {
-        'pending_leaves': pending,
-        'approved_leaves': approved,
-        'rejected_leaves': rejected,
+        'pending_leaves':  scope_qs('Pending').order_by('-applied_on'),
+        'approved_leaves': scope_qs('Approved').order_by('-applied_on'),
+        'rejected_leaves': scope_qs('Rejected').order_by('-applied_on'),
     }
     return render(request, 'admin_leaves.html', context)
+
+
 
 
 @login_required
@@ -2482,7 +2535,17 @@ def attendance_view(request):
         att = att_dict.get(current_date)
 
         if att:
-            status = 'Present' if att.check_in_time and att.check_out_time else 'Incomplete'
+            # ✅ Trust the DB status for flagged/flow states
+            if att.status in ('Missing Checkout', 'Under Review',
+                            'On Leave', 'Half-Day', 'Late', 'Early Out'):
+                status = att.status
+            elif att.check_in_time and att.check_out_time:
+                status = 'Present'
+            elif att.check_in_time:
+                status = 'Missing Checkout'
+            else:
+                status = 'Absent'
+
             check_in = att.check_in_time
             check_out = att.check_out_time
             work_seconds = (check_out - check_in).total_seconds() if check_in and check_out else 0
@@ -2499,7 +2562,7 @@ def attendance_view(request):
         check_out_display = timezone.localtime(check_out).strftime('%I:%M %p') if check_out else '--:--'
         work_hours = f"{int(work_seconds // 3600):02d}:{int((work_seconds % 3600) // 60):02d}" if work_seconds else '--:--'
         overtime_display = f"{int(overtime_seconds // 3600):02d}:{int((overtime_seconds % 3600) // 60):02d}" if overtime_seconds else '--:--'
-        can_regularize = (status in ['Absent', 'Incomplete'])
+        can_regularize = status in ('Missing Checkout', 'Incomplete', 'Absent')
 
         all_dates.append({
             'date': current_date,
@@ -2537,191 +2600,372 @@ def attendance_view(request):
 
 
 # ---------- Regularization ----------
+
 @login_required
 def regularize_request(request):
     if request.method == 'POST':
-        date_str = request.POST.get('date')
-        check_in = request.POST.get('check_in')
+        date_str  = request.POST.get('date')
+        check_in  = request.POST.get('check_in')
         check_out = request.POST.get('check_out')
-        reason = request.POST.get('reason')
+        reason    = request.POST.get('reason')
 
-        if date_str and reason:
-            existing = RegularizationRequest.objects.filter(
-                user=request.user,
-                date=date_str,
-                status__in=['Pending', 'Approved']
-            ).exists()
-            if existing:
-                messages.error(request, 'You already have a pending or approved regularization for this date.')
-                return redirect('regularize_request')
+        if not (date_str and reason):
+            messages.error(request, 'Please fill in all required fields.')
+            return render(request, 'attendance/regularize_request.html', {
+                'prefilled_date': date_str or request.GET.get('date', ''),
+            })
 
-            if Attendance.objects.filter(user=request.user, date=date_str).exists():
-                messages.error(request, 'Attendance already exists for this date.')
-                return redirect('regularize_request')
-
-            # ✅ FIX: Get company from user profile
-            company = get_user_company(request)
-            if not company:
-                messages.error(request, 'Your account is not linked to a company.')
-                return redirect('dashboard')
-
-            reg_req = RegularizationRequest.objects.create(
-                company=company,   # ✅ Now defined
-                user=request.user,
-                date=date_str,
-                check_in_time=check_in if check_in else None,
-                check_out_time=check_out if check_out else None,
-                reason=reason,
-                status='Pending'
+        # ─── Prevent duplicate pending/approved regularizations ───
+        existing_req = RegularizationRequest.objects.filter(
+            user=request.user,
+            date=date_str,
+            status__in=['Pending', 'Approved']
+        ).exists()
+        if existing_req:
+            messages.error(
+                request,
+                'You already have a pending or approved regularization for this date.'
             )
+            return redirect('regularize_request_list')
+
+        # ─── Check the existing attendance record ───
+        # Regularization is ALLOWED when:
+        #   • No attendance exists at all
+        #   • OR attendance exists with status 'Missing Checkout' / 'Under Review'
+        # Regularization is BLOCKED when:
+        #   • A finalized record already exists (Present, Absent, On Leave, etc.)
+        existing_att = Attendance.objects.filter(
+            user=request.user,
+            date=date_str,
+        ).first()
+
+        if existing_att:
+            allowed_statuses = ('Missing Checkout', 'Under Review', 'Absent', 'Incomplete')
+            if existing_att.status not in allowed_statuses:
+                messages.error(
+                    request,
+                    'Attendance already exists for this date. '
+                    'Only missing checkouts can be regularized.'
+                )
+                return redirect('attendance_view')
+
+        # ─── Company check ───
+        company = get_user_company(request)
+        if not company:
+            messages.error(request, 'Your account is not linked to a company.')
+            return redirect('dashboard')
+
+        # ─── Create the regularization request ───
+        reg_req = RegularizationRequest.objects.create(
+            company=company,
+            user=request.user,
+            date=date_str,
+            check_in_time=check_in if check_in else None,
+            check_out_time=check_out if check_out else None,
+            reason=reason,
+            status='Pending',
+        )
+
+        # ─── Flip the attendance status → Under Review ───
+        from .attendance_utils import mark_under_review
+        mark_under_review(request.user, date_str)
+
+        # ─── Notify approver ───
+        
+        # ─── Notify approver ───
+        from .approval_utils import notify_approvers
+        profile = getattr(request.user, 'profile', None)
+        full_name = (profile.full_name if profile else '') or request.user.username
+        emp_id = (profile.employee_id if profile else '') or '—'
+
+        msg = (
+            f"Regularization Request — {full_name} ({emp_id}) "
+            f"has requested a regularization for {date_str}."
+        )
+
+        approvers, self_approved = notify_approvers(
+            request=request,
+            company=company,
+            msg=msg,
+            obj=reg_req,
+            related_type='regularizationrequest',
+        )
+
+        if self_approved:
+            # Owner's own regularization auto-approves → close the day
+            from .attendance_utils import mark_under_review
+            Attendance.objects.filter(
+                user=request.user,
+                date=date_str,
+            ).update(status='Present')
+
+            messages.success(
+                request,
+                "Regularization auto-approved as Company Owner."
+            )
+        else:
             messages.success(request, 'Regularization request submitted successfully.')
 
-            approver = get_approver(request.user)
-            if approver:
-                create_notification(
-                    approver,
-                    f"{request.user.username} has submitted a regularization request for {date_str}.",
-                    notification_type='action',
-                    related_object=reg_req
-                )
-            else:
-                notify_admins(
-                    f"{request.user.username} has submitted a regularization request for {date_str}.",
-                    notification_type='action',
-                    related_object=reg_req
-                )
+        return redirect('regularize_request_list')
 
-            return redirect('regularize_request_list')
-        else:
-            messages.error(request, 'Please fill in all required fields.')
 
-    return render(request, 'attendance/regularize_request.html')
+    # ─── GET: pre-fill form from ?date= query param ───
+    prefilled_date = request.GET.get('date', '')
+
+    attendance = None
+    if prefilled_date:
+        attendance = Attendance.objects.filter(
+            user=request.user,
+            date=prefilled_date,
+        ).first()
+
+    return render(request, 'attendance/regularize_request.html', {
+        'prefilled_date': prefilled_date,
+        'attendance':     attendance,
+    })
+
 
 
 @login_required
 def regularize_request_list(request):
     from .utils import get_company_filtered
-    
+    from django.db.models import Q
+    from core.models import EmployeeProfile
+
+    profile = getattr(request.user, 'profile', None)
+    role = profile.role if profile else None
+
     if request.user.is_superuser:
+        # Superuser: all companies
         requests = RegularizationRequest.objects.all().order_by('-requested_at')
-    elif request.user.groups.filter(name='HR Admin').exists():
+
+    elif role == 'HR Admin' or request.user.groups.filter(name='HR Admin').exists():
+        # HR Admin: whole company
         requests = get_company_filtered(
             request, RegularizationRequest.objects.all()
         ).order_by('-requested_at')
+
+    elif role == 'Manager':
+        # Manager: own + their team's requests
+        team_user_ids = EmployeeProfile.objects.filter(
+            manager=profile
+        ).values_list('user_id', flat=True)
+
+        requests = get_company_filtered(
+            request, RegularizationRequest.objects.all()
+        ).filter(
+            Q(user=request.user) | Q(user_id__in=team_user_ids)
+        ).order_by('-requested_at')
+
     else:
+        # Employee: only their own
         requests = RegularizationRequest.objects.filter(
             user=request.user
         ).order_by('-requested_at')
-    
-    return render(request, 'attendance/regularize_request_list.html', {'requests': requests})
+
+    return render(
+        request,
+        'attendance/regularize_request_list.html',
+        {'requests': requests}
+    )
 
 
 @login_required
-@hr_admin_required
+@admin_or_hr_required
 @company_required
 def regularize_reject(request, req_id):
     from .utils import get_user_company
-    
+
     if request.user.is_superuser:
         reg_req = get_object_or_404(RegularizationRequest, id=req_id)
     else:
         reg_req = get_object_or_404(
-            RegularizationRequest, id=req_id, company=get_user_company(request)
+            RegularizationRequest, id=req_id,
+            company=get_user_company(request)
         )
-    # ❌ Make sure there's NO second `reg_req = get_object_or_404(...)` after this
-    
+
     if request.method == 'POST':
         reason = request.POST.get('rejection_reason')
         if not reason:
             messages.error(request, 'Please provide a rejection reason.')
             return redirect('regularize_reject', req_id=reg_req.id)
+
+        # ─── Update the regularization request ───
         reg_req.status = 'Rejected'
         reg_req.admin_comment = reason
         reg_req.save()
-        messages.success(request, f'Regularization rejected for {reg_req.user.username}.')
-        return redirect('regularize_request_list')
-    
-    return render(request, 'attendance/regularize_reject.html', {'reg_req': reg_req})
 
+        # ─── Set the attendance to 'Absent' ───
+        existing_att = Attendance.objects.filter(
+            user=reg_req.user,
+            date=reg_req.date,
+        ).first()
 
-@login_required
-@hr_admin_required
-@company_required
-def regularize_reject(request, req_id):
-    if request.user.is_superuser:
-        reg_req = get_object_or_404(RegularizationRequest, id=req_id)
-    else:
-        reg_req = get_object_or_404(
-            RegularizationRequest, id=req_id, company=get_user_company(request)
+        if existing_att:
+            existing_att.status = 'Absent'
+            existing_att.state = 'checked_in'
+            existing_att.check_out_time = None
+            existing_att.total_working_time = None
+            existing_att.save(update_fields=[
+                'status', 'state', 'check_out_time', 'total_working_time',
+            ])
+
+        # ─── Mark the notification as read ───
+        Notification.objects.filter(
+            related_object_type='regularizationrequest',
+            related_object_id=reg_req.id,
+            is_read=False,
+        ).update(is_read=True)
+
+        # ─── Notify the employee ───
+        Notification.objects.create(
+            user=reg_req.user,
+            company=reg_req.company,
+            message=(
+                f"Your regularization request for "
+                f"{reg_req.date.strftime('%d %b %Y')} was rejected. "
+                f"Reason: {reason}"
+            ),
+            notification_type='info',
         )
-    
-    if request.method == 'POST':
-        reason = request.POST.get('rejection_reason')
-        if not reason:
-            messages.error(request, 'Please provide a rejection reason.')
-            return redirect('regularize_reject', req_id=reg_req.id)
-        reg_req.status = 'Rejected'
-        reg_req.admin_comment = reason
-        reg_req.save()
+
         messages.success(request, f'Regularization rejected for {reg_req.user.username}.')
         return redirect('regularize_request_list')
-    
+
     return render(request, 'attendance/regularize_reject.html', {'reg_req': reg_req})
 
-
 @login_required
-@hr_admin_required
+@admin_or_hr_required            # ← existing, already allows managers ✅
 @company_required
 def regularize_approve(request, req_id):
     from datetime import datetime
-    
+    from django.utils.dateparse import parse_time
+    from datetime import timedelta
+    from django.core.exceptions import PermissionDenied   # ← CHANGED (added)
+
     if request.user.is_superuser:
         reg_req = get_object_or_404(RegularizationRequest, id=req_id)
     else:
         reg_req = get_object_or_404(
-            RegularizationRequest, id=req_id, company=get_user_company(request)
+            RegularizationRequest, id=req_id,
+            company=get_user_company(request)
         )
-    
+
+    # ─── Manager scope: only own team ───                 # ← CHANGED (added block)
+    if not request.user.is_superuser:
+        profile = getattr(request.user, 'profile', None)
+        if profile and profile.role == 'Manager':
+            if reg_req.user.profile.manager_id != profile.id:
+                raise PermissionDenied
+
     if request.method == 'POST':
         comment = request.POST.get('admin_comment', '')
         reg_req.status = 'Approved'
         reg_req.admin_comment = comment
         reg_req.save()
-        
-        if reg_req.check_in_time:
+
+        # ─── Parse times ───
+        def to_time(val):
+            if val is None or val == '':
+                return None
+            if hasattr(val, 'hour'):
+                return val
+            return parse_time(str(val))
+
+        check_in_time  = to_time(reg_req.check_in_time)
+        check_out_time = to_time(reg_req.check_out_time)
+
+        # ─── Build datetimes ───
+        check_in_dt  = None
+        check_out_dt = None
+
+        if check_in_time and reg_req.date:
             check_in_dt = timezone.make_aware(
-                datetime.combine(reg_req.date, reg_req.check_in_time)
+                datetime.combine(reg_req.date, check_in_time)
             )
-            check_out_dt = None
-            if reg_req.check_out_time:
-                check_out_dt = timezone.make_aware(
-                    datetime.combine(reg_req.date, reg_req.check_out_time)
-                )
-            Attendance.objects.create(
-                user=reg_req.user,
-                company=reg_req.company,
-                date=reg_req.date,
-                check_in_time=check_in_dt,
-                check_out_time=check_out_dt,
-                status='Present',
-                state='checked_out' if check_out_dt else 'checked_in',
+        if check_out_time and reg_req.date:
+            check_out_dt = timezone.make_aware(
+                datetime.combine(reg_req.date, check_out_time)
             )
-        messages.success(request, f'Regularization approved for {reg_req.user.username}.')
+
+        # ─── Determine final status ───
+        final_status = 'Absent'
+        final_state  = 'checked_in'
+        working_time = None
+
+        if check_in_dt and check_out_dt and check_out_dt > check_in_dt:
+            working_time = check_out_dt - check_in_dt
+            hours = working_time.total_seconds() / 3600
+            final_status = 'Half-Day' if hours < 4 else 'Present'
+            final_state  = 'checked_out'
+
+        elif check_in_dt and not check_out_dt:
+            final_status = 'Half-Day'
+            final_state  = 'checked_in'
+
+        # ─── Upsert the attendance record ───
+        Attendance.objects.update_or_create(
+            user=reg_req.user,
+            date=reg_req.date,
+            defaults={
+                'company':            reg_req.company,
+                'check_in_time':      check_in_dt or reg_req.user.attendance_set.filter(
+                                          date=reg_req.date
+                                      ).values_list('check_in_time', flat=True).first(),
+                'check_out_time':     check_out_dt,
+                'status':             final_status,
+                'state':              final_state,
+                'total_working_time': working_time,
+            },
+        )
+
+        # ─── Mark related notification as read ───
+        Notification.objects.filter(
+            related_object_type='regularizationrequest',
+            related_object_id=reg_req.id,
+            is_read=False,
+        ).update(is_read=True)
+
+        # ─── Notify the employee ───
+        Notification.objects.create(
+            user=reg_req.user,
+            company=reg_req.company,
+            message=(
+                f"Your regularization request for "
+                f"{reg_req.date.strftime('%d %b %Y')} was approved "
+                f"({final_status})."
+            ),
+            notification_type='info',
+        )
+
+        messages.success(
+            request,
+            f'Regularization approved for {reg_req.user.username} — {final_status}.'
+        )
         return redirect('regularize_request_list')
-    
+
     return render(request, 'attendance/regularize_approve.html', {'reg_req': reg_req})
-
-
 
 # ---------- Notification List ----------
 @login_required
 def notification_list(request):
-    notifications = Notification.objects.filter(user=request.user).order_by('-created_at')
-    notifications.update(is_read=True)   # mark all as read when viewing the list
+    notifications = Notification.objects.filter(
+        user=request.user
+    ).order_by('-created_at')
+
+    # Only auto-mark INFO notifications as read when the list is viewed.
+    # Action notifications stay unread until HR acts on them.
+    Notification.objects.filter(
+        user=request.user,
+        is_read=False,
+        notification_type='info',
+    ).update(is_read=True)
+
     context = {
         'notifications': notifications,
     }
     return render(request, 'notifications.html', context)
+
 
 
 # ---------- Profile ----------
@@ -2843,13 +3087,27 @@ def attendance_overview_data(request):
 
 # ---------- Setup Page ----------
 @login_required
-@hr_admin_required
 @company_required
 def setup(request):
-    shifts = get_company_filtered(request, Shift.objects.all()).order_by('start_time')
-    context = {'shifts': shifts}
-    return render(request, 'setup.html', context)
+    from .utils import get_company_filtered
 
+    shifts      = get_company_filtered(request, Shift.objects.all()).order_by('name')
+    leave_types = get_company_filtered(request, LeaveType.objects.all()).order_by('name')
+    holidays    = get_company_filtered(request, Holiday.objects.all()).order_by('date')
+
+    # Which tab to open on load — defaults to 'attendance'
+    active_tab = request.GET.get('tab', 'attendance')
+    if active_tab not in ('attendance', 'assign', 'leave-types', 'holidays'):
+        active_tab = 'attendance'
+
+    context = {
+        'shifts':      shifts,
+        'leave_types': leave_types,
+        'holidays':    holidays,
+        'active_tab':  active_tab,
+    }
+    return render(request, 'setup.html', context)
+    
 
 # ---------- Shift Management (Admin only) ----------
 
@@ -3134,9 +3392,7 @@ def error_400(request, exception):
 
 
     
-    # ---------- Attendance Report PDF ----------
-    # ---------- Attendance Report PDF ----------
-    
+# ---------- Attendance Report PDF ----------
 @login_required
 @hr_admin_required
 @company_required
@@ -3145,201 +3401,375 @@ def attendance_report_pdf(request):
 
     today = date.today()
     month = int(request.GET.get('month', today.month))
-    year = int(request.GET.get('year', today.year))
+    year  = int(request.GET.get('year',  today.year))
     download_type = request.GET.get('download_type', 'all')
-    employee_id = request.GET.get('employee_id')
+    employee_id   = request.GET.get('employee_id')
 
-    # ✅ Company-scoped employees
     if request.user.is_superuser:
         employees = User.objects.filter(is_superuser=False).order_by('username')
     elif request.user.groups.filter(name='HR Admin').exists():
         company = get_user_company(request)
-        employees = User.objects.filter(is_superuser=False, profile__company=company).order_by('username')
+        employees = User.objects.filter(
+            is_superuser=False, profile__company=company
+        ).order_by('username')
     else:
         try:
             profile = request.user.profile
-            team_ids = EmployeeProfile.objects.filter(manager=profile).values_list('user_id', flat=True)
+            team_ids = EmployeeProfile.objects.filter(
+                manager=profile
+            ).values_list('user_id', flat=True)
             employees = User.objects.filter(id__in=team_ids).order_by('username')
         except EmployeeProfile.DoesNotExist:
             employees = User.objects.none()
 
-    # Apply filters
-    department_filter = request.GET.get('department', '')
-    employee_search = request.GET.get('employee', '')
-    shift_filter = request.GET.get('shift', '')
-    if department_filter:
-        employees = employees.filter(profile__department__icontains=department_filter)
-    if employee_search:
+    if request.GET.get('department'):
         employees = employees.filter(
-            Q(username__icontains=employee_search) |
-            Q(profile__full_name__icontains=employee_search)
-        )
-    if shift_filter and shift_filter != 'all':
-        employees = employees.filter(profile__shift_id=shift_filter)
+            profile__department__icontains=request.GET['department'])
+    if request.GET.get('employee'):
+        s = request.GET['employee']
+        employees = employees.filter(
+            Q(username__icontains=s) | Q(profile__full_name__icontains=s))
+    if request.GET.get('shift') and request.GET['shift'] != 'all':
+        employees = employees.filter(profile__shift_id=request.GET['shift'])
 
     if download_type == 'single':
         if not employee_id:
             messages.error(request, 'Please select an employee.')
             return redirect('attendance_report')
-        try:
-            # Security: employee must be in scope
-            emp = employees.filter(id=employee_id).first()
-            if not emp:
-                messages.error(request, 'Employee not found or you do not have access.')
-                return redirect('attendance_report')
-            employees = [emp]
-        except Exception:
-            messages.error(request, 'Employee not found.')
+        emp = employees.filter(id=employee_id).first()
+        if not emp:
+            messages.error(request, 'Employee not found or you do not have access.')
             return redirect('attendance_report')
+        employees = [emp]
 
     if not employees:
         messages.error(request, 'No employees found for the selected filters.')
         return redirect('attendance_report')
 
-    buffer = BytesIO()
+    buffer    = BytesIO()
     first_day = date(year, month, 1)
     _, last_day_num = monthrange(year, month)
-    last_day = date(year, month, last_day_num)
+    last_day  = date(year, month, last_day_num)
 
     if request.user.is_superuser:
         company = Company.objects.first()
     else:
         company = get_user_company(request)
-    company_name = company.name if company else 'HRMS'
+    company_name = (company.name if company else 'HRMS').upper()
+    month_label  = first_day.strftime('%B %Y')
 
-    doc = SimpleDocTemplate(buffer, pagesize=A4,
-                            topMargin=0.5*inch, bottomMargin=0.5*inch,
-                            leftMargin=0.5*inch, rightMargin=0.5*inch)
+    doc = SimpleDocTemplate(
+        buffer, pagesize=A4,
+        topMargin=14 * mm, bottomMargin=14 * mm,
+        leftMargin=14 * mm, rightMargin=14 * mm,
+    )
+    PAGE_W = doc.width
+
+    INK      = colors.HexColor('#0f172a')
+    MUTED    = colors.HexColor('#64748b')
+    FAINT    = colors.HexColor('#94a3b8')
+    LIGHTER  = colors.HexColor('#cbd5e1')
+    HAIR     = colors.HexColor('#e2e8f0')
+    SOFT     = colors.HexColor('#f1f5f9')
+    SOFTER   = colors.HexColor('#f8fafc')
+    WHITE    = colors.HexColor('#ffffff')
+
     styles = getSampleStyleSheet()
-    normal_style = styles['Normal']
-    heading_style = styles['Heading2']
 
-    header_style = ParagraphStyle('HeaderStyle', parent=normal_style, fontSize=14, fontName='Helvetica-Bold', alignment=1, spaceAfter=6)
-    subheader_style = ParagraphStyle('SubHeaderStyle', parent=normal_style, fontSize=12, alignment=1, spaceAfter=12)
-    info_label_style = ParagraphStyle('InfoLabelStyle', parent=normal_style, fontSize=10, fontName='Helvetica-Bold')
-    info_value_style = ParagraphStyle('InfoValueStyle', parent=normal_style, fontSize=10)
-    summary_label_style = ParagraphStyle('SummaryLabelStyle', parent=normal_style, fontSize=9, fontName='Helvetica-Bold')
-    footer_style = ParagraphStyle('Footer', parent=normal_style, fontSize=7, alignment=1)
+    s_company = ParagraphStyle('Comp', parent=styles['Normal'],
+        fontName='Helvetica-Bold', fontSize=22,
+        textColor=WHITE, leading=26)
+    s_period = ParagraphStyle('Per', parent=styles['Normal'],
+        fontName='Helvetica-Bold', fontSize=16,
+        textColor=WHITE, leading=19, alignment=TA_RIGHT)
+    s_section = ParagraphStyle('Sec', parent=styles['Normal'],
+        fontName='Helvetica-Bold', fontSize=8,
+        textColor=FAINT, leading=10, letterSpacing=1.5)
+    s_emp_name = ParagraphStyle('EN', parent=styles['Normal'],
+        fontName='Helvetica-Bold', fontSize=15,
+        textColor=INK, leading=18)
+    s_meta_label = ParagraphStyle('ML', parent=styles['Normal'],
+        fontName='Helvetica-Bold', fontSize=6.5,
+        textColor=FAINT, leading=8.5, letterSpacing=1)
+    s_meta_value = ParagraphStyle('MV', parent=styles['Normal'],
+        fontName='Helvetica-Bold', fontSize=10,
+        textColor=INK, leading=12)
+    s_kpi_label = ParagraphStyle('KL', parent=styles['Normal'],
+        fontName='Helvetica-Bold', fontSize=7,
+        textColor=FAINT, leading=9, letterSpacing=1, alignment=TA_CENTER)
+    s_kpi_value = ParagraphStyle('KV', parent=styles['Normal'],
+        fontName='Helvetica-Bold', fontSize=22,
+        textColor=INK, leading=26, alignment=TA_CENTER)
+    s_thead = ParagraphStyle('TH', parent=styles['Normal'],
+        fontName='Helvetica-Bold', fontSize=7.5,
+        textColor=WHITE, leading=10, letterSpacing=0.8)
+    s_thead_c = ParagraphStyle('THC', parent=styles['Normal'],
+        fontName='Helvetica-Bold', fontSize=7.5,
+        textColor=WHITE, leading=10, letterSpacing=0.8, alignment=TA_CENTER)
+    s_thead_r = ParagraphStyle('THR', parent=styles['Normal'],
+        fontName='Helvetica-Bold', fontSize=7.5,
+        textColor=WHITE, leading=10, letterSpacing=0.8, alignment=TA_RIGHT)
+    s_cell_date = ParagraphStyle('CD', parent=styles['Normal'],
+        fontName='Helvetica-Bold', fontSize=9,
+        textColor=INK, leading=11)
+    s_cell_day = ParagraphStyle('CDay', parent=styles['Normal'],
+        fontName='Helvetica-Bold', fontSize=7,
+        textColor=FAINT, leading=9, letterSpacing=1, alignment=TA_CENTER)
+    s_cell_c = ParagraphStyle('CC', parent=styles['Normal'],
+        fontName='Helvetica', fontSize=9,
+        textColor=MUTED, leading=11, alignment=TA_CENTER)
+    s_cell_r = ParagraphStyle('CR', parent=styles['Normal'],
+        fontName='Helvetica', fontSize=9,
+        textColor=INK, leading=11, alignment=TA_RIGHT)
+    s_chip = ParagraphStyle('Chip', parent=styles['Normal'],
+        fontName='Helvetica-Bold', fontSize=7,
+        textColor=INK, leading=9, letterSpacing=0.5, alignment=TA_CENTER)
+    s_chip_muted = ParagraphStyle('ChipM', parent=styles['Normal'],
+        fontName='Helvetica-Bold', fontSize=7,
+        textColor=MUTED, leading=9, letterSpacing=0.5, alignment=TA_CENTER)
+    s_footer_val = ParagraphStyle('FV', parent=styles['Normal'],
+        fontName='Helvetica', fontSize=8.5,
+        textColor=MUTED, leading=10.5)
+    s_footer_note = ParagraphStyle('FN', parent=styles['Normal'],
+        fontName='Helvetica-Oblique', fontSize=7.5,
+        textColor=FAINT, leading=10, alignment=TA_CENTER)
+
+    def chip(text):
+        t = (text or '').upper()
+        style = s_chip_muted if t in ('ABSENT', 'WEEKEND', 'HOLIDAY') else s_chip
+        bg    = HAIR if t in ('ABSENT', 'WEEKEND', 'HOLIDAY') else SOFT
+        c = Table([[Paragraph(t, style)]], colWidths=[22*mm], rowHeights=[6*mm])
+        c.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), bg),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('LEFTPADDING', (0,0), (-1,-1), 0),
+            ('RIGHTPADDING', (0,0), (-1,-1), 0),
+            ('TOPPADDING', (0,0), (-1,-1), 0),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 0),
+            ('ROUNDEDCORNERS', [3, 3, 3, 3]),
+        ]))
+        return c
 
     elements = []
+    total    = len(employees)
+    now_str  = timezone.localtime(timezone.now()).strftime('%d %b %Y · %I:%M %p')
 
-    for idx, emp in enumerate(employees):
-        if idx > 0:
+    for page_idx, emp in enumerate(employees):
+        if page_idx > 0:
             elements.append(PageBreak())
 
         emp_data = get_employee_attendance_for_pdf(emp, year, month, first_day, last_day)
-        profile = emp_data['profile']
-        shift = emp_data['shift']
-        daily = emp_data['daily_data']
+        profile  = emp_data['profile']
+        shift    = emp_data['shift']
+        daily    = emp_data['daily_data']
 
-        elements.append(Paragraph(company_name, header_style))
-        elements.append(Paragraph("Attendance Report", subheader_style))
-        elements.append(Paragraph(first_day.strftime('%B %Y'), normal_style))
-        elements.append(Spacer(1, 0.3*inch))
-
-        # Employee Info (2-column table, all fields)
-        info_data = [
-            [Paragraph("Employee:", info_label_style), Paragraph(emp.username, info_value_style),
-             Paragraph("Employee ID:", info_label_style), Paragraph(profile.employee_id if profile else '—', info_value_style)],
-            [Paragraph("Department:", info_label_style), Paragraph(profile.department if profile else '—', info_value_style),
-             Paragraph("Designation:", info_label_style), Paragraph(profile.designation if profile else '—', info_value_style)],
-            [Paragraph("Manager:", info_label_style), Paragraph(profile.manager.full_name if profile and profile.manager else '—', info_value_style),
-             Paragraph("Shift:", info_label_style), Paragraph(shift.name if shift else '—', info_value_style)],
-            [Paragraph("Attendance Type:", info_label_style), Paragraph(profile.get_attendance_type_display() if profile else '—', info_value_style),
-             Paragraph("", info_label_style), Paragraph("", info_value_style)],
-        ]
-        info_table = Table(info_data, colWidths=[1.2*cm, 4*cm, 1.2*cm, 4*cm])
-        info_table.setStyle(TableStyle([
+        masthead = Table(
+            [[
+                Paragraph(
+                    "<b>ATTENDANCE REPORT</b><br/>"
+                    f"<font size='22'>{company_name}</font>",
+                    s_company,
+                ),
+                Paragraph(
+                    "<b>PERIOD</b><br/>"
+                    f"<font size='16'>{month_label}</font><br/>"
+                    f"<font size='8'>Generated {now_str}</font>",
+                    s_period,
+                ),
+            ]],
+            colWidths=[PAGE_W * 0.55, PAGE_W * 0.45],
+            rowHeights=[32 * mm],
+        )
+        masthead.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), INK),
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('FONTSIZE', (0,0), (-1,-1), 10),
-            ('LEFTPADDING', (0,0), (-1,-1), 2),
-            ('RIGHTPADDING', (0,0), (-1,-1), 2),
-            ('TOPPADDING', (0,0), (-1,-1), 3),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+            ('LEFTPADDING', (0,0), (0,-1), 24),
+            ('RIGHTPADDING', (0,0), (0,-1), 12),
+            ('LEFTPADDING', (1,0), (1,-1), 12),
+            ('RIGHTPADDING', (1,0), (1,-1), 24),
+            ('ROUNDEDCORNERS', [8, 8, 8, 8]),
         ]))
-        elements.append(info_table)
-        elements.append(Spacer(1, 0.2*inch))
+        elements.append(masthead)
+        elements.append(Spacer(1, 20))
 
-        # Daily Attendance
-        elements.append(Paragraph("Daily Attendance", heading_style))
-        table_data = [['Date', 'Day', 'Status', 'Check In', 'Check Out', 'Hours']]
-        for day in daily:
-            table_data.append([
-                day['date'].strftime('%d %b'),
-                day['day_name'],
-                day['status'],
-                day['check_in'] if day['check_in'] else '—',
-                day['check_out'] if day['check_out'] else '—',
-                day['working_hours'] if day['working_hours'] else '—'
-            ])
-        available_width = doc.width
-        col_widths = [available_width * 0.12, available_width * 0.10,
-                      available_width * 0.18, available_width * 0.18,
-                      available_width * 0.18, available_width * 0.24]
-        table = Table(table_data, colWidths=col_widths)
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.grey),
-            ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+        emp_name = profile.full_name if profile else emp.username
+        emp_uid  = profile.employee_id if profile else '—'
+
+        emp_card = Table(
+            [[Paragraph(
+                "<b>EMPLOYEE</b><br/>"
+                f"<font size='15'>{emp_name}</font><br/>"
+                f"<font size='9' color='#64748b'>ID · {emp_uid}</font>",
+                s_emp_name,
+            )]],
+            colWidths=[PAGE_W],
+            rowHeights=[24 * mm],
+        )
+        emp_card.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), SOFTER),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('LEFTPADDING', (0,0), (-1,-1), 22),
+            ('RIGHTPADDING', (0,0), (-1,-1), 22),
+            ('ROUNDEDCORNERS', [8, 8, 8, 8]),
+        ]))
+        elements.append(emp_card)
+        elements.append(Spacer(1, 8))
+
+        meta_items = [
+            ("DEPARTMENT",  profile.department if profile else '—'),
+            ("DESIGNATION", profile.designation if profile else '—'),
+            ("SHIFT",       shift.name if shift else '—'),
+            ("MANAGER",     (profile.manager.full_name
+                             if profile and profile.manager else '—')),
+        ]
+        meta_labels = [Paragraph(l, s_meta_label) for l, _ in meta_items]
+        meta_values = [Paragraph(v, s_meta_value) for _, v in meta_items]
+
+        meta_table = Table([meta_labels, meta_values], colWidths=[PAGE_W / 4] * 4)
+        meta_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), SOFTER),
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('LEFTPADDING', (0,0), (-1,-1), 20),
+            ('RIGHTPADDING', (0,0), (-1,-1), 10),
+            ('TOPPADDING', (0,0), (-1,0), 12),
+            ('BOTTOMPADDING', (0,0), (-1,0), 2),
+            ('TOPPADDING', (0,1), (-1,1), 0),
+            ('BOTTOMPADDING', (0,1), (-1,1), 14),
+            ('ROUNDEDCORNERS', [8, 8, 8, 8]),
+        ]))
+        elements.append(meta_table)
+        elements.append(Spacer(1, 22))
+
+        ot_h = int(emp_data['overtime_minutes'] // 60)
+        ot_m = int(emp_data['overtime_minutes'] % 60)
+        ot_str = f"{ot_h}h {ot_m}m" if (ot_h or ot_m) else "0h"
+
+        kpis = [
+            ("WORKING DAYS", str(emp_data['working_days'])),
+            ("PRESENT",      str(emp_data['present'])),
+            ("ABSENT",       str(emp_data['absent'])),
+            ("LEAVE",        str(emp_data['leave'])),
+            ("OVERTIME",     ot_str),
+        ]
+        kpi_labels = [Paragraph(l, s_kpi_label) for l, _ in kpis]
+        kpi_values = [Paragraph(v, s_kpi_value) for _, v in kpis]
+
+        kpi_table = Table([kpi_labels, kpi_values],
+                          colWidths=[PAGE_W / 5] * 5,
+                          rowHeights=[9 * mm, 18 * mm])
+        kpi_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), SOFT),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
             ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0,0), (-1,0), 9),
-            ('FONTSIZE', (0,1), (-1,-1), 8),
-            ('BOTTOMPADDING', (0,0), (-1,0), 6),
-            ('TOPPADDING', (0,0), (-1,-1), 4),
-            ('BOTTOMPADDING', (0,1), (-1,-1), 4),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
-            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.lightgrey]),
-        ]))
-        elements.append(table)
-        elements.append(Spacer(1, 0.3*inch))
-
-        # Monthly Summary
-        elements.append(Paragraph("Monthly Summary", heading_style))
-        ot_hours = int(emp_data['overtime_minutes'] // 60)
-        ot_minutes = int(emp_data['overtime_minutes'] % 60)
-        overtime_str = f"{ot_hours}h {ot_minutes}m" if ot_minutes or ot_hours else "0h"
-        summary_data = [
-            [Paragraph("Working Days:", summary_label_style), str(emp_data['working_days']),
-             Paragraph("Present:", summary_label_style), str(emp_data['present'])],
-            [Paragraph("Absent:", summary_label_style), str(emp_data['absent']),
-             Paragraph("Leave:", summary_label_style), str(emp_data['leave'])],
-            [Paragraph("Half Day:", summary_label_style), str(emp_data['half_day']),
-             Paragraph("Late Arrivals:", summary_label_style), str(emp_data['late_arrivals'])],
-            [Paragraph("Overtime:", summary_label_style), overtime_str,
-             Paragraph("Total Working Hours:", summary_label_style), emp_data['total_working_hours']],
-            [Paragraph("Average Working Hours:", summary_label_style), emp_data['avg_working_hours'],
-             Paragraph("", summary_label_style), ""],
-        ]
-        summary_table = Table(summary_data, colWidths=[3*cm, 2.5*cm, 3*cm, 2.5*cm])
-        summary_table.setStyle(TableStyle([
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('FONTSIZE', (0,0), (-1,-1), 9),
             ('LEFTPADDING', (0,0), (-1,-1), 4),
             ('RIGHTPADDING', (0,0), (-1,-1), 4),
-            ('TOPPADDING', (0,0), (-1,-1), 3),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 3),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+            ('TOPPADDING', (0,0), (-1,-1), 4),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+            ('LINEAFTER', (0,0), (-2,-1), 1, WHITE),
+            ('ROUNDEDCORNERS', [8, 8, 8, 8]),
         ]))
-        elements.append(summary_table)
-        elements.append(Spacer(1, 0.5*inch))
+        elements.append(kpi_table)
+        elements.append(Spacer(1, 22))
 
-        local_now = timezone.localtime(timezone.now())
-        footer_text = f"Generated on {local_now.strftime('%d %B %Y, %I:%M %p')} · Employee ID: {profile.employee_id if profile else 'N/A'}"
-        elements.append(Paragraph(footer_text, footer_style))
+        elements.append(Paragraph("DAILY ATTENDANCE", s_section))
+        elements.append(Spacer(1, 10))
 
-    # ✅ Build outside the loop
+        thead_row = [
+            Paragraph("DATE",      s_thead),
+            Paragraph("DAY",       s_thead_c),
+            Paragraph("STATUS",    s_thead_c),
+            Paragraph("CHECK IN",  s_thead_c),
+            Paragraph("CHECK OUT", s_thead_c),
+            Paragraph("HOURS",     s_thead_r),
+        ]
+
+        daily_rows = [thead_row]
+        weekend_idx = []
+        for ridx, day in enumerate(daily, start=1):
+            if day['day_name'] in ('Saturday', 'Sunday'):
+                weekend_idx.append(ridx)
+            daily_rows.append([
+                Paragraph(day['date'].strftime('%d %b'), s_cell_date),
+                Paragraph(day['day_name'][:3].upper(),   s_cell_day),
+                chip(day['status']),
+                Paragraph(day['check_in']  or '—',       s_cell_c),
+                Paragraph(day['check_out'] or '—',       s_cell_c),
+                Paragraph(day['working_hours'] or '—',   s_cell_r),
+            ])
+
+        daily_cols = [
+            PAGE_W * 0.12, PAGE_W * 0.09, PAGE_W * 0.22,
+            PAGE_W * 0.19, PAGE_W * 0.19, PAGE_W * 0.19,
+        ]
+
+        daily_table = Table(daily_rows, colWidths=daily_cols, repeatRows=1)
+        daily_style = [
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('LEFTPADDING', (0,0), (-1,-1), 10),
+            ('RIGHTPADDING', (0,0), (-1,-1), 10),
+            ('TOPPADDING', (0,0), (-1,-1), 8),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+            ('BACKGROUND', (0,0), (-1,0), INK),
+            ('TOPPADDING', (0,0), (-1,0), 12),
+            ('BOTTOMPADDING', (0,0), (-1,0), 12),
+            ('LINEBELOW', (0,1), (-1,-1), 0.5, HAIR),
+            ('BOX', (0,0), (-1,-1), 0.75, LIGHTER),
+            ('ROUNDEDCORNERS', [8, 8, 8, 8]),
+        ]
+        for ridx in weekend_idx:
+            daily_style.append(('BACKGROUND', (0,ridx), (-1,ridx), SOFTER))
+
+        daily_table.setStyle(TableStyle(daily_style))
+        elements.append(daily_table)
+
+        elements.append(Spacer(1, 24))
+
+        footer = Table(
+            [[
+                Paragraph(f"<b>EMPLOYEE ID</b><br/>"
+                          f"<font color='#64748b'>{emp_uid}</font>", s_footer_val),
+                Paragraph(f"<b>PERIOD</b><br/>"
+                          f"<font color='#64748b'>{month_label}</font>", s_footer_val),
+                Paragraph(f"<b>GENERATED</b><br/>"
+                          f"<font color='#64748b'>{now_str}</font>", s_footer_val),
+                Paragraph(f"<b>PAGE</b><br/>"
+                          f"<font color='#64748b'>{page_idx + 1} of {total}</font>", s_footer_val),
+            ]],
+            colWidths=[PAGE_W / 4] * 4,
+        )
+        footer.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), SOFTER),
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('LEFTPADDING', (0,0), (-1,-1), 16),
+            ('RIGHTPADDING', (0,0), (-1,-1), 12),
+            ('TOPPADDING', (0,0), (-1,-1), 12),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 12),
+            ('ROUNDEDCORNERS', [8, 8, 8, 8]),
+        ]))
+        elements.append(footer)
+        elements.append(Spacer(1, 10))
+        elements.append(Paragraph(
+            "This is a system-generated attendance report. "
+            "For queries, contact your HR administrator.",
+            s_footer_note,
+        ))
+
     doc.build(elements)
     buffer.seek(0)
 
     month_name = first_day.strftime('%B_%Y')
     if download_type == 'single' and len(employees) == 1:
         emp = employees[0]
-        emp_id = emp.profile.employee_id if hasattr(emp, 'profile') and emp.profile else f"EMP{emp.id:04d}"
+        emp_id = (emp.profile.employee_id
+                  if hasattr(emp, 'profile') and emp.profile
+                  else f"EMP{emp.id:04d}")
         filename = f"attendance_{emp_id}_{month_name}.pdf"
     else:
         filename = f"attendance_{month_name}.pdf"
 
     return FileResponse(buffer, as_attachment=True, filename=filename)
+    
     
 
 # *********************payroll
@@ -3701,6 +4131,51 @@ def payroll_list(request):
         payrolls = Payroll.objects.filter(company=company).order_by('-year', '-month')
     return render(request, 'payroll/payroll_list.html', {'payrolls': payrolls})
 
+    
+
+@login_required
+@hr_admin_required
+@company_required
+def payroll_delete(request, pk):
+    """
+    Delete a payroll record — ONLY if it's still a Draft.
+    Processed and Paid records are locked forever.
+    """
+    if request.user.is_superuser:
+        payroll = get_object_or_404(Payroll, id=pk)
+    else:
+        payroll = get_object_or_404(
+            Payroll, id=pk, company=get_user_company(request)
+        )
+
+    # Only Drafts can be deleted
+    if payroll.status.lower() != 'draft':
+        messages.error(
+            request,
+            f"This payroll is already '{payroll.status}' and cannot be deleted. "
+            f"Only Draft payrolls can be regenerated."
+        )
+        return redirect('payroll_list')
+
+    if request.method == 'POST':
+        month = payroll.month
+        year = payroll.year
+        employee_name = (
+            payroll.employee.full_name or payroll.employee.user.username
+        )
+        payroll.delete()
+
+        messages.success(
+            request,
+            f"Draft payroll for {employee_name} ({month}/{year}) deleted. "
+            f"You can now regenerate it from Payroll Processing."
+        )
+        return redirect('payroll_list')
+
+    return render(request, 'payroll/payroll_confirm_delete.html', {
+        'payroll': payroll,
+    })
+
 
 
 
@@ -3711,10 +4186,13 @@ def payroll_list(request):
 def payslip_pdf(request, pk):
     from .utils import get_user_company, number_to_words
     from reportlab.lib.pagesizes import A4
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable,
+    )
     from reportlab.lib import colors
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.units import inch, cm
+    from reportlab.lib.units import mm
+    from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER
     from io import BytesIO
     from django.http import FileResponse
     from decimal import Decimal
@@ -3730,175 +4208,421 @@ def payslip_pdf(request, pk):
     employee = payroll.employee
     company = payroll.company
 
-    # ─── Build PDF ───
+    BLACK = colors.HexColor('#000000')
+    WHITE = colors.HexColor('#ffffff')
+    DARK  = colors.HexColor('#555555')      # for header background
+
+    # ─── Values ───
+    def d(v):
+        return v if v is not None else Decimal('0')
+
+    hra       = d(payroll.hra)
+    ot_amount = d(payroll.overtime_amount)
+    abs_ded   = d(payroll.absent_deduction)
+    ul_ded    = d(payroll.unpaid_leave_deduction)
+    other_ded = d(payroll.other_deduction)
+
+    gross     = d(payroll.gross_salary) + ot_amount
+    total_ded = abs_ded + ul_ded + other_ded
+    net       = d(payroll.net_salary)
+
+    # ─── Document ───
     buffer = BytesIO()
     doc = SimpleDocTemplate(
         buffer, pagesize=A4,
-        topMargin=0.5*inch, bottomMargin=0.5*inch,
-        leftMargin=0.5*inch, rightMargin=0.5*inch
+        topMargin=16 * mm, bottomMargin=16 * mm,
+        leftMargin=18 * mm, rightMargin=18 * mm,
+        title=f"Payslip — {employee.full_name or employee.user.username} — "
+              f"{payroll.month:02d}/{payroll.year}",
+        author=company.name if company else 'HRMS',
+        subject='Payslip',
     )
-    styles = getSampleStyleSheet()
-    normal = styles['Normal']
 
-    title_style = ParagraphStyle(
-        'TitleStyle', parent=normal,
-        fontSize=16, fontName='Helvetica-Bold', alignment=1, spaceAfter=4
+    PAGE_W = doc.width
+
+    # ═══════════════════════════════════════════════════
+    # STYLES
+    # ═══════════════════════════════════════════════════
+    styles = getSampleStyleSheet()
+
+    # ── Masthead ──
+    company_style = ParagraphStyle(
+        'Company', parent=styles['Normal'],
+        fontName='Helvetica-Bold', fontSize=16,
+        textColor=BLACK, leading=19,
     )
-    sub_style = ParagraphStyle(
-        'SubStyle', parent=normal,
-        fontSize=11, alignment=1, spaceAfter=2
+    period_big_style = ParagraphStyle(
+        'PeriodBig', parent=styles['Normal'],
+        fontName='Helvetica-Bold', fontSize=14,
+        textColor=BLACK, leading=16,
+        alignment=TA_RIGHT,
     )
-    section_style = ParagraphStyle(
-        'SectionStyle', parent=normal,
-        fontSize=11, fontName='Helvetica-Bold',
-        spaceBefore=10, spaceAfter=6
+
+    # ── Section label (uppercase, small) ──
+    section_label_style = ParagraphStyle(
+        'SectionLabel', parent=styles['Normal'],
+        fontName='Helvetica-Bold', fontSize=7.5,
+        textColor=BLACK, leading=9.5,
+    )
+
+    # ── Field labels / values ──
+    field_label_style = ParagraphStyle(
+        'FieldLabel', parent=styles['Normal'],
+        fontName='Helvetica', fontSize=7,
+        textColor=BLACK, leading=9,
+    )
+    field_value_style = ParagraphStyle(
+        'FieldValue', parent=styles['Normal'],
+        fontName='Helvetica', fontSize=9.5,
+        textColor=BLACK, leading=12,
+    )
+    field_value_bold_style = ParagraphStyle(
+        'FieldValueBold', parent=styles['Normal'],
+        fontName='Helvetica-Bold', fontSize=9.5,
+        textColor=BLACK, leading=12,
+    )
+
+    # ── Table headers — WHITE on DARK ──
+    col_header_style = ParagraphStyle(
+        'ColHeader', parent=styles['Normal'],
+        fontName='Helvetica-Bold', fontSize=8,
+        textColor=WHITE, leading=10,
+    )
+    col_header_right_style = ParagraphStyle(
+        'ColHeaderRight', parent=styles['Normal'],
+        fontName='Helvetica-Bold', fontSize=8,
+        textColor=WHITE, leading=10,
+        alignment=TA_RIGHT,
+    )
+
+    # ── Table body cells ──
+    cell_style = ParagraphStyle(
+        'Cell', parent=styles['Normal'],
+        fontName='Helvetica', fontSize=9,
+        textColor=BLACK, leading=11.5,
+    )
+    cell_amount_style = ParagraphStyle(
+        'CellAmount', parent=styles['Normal'],
+        fontName='Helvetica', fontSize=9,
+        textColor=BLACK, leading=11.5,
+        alignment=TA_RIGHT,
+    )
+    cell_bold_style = ParagraphStyle(
+        'CellBold', parent=styles['Normal'],
+        fontName='Helvetica-Bold', fontSize=9,
+        textColor=BLACK, leading=11.5,
+    )
+    cell_bold_amount_style = ParagraphStyle(
+        'CellBoldAmount', parent=styles['Normal'],
+        fontName='Helvetica-Bold', fontSize=9,
+        textColor=BLACK, leading=11.5,
+        alignment=TA_RIGHT,
+    )
+
+    # ── Net payable ──
+    net_label_style = ParagraphStyle(
+        'NetLabel', parent=styles['Normal'],
+        fontName='Helvetica-Bold', fontSize=9,
+        textColor=BLACK, leading=11,
+        alignment=TA_RIGHT,
+    )
+    net_amount_style = ParagraphStyle(
+        'NetAmount', parent=styles['Normal'],
+        fontName='Helvetica-Bold', fontSize=18,
+        textColor=BLACK, leading=20,
+        alignment=TA_RIGHT,
+    )
+
+    words_style = ParagraphStyle(
+        'Words', parent=styles['Normal'],
+        fontName='Helvetica-Oblique', fontSize=8,
+        textColor=BLACK, leading=10,
     )
     footer_style = ParagraphStyle(
-        'FooterStyle', parent=normal,
-        fontSize=7, alignment=1
+        'Footer', parent=styles['Normal'],
+        fontName='Helvetica', fontSize=7,
+        textColor=BLACK, leading=9.5,
+    )
+    footer_note_style = ParagraphStyle(
+        'FooterNote', parent=styles['Normal'],
+        fontName='Helvetica-Oblique', fontSize=7,
+        textColor=BLACK, leading=9.5, alignment=TA_CENTER,
     )
 
     elements = []
 
-    # ─── Header ───
-    elements.append(Paragraph(
-        company.name if company else 'HRMS', title_style
-    ))
-    elements.append(Paragraph("Payslip", sub_style))
-    elements.append(Paragraph(
-        f"{payroll.month:02d}/{payroll.year}", sub_style
-    ))
-    elements.append(Spacer(1, 0.2*inch))
-
-    # ─── Employee Details ───
-    details_data = [
-        ["Employee Name:", employee.full_name or employee.user.username,
-         "Employee ID:", employee.employee_id or '—'],
-        ["Department:", employee.department or '—',
-         "Designation:", employee.designation or '—'],
-        ["Payroll Month:", f"{payroll.month:02d}/{payroll.year}",
-         "Status:", payroll.get_status_display()],
-    ]
-    details_table = Table(details_data, colWidths=[3.5*cm, 4.5*cm, 3.5*cm, 4.5*cm])
-    details_table.setStyle(TableStyle([
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
-        ('FONTNAME', (2,0), (2,-1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0,0), (-1,-1), 9),
-        ('LEFTPADDING', (0,0), (-1,-1), 4),
-        ('RIGHTPADDING', (0,0), (-1,-1), 4),
-        ('TOPPADDING', (0,0), (-1,-1), 3),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+    # ═══════════════════════════════════════════════════
+    # MASTHEAD
+    # ═══════════════════════════════════════════════════
+    masthead = Table(
+        [[
+            Paragraph(
+                (company.name if company else 'HRMS').upper()
+                + "<br/>"
+                + "<font size='8' face='Helvetica'>Salary Statement</font>",
+                company_style,
+            ),
+            Paragraph(
+                "<font size='8'>P A Y S L I P</font><br/>"
+                f"<font size='14'><b>{payroll.month:02d}/{payroll.year}</b></font><br/>"
+                f"<font size='7'>Issued "
+                f"{timezone.localtime(timezone.now()).strftime('%d %b %Y')}</font>",
+                period_big_style,
+            ),
+        ]],
+        colWidths=[PAGE_W * 0.6, PAGE_W * 0.4],
+    )
+    masthead.setStyle(TableStyle([
+        ('VALIGN',        (0,0), (-1,-1), 'TOP'),
+        ('LEFTPADDING',   (0,0), (-1,-1), 0),
+        ('RIGHTPADDING',  (0,0), (-1,-1), 0),
+        ('TOPPADDING',    (0,0), (-1,-1), 0),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 0),
     ]))
-    elements.append(details_table)
-    elements.append(Spacer(1, 0.2*inch))
+    elements.append(masthead)
+    elements.append(Spacer(1, 14))
 
-    # ─── Attendance Summary ───
-    elements.append(Paragraph("Attendance & Leave", section_style))
-    att_data = [
-        ["Working Days", "Present", "Paid Leave", "Unpaid Leave", "OT Hours"],
-        [
-            str(payroll.working_days),
-            str(payroll.present_days),
-            str(payroll.paid_leave_days or 0),
-            str(payroll.unpaid_leave_days or 0),
-            f"{payroll.overtime_hours or 0} h",
-        ],
+    elements.append(HRFlowable(
+        width="100%", thickness=1, color=BLACK,
+        spaceBefore=0, spaceAfter=16,
+    ))
+
+    # ═══════════════════════════════════════════════════
+    # EMPLOYEE + ATTENDANCE — two-column
+    # ═══════════════════════════════════════════════════
+    emp_name = employee.full_name or employee.user.username
+    emp_id   = employee.employee_id or '—'
+    dept     = employee.department or '—'
+    desig    = employee.designation or '—'
+
+    emp_block = [
+        [Paragraph("EMPLOYEE", section_label_style), ''],
+        [Paragraph("Name", field_label_style),
+         Paragraph(emp_name, field_value_bold_style)],
+        [Paragraph("ID", field_label_style),
+         Paragraph(emp_id, field_value_style)],
+        [Paragraph("Designation", field_label_style),
+         Paragraph(desig, field_value_style)],
+        [Paragraph("Department", field_label_style),
+         Paragraph(dept, field_value_style)],
     ]
-    att_table = Table(att_data, colWidths=[3.4*cm]*5)
-    att_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.grey),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0,0), (-1,-1), 9),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
-        ('TOPPADDING', (0,0), (-1,-1), 4),
+    emp_table = Table(emp_block, colWidths=[PAGE_W * 0.15, PAGE_W * 0.35])
+    emp_table.setStyle(TableStyle([
+        ('VALIGN',        (0,0), (-1,-1), 'TOP'),
+        ('LEFTPADDING',   (0,0), (-1,-1), 0),
+        ('RIGHTPADDING',  (0,0), (-1,-1), 8),
+        ('TOPPADDING',    (0,0), (-1,-1), 1),
         ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,0), 6),
     ]))
-    elements.append(att_table)
-    elements.append(Spacer(1, 0.2*inch))
 
-    # ─── Earnings & Deductions ───
-    hra = payroll.hra or Decimal('0')
-    ot_amount = payroll.overtime_amount or Decimal('0')
-    ot_hours = payroll.overtime_hours or Decimal('0')
-    ot_rate = payroll.overtime_rate or Decimal('0')
-    ul_ded = payroll.unpaid_leave_deduction or Decimal('0')
-    other_ded = payroll.other_deduction or Decimal('0')
-    total_ded = ul_ded + other_ded
-    total_earn = (payroll.gross_salary or Decimal('0')) + ot_amount
+    att_block = [
+        [Paragraph("ATTENDANCE", section_label_style), ''],
+        [Paragraph("Working Days", field_label_style),
+         Paragraph(str(payroll.working_days), field_value_style)],
+        [Paragraph("Present", field_label_style),
+         Paragraph(str(payroll.present_days), field_value_style)],
+        [Paragraph("Absent", field_label_style),
+         Paragraph(str(payroll.absent_days), field_value_style)],
+        [Paragraph("Paid / Unpaid Leave", field_label_style),
+         Paragraph(
+             f"{payroll.paid_leave_days or 0} / {payroll.unpaid_leave_days or 0}",
+             field_value_style,
+         )],
+    ]
+    att_table = Table(att_block, colWidths=[PAGE_W * 0.22, PAGE_W * 0.28])
+    att_table.setStyle(TableStyle([
+        ('VALIGN',        (0,0), (-1,-1), 'TOP'),
+        ('LEFTPADDING',   (0,0), (-1,-1), 0),
+        ('RIGHTPADDING',  (0,0), (-1,-1), 0),
+        ('TOPPADDING',    (0,0), (-1,-1), 1),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,0), 6),
+    ]))
+
+    layout_row = Table(
+        [[emp_table, att_table]],
+        colWidths=[PAGE_W * 0.5, PAGE_W * 0.5],
+    )
+    layout_row.setStyle(TableStyle([
+        ('VALIGN',        (0,0), (-1,-1), 'TOP'),
+        ('LEFTPADDING',   (0,0), (-1,-1), 0),
+        ('RIGHTPADDING',  (0,0), (-1,-1), 0),
+        ('TOPPADDING',    (0,0), (-1,-1), 0),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 0),
+    ]))
+    elements.append(layout_row)
+    elements.append(Spacer(1, 20))
+
+    # ═══════════════════════════════════════════════════
+    # SALARY BREAKDOWN — with dark header + full grid
+    # ═══════════════════════════════════════════════════
+    elements.append(Paragraph("SALARY", section_label_style))
+    elements.append(Spacer(1, 10))
 
     salary_data = [
-        ["Earnings", "Amount (Rs.)", "Deductions", "Amount (Rs.)"],
-        ["Basic Salary", f"{payroll.basic_salary:.2f}", "Unpaid Leave Deduction", f"{ul_ded:.2f}"],
-        ["HRA", f"{hra:.2f}", "Other Deduction", f"{other_ded:.2f}"],
-        ["Allowance", f"{payroll.allowance:.2f}", "", ""],
-        ["Overtime Earnings", f"{ot_amount:.2f}", "", ""],
-        ["", "", "", ""],
-        ["Total Earnings", f"{total_earn:.2f}", "Total Deduction", f"{total_ded:.2f}"],
+        # Header row
+        [
+            Paragraph("Earnings", col_header_style),
+            Paragraph("Amount", col_header_right_style),
+            Paragraph("Deductions", col_header_style),
+            Paragraph("Amount", col_header_right_style),
+        ],
+        # Basic / Absence
+        [
+            Paragraph("Basic", cell_style),
+            Paragraph(f"Rs. {payroll.basic_salary:,.2f}", cell_amount_style),
+            Paragraph("Absence / LOP", cell_style),
+            Paragraph(f"Rs. {abs_ded:,.2f}", cell_amount_style),
+        ],
+        # HRA / Unpaid Leave
+        [
+            Paragraph("HRA", cell_style),
+            Paragraph(f"Rs. {hra:,.2f}", cell_amount_style),
+            Paragraph("Unpaid Leave", cell_style),
+            Paragraph(f"Rs. {ul_ded:,.2f}", cell_amount_style),
+        ],
+        # Allowance / Other Deduction
+        [
+            Paragraph("Allowance", cell_style),
+            Paragraph(f"Rs. {payroll.allowance:,.2f}", cell_amount_style),
+            Paragraph("Other Deduction", cell_style),
+            Paragraph(f"Rs. {other_ded:,.2f}", cell_amount_style),
+        ],
+        # Overtime / (blank deduction side)
+        [
+            Paragraph("Overtime", cell_style),
+            Paragraph(f"Rs. {ot_amount:,.2f}", cell_amount_style),
+            '', '',
+        ],
+        # Total row
+        [
+            Paragraph("Total Earnings", cell_bold_style),
+            Paragraph(f"Rs. {gross:,.2f}", cell_bold_amount_style),
+            Paragraph("Total Deduction", cell_bold_style),
+            Paragraph(f"Rs. {total_ded:,.2f}", cell_bold_amount_style),
+        ],
     ]
-    salary_table = Table(salary_data, colWidths=[3.5*cm, 3.5*cm, 4.5*cm, 3.5*cm])
+
+    col_lbl = PAGE_W * 0.28
+    col_amt = PAGE_W * 0.22
+    salary_table = Table(
+        salary_data,
+        colWidths=[col_lbl, col_amt, col_lbl, col_amt],
+        repeatRows=1,
+    )
     salary_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.grey),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-        ('ALIGN', (1,0), (1,-1), 'RIGHT'),
-        ('ALIGN', (3,0), (3,-1), 'RIGHT'),
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-        ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0,0), (-1,-1), 9),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
-        ('LEFTPADDING', (0,0), (-1,-1), 4),
-        ('RIGHTPADDING', (0,0), (-1,-1), 4),
-        ('TOPPADDING', (0,0), (-1,-1), 4),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('VALIGN',        (0,0), (-1,-1), 'MIDDLE'),
+        ('LEFTPADDING',   (0,0), (-1,-1), 8),
+        ('RIGHTPADDING',  (0,0), (-1,-1), 8),
+        ('TOPPADDING',    (0,0), (-1,-1), 8),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+
+        # ── Dark header row ──
+        ('BACKGROUND',    (0,0), (-1,0), DARK),
+        ('TEXTCOLOR',     (0,0), (-1,0), WHITE),
+        ('LINEBELOW',     (0,0), (-1,0), 0.5, DARK),
+
+        # ── Full grid on the body ──
+        ('GRID',          (0,1), (-1,-1), 0.4, BLACK),
+
+        # ── Total row emphasis ──
+        ('BACKGROUND',    (0,-1), (-1,-1), colors.HexColor('#f2f2f2')),
+        ('LINEABOVE',     (0,-1), (-1,-1), 0.75, BLACK),
+        ('LINEBELOW',     (0,-1), (-1,-1), 0.75, BLACK),
+
+        # ── Vertical divider between Earnings and Deductions ──
+        ('LINEBEFORE',    (2,0), (2,-1), 0.75, BLACK),
     ]))
     elements.append(salary_table)
-    elements.append(Spacer(1, 0.25*inch))
+    elements.append(Spacer(1, 4))
 
-    # ─── Net Payable ───
-    net = payroll.net_salary or Decimal('0')
-    net_words = number_to_words(net) + ' Rupees Only'
-    net_data = [
-        ["Net Payable", f"Rs. {net:.2f}"],
-        ["In Words", net_words],
-    ]
-    net_table = Table(net_data, colWidths=[4*cm, 12*cm])
-    net_table.setStyle(TableStyle([
-        ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
-        ('FONTNAME', (1,0), (1,0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0,0), (-1,0), 12),
-        ('FONTSIZE', (0,1), (-1,1), 8),
-        ('ALIGN', (1,0), (1,0), 'RIGHT'),
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#f8f9fa')),
-        ('BOX', (0,0), (-1,-1), 0.5, colors.lightgrey),
-        ('LEFTPADDING', (0,0), (-1,-1), 6),
-        ('RIGHTPADDING', (0,0), (-1,-1), 6),
-        ('TOPPADDING', (0,0), (-1,-1), 6),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
-    ]))
-    elements.append(net_table)
-    elements.append(Spacer(1, 0.3*inch))
+    # ─── In words ───
+    net_words_text = number_to_words(net) + ' Rupees Only'
+    elements.append(Paragraph(
+        f"In words: <b>{net_words_text}</b>",
+        words_style,
+    ))
+    elements.append(Spacer(1, 22))
 
-    # ─── Footer ───
-    local_now = timezone.localtime(timezone.now())
-    footer_text = (
-        f"Generated on {local_now.strftime('%d %B %Y, %I:%M %p')} · "
-        f"Employee ID: {employee.employee_id if employee else 'N/A'} · "
-        f"Status: {payroll.get_status_display()}"
+    # ═══════════════════════════════════════════════════
+    # NET PAYABLE
+    # ═══════════════════════════════════════════════════
+    net_block = Table(
+        [[
+            Paragraph(
+                "NET PAYABLE<br/>"
+                "<font size='7' face='Helvetica'>After all deductions</font>",
+                net_label_style,
+            ),
+            Paragraph(f"Rs. {net:,.2f}", net_amount_style),
+        ]],
+        colWidths=[PAGE_W * 0.6, PAGE_W * 0.4],
     )
-    elements.append(Paragraph(footer_text, footer_style))
+    net_block.setStyle(TableStyle([
+        ('VALIGN',        (0,0), (-1,-1), 'MIDDLE'),
+        ('LEFTPADDING',   (0,0), (-1,-1), 0),
+        ('RIGHTPADDING',  (0,0), (-1,-1), 0),
+        ('TOPPADDING',    (0,0), (-1,-1), 14),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 14),
+        ('LINEABOVE',     (0,0), (-1,0), 1.5, BLACK),
+        ('LINEBELOW',     (0,0), (-1,0), 1.5, BLACK),
+    ]))
+    elements.append(net_block)
+
+    # ═══════════════════════════════════════════════════
+    # FOOTER
+    # ═══════════════════════════════════════════════════
+    elements.append(Spacer(1, 26))
+
+    local_now = timezone.localtime(timezone.now())
+    footer_cells = [
+        [
+            Paragraph(
+                f"<b>EMPLOYEE ID</b><br/>{employee.employee_id if employee else '—'}",
+                footer_style,
+            ),
+            Paragraph(
+                f"<b>GENERATED</b><br/>"
+                f"{local_now.strftime('%d %b %Y, %I:%M %p')}",
+                footer_style,
+            ),
+            Paragraph(
+                f"<b>STATUS</b><br/>{payroll.get_status_display()}",
+                footer_style,
+            ),
+        ],
+    ]
+    footer_table = Table(footer_cells, colWidths=[PAGE_W / 3] * 3)
+    footer_table.setStyle(TableStyle([
+        ('VALIGN',        (0,0), (-1,-1), 'TOP'),
+        ('LEFTPADDING',   (0,0), (-1,-1), 0),
+        ('RIGHTPADDING',  (0,0), (-1,-1), 8),
+        ('TOPPADDING',    (0,0), (-1,-1), 0),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 0),
+    ]))
+    elements.append(HRFlowable(
+        width="100%", thickness=0.5, color=BLACK,
+        spaceBefore=0, spaceAfter=10,
+    ))
+    elements.append(footer_table)
+    elements.append(Spacer(1, 6))
+    elements.append(Paragraph(
+        "This is a computer-generated payslip and does not require a signature.",
+        footer_note_style,
+    ))
 
     # ─── Build ───
     doc.build(elements)
     buffer.seek(0)
 
-    emp_id = employee.employee_id if employee and employee.employee_id else f"EMP{employee.id:04d}"
-    filename = f"payslip_{emp_id}_{payroll.month:02d}_{payroll.year}.pdf"
+    emp_id_safe = (
+        employee.employee_id if employee and employee.employee_id
+        else f"EMP{employee.id:04d}"
+    )
+    filename = f"payslip_{emp_id_safe}_{payroll.month:02d}_{payroll.year}.pdf"
 
     return FileResponse(buffer, as_attachment=True, filename=filename)
-
-
 
 
 
@@ -3923,7 +4647,340 @@ def payslip_view(request, pk):
         'payroll': payroll,
         'net_in_words': net_words,
     })
+
+
+
+# ─── Helper: find HR Admins for a company ───
+def _get_company_hr_admins(company):
+    """Return active HR Admin users belonging to the given company."""
+    if not company:
+        return User.objects.none()
+    return User.objects.filter(
+        groups__name='HR Admin',
+        profile__company=company,
+        is_active=True,
+    ).distinct()
+
+
+# ─── Helper: is this user allowed to review reset requests? ───
+def _is_hr_admin(user):
+    if not user.is_authenticated:
+        return False
+    return user.groups.filter(name='HR Admin').exists()
+
+
+# ─── Helper: get the request, scoped to HR Admin's company ───
+def _get_hr_scoped_request(user, request_id):
+    """
+    Return the PasswordResetRequest if it belongs to the HR Admin's company.
+    Raises 404 otherwise (never leaks existence of other companies' data).
+    """
+    profile = getattr(user, 'profile', None)
+    company = getattr(profile, 'company', None)
+    return get_object_or_404(
+        PasswordResetRequest.objects.select_related(
+            'user', 'employee', 'company', 'reviewed_by'
+        ),
+        id=request_id,
+        company=company,
+    )
+
+
+# ─────────────────────────────────────────
+# 1. Employee — Submit request
+# ─────────────────────────────────────────
+@require_http_methods(['GET', 'POST'])
+def forgot_password(request):
+    """
+    Always shows the same message regardless of whether the identifier exists.
+    Prevents user enumeration.
+    """
+    if request.user.is_authenticated:
+        return redirect('dashboard')
+
+    form = ForgotPasswordForm(request.POST or None)
+    submitted = False
+
+    if request.method == 'POST' and form.is_valid():
+        identifier = form.cleaned_data['identifier']
+
+        # Try by employee_id first, then by username
+        employee = (
+            EmployeeProfile.objects
+            .select_related('user', 'company')
+            .filter(employee_id__iexact=identifier)
+            .first()
+        )
+        if not employee:
+            employee = (
+                EmployeeProfile.objects
+                .select_related('user', 'company')
+                .filter(user__username__iexact=identifier)
+                .first()
+            )
+
+        # If found → create request (idempotent)
+        if employee and employee.user.is_active:
+            already_pending = PasswordResetRequest.objects.filter(
+                user=employee.user,
+                status=PasswordResetRequest.STATUS_PENDING,
+            ).exists()
+
+            if not already_pending:
+                with transaction.atomic():
+                    reset_req = PasswordResetRequest.objects.create(
+                        user=employee.user,
+                        employee=employee,
+                        company=employee.company,
+                        status=PasswordResetRequest.STATUS_PENDING,
+                    )
+
+                    # ── Route the notification by applicant's role ──
+                    is_owner       = getattr(employee, 'is_company_owner', False)
+                    applicant_role = employee.role   # 'employee' | 'manager' | 'hr_admin'
+
+                    if is_owner:
+                        # Company Owner's reset → Superuser(s)
+                        recipients = list(
+                            User.objects.filter(is_superuser=True, is_active=True)
+                        )
+
+                    elif applicant_role == 'hr_admin':
+                        # HR Admin's reset → Company Owner(s), excluding self
+                        recipients = [
+                            p.user for p in EmployeeProfile.objects.filter(
+                                company=employee.company,
+                                is_company_owner=True,
+                                user__is_active=True,
+                            ).exclude(id=employee.id)
+                        ]
+
+                    else:
+                        # Employee / Manager → regular HR Admins (NOT the owner)
+                        recipients = [
+                            p.user for p in EmployeeProfile.objects.filter(
+                                company=employee.company,
+                                role='hr_admin',
+                                is_company_owner=False,      # ← KEY FIX
+                                user__is_active=True,
+                            ).exclude(id=employee.id)
+                        ]
+
+                    for recipient in recipients:
+                        Notification.objects.create(
+                            user=recipient,
+                            company=employee.company,
+                            message=(
+                                f"Password Reset Request — "
+                                f"{employee.full_name or employee.user.username} "
+                                f"({employee.employee_id}) has requested a password reset."
+                            ),
+                            notification_type='action',
+                            related_object_id=reset_req.id,
+                            related_object_type='passwordresetrequest',
+                        )
+
+        # Always show the same response — do not reveal existence
+        submitted = True
+
+    return render(request, 'core/forgot_password.html', {
+        'form': form,
+        'submitted': submitted,
+    })
     
+
+
+# ─────────────────────────────────────────
+# 2. HR Admin — View request detail
+# ─────────────────────────────────────────
+@login_required
+@company_required
+def password_reset_request_detail(request, request_id):
+    if not _is_hr_admin(request.user):
+        return redirect('dashboard')
+
+    reset_req = _get_hr_scoped_request(request.user, request_id)
+
+    return render(request, 'core/password_reset_request_detail.html', {
+        'reset_req': reset_req,
+    })
+
+
+# ─────────────────────────────────────────
+# 3. HR Admin — Approve → redirect to Set New Password
+# ─────────────────────────────────────────
+@login_required
+@company_required
+@require_http_methods(['POST'])
+def password_reset_approve(request, request_id):
+    if not _is_hr_admin(request.user):
+        return redirect('dashboard')
+
+    reset_req = _get_hr_scoped_request(request.user, request_id)
+
+    if reset_req.status != PasswordResetRequest.STATUS_PENDING:
+        messages.warning(request, "This request has already been processed.")
+        return redirect('password_reset_request_detail', request_id=reset_req.id)
+
+    # Prevent HR Admin from resetting their own password through this flow
+    if reset_req.user_id == request.user.id:
+        messages.error(request, "You cannot reset your own password through this workflow.")
+        return redirect('password_reset_request_detail', request_id=reset_req.id)
+
+    reset_req.status       = PasswordResetRequest.STATUS_APPROVED
+    reset_req.reviewed_by  = request.user
+    reset_req.reviewed_at  = timezone.now()
+    reset_req.save(update_fields=['status', 'reviewed_by', 'reviewed_at'])
+
+    return redirect('password_reset_set_new', request_id=reset_req.id)
+
+
+# ─────────────────────────────────────────
+# 4. HR Admin — Reject
+# ─────────────────────────────────────────
+@login_required
+@company_required
+@require_http_methods(['POST'])
+def password_reset_reject(request, request_id):
+    if not _is_hr_admin(request.user):
+        return redirect('dashboard')
+
+    reset_req = _get_hr_scoped_request(request.user, request_id)
+
+    if reset_req.status != PasswordResetRequest.STATUS_PENDING:
+        messages.warning(request, "This request has already been processed.")
+        return redirect('password_reset_request_detail', request_id=reset_req.id)
+
+    reset_req.status       = PasswordResetRequest.STATUS_REJECTED
+    reset_req.reviewed_by  = request.user
+    reset_req.reviewed_at  = timezone.now()
+    reset_req.save(update_fields=['status', 'reviewed_by', 'reviewed_at'])
+
+    messages.success(request, "Password reset request rejected.")
+    return redirect('admin_leaves')  # or any landing page; 'dashboard' also works
+
+
+# ─────────────────────────────────────────
+# 5. HR Admin — Set new password
+# ─────────────────────────────────────────
+@login_required
+@company_required
+def password_reset_set_new(request, request_id):
+    if not _is_hr_admin(request.user):
+        return redirect('dashboard')
+
+    reset_req = _get_hr_scoped_request(request.user, request_id)
+
+    # Only allowed when request is Approved (or already Completed for viewing)
+    if reset_req.status not in (
+        PasswordResetRequest.STATUS_APPROVED,
+        PasswordResetRequest.STATUS_COMPLETED,
+    ):
+        messages.warning(request, "This request must be approved before setting a password.")
+        return redirect('password_reset_request_detail', request_id=reset_req.id)
+
+    # Already completed → just show success
+    if reset_req.status == PasswordResetRequest.STATUS_COMPLETED:
+        return render(request, 'core/password_reset_set_new.html', {
+            'reset_req': reset_req,
+            'completed': True,
+        })
+
+    form = SetNewPasswordForm(
+        request.POST or None,
+        user=reset_req.user,
+    )
+
+    if request.method == 'POST' and form.is_valid():
+        with transaction.atomic():
+            target_user = reset_req.user
+            target_user.set_password(form.cleaned_data['password1'])
+            target_user.save(update_fields=['password'])
+
+            reset_req.status       = PasswordResetRequest.STATUS_COMPLETED
+            reset_req.completed_at = timezone.now()
+            reset_req.save(update_fields=['status', 'completed_at'])
+
+            # Notify the employee (message only — never the password)
+            Notification.objects.create(
+                user=target_user,
+                company=reset_req.company,
+                message=(
+                    "Your password has been changed by your HR Admin. "
+                    "You can now log in using your new password."
+                ),
+                notification_type='info',
+                related_object_id=reset_req.id,
+                related_object_type='passwordresetrequest',
+            )
+
+        return render(request, 'core/password_reset_set_new.html', {
+            'reset_req': reset_req,
+            'completed': True,
+        })
+
+    return render(request, 'core/password_reset_set_new.html', {
+        'reset_req': reset_req,
+        'form': form,
+        'completed': False,
+    })
+
+    
+
+@login_required
+def change_password(request):
+    """
+    Any logged-in user can change their OWN password.
+    Requires the current password for security.
+    """
+    if request.method == 'POST':
+        form = PasswordChangeForm(request.user, request.POST)
+        if form.is_valid():
+            user = form.save()
+            # Keep the user logged in after password change
+            update_session_auth_hash(request, user)
+            messages.success(request, "Your password has been changed successfully.")
+            return redirect('profile')
+    else:
+        form = PasswordChangeForm(request.user)
+
+    return render(request, 'core/change_password.html', {'form': form})
+
+
+def _validate_password_fields(user, password1, password2, is_create):
+    """Uses the SAME validators as Django's PasswordChangeForm."""
+    errors = []
+
+    if is_create:
+        if not password1:
+            errors.append("Password is required.")
+            return errors
+        if not password2:
+            errors.append("Please confirm the password.")
+            return errors
+    else:
+        if not password1 and not password2:
+            return errors
+        if not password1:
+            errors.append("Please enter the new password.")
+            return errors
+        if not password2:
+            errors.append("Please confirm the new password.")
+            return errors
+
+    if password1 != password2:
+        errors.append("Passwords do not match.")
+        return errors
+
+    from django.contrib.auth.password_validation import validate_password
+    from django.core.exceptions import ValidationError
+    try:
+        validate_password(password1, user=user)
+    except ValidationError as exc:
+        errors.extend(exc.messages)
+
+    return errors
+
 
     # **************texting 
 def test_view(request):

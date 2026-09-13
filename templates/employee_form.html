@@ -5,210 +5,887 @@
 {% block page_title %}{{ action }} Employee{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-lg-8">
-        <div class="card border-0 shadow-sm rounded-3">
-            <div class="card-header bg-transparent border-0 pt-4 pb-0">
-                <h5 class="mb-0">
-                    <i class="las la-user-plus text-primary me-2"></i> 
+
+<style>
+    /* ═══════════════════════════════════════════════════
+       Employee Form — refined design system
+       Prefix: .emf-
+       ═══════════════════════════════════════════════════ */
+    .emf-wrap {
+        --emf-surface:       #ffffff;
+        --emf-surface-2:     #fafbfc;
+        --emf-border:        #e8eaee;
+        --emf-border-hover:  #d5d9e0;
+        --emf-text:          #0f172a;
+        --emf-text-muted:    #64748b;
+        --emf-text-faint:    #94a3b8;
+        --emf-primary:       #4f46e5;
+        --emf-primary-soft:  #eef2ff;
+        --emf-primary-hover: #4338ca;
+        --emf-danger:        #dc2626;
+        --emf-danger-soft:   #fef2f2;
+        --emf-info:          #0284c7;
+        --emf-info-soft:     #f0f9ff;
+        --emf-pill:          999px;
+        --emf-ease:          cubic-bezier(.4, 0, .2, 1);
+    }
+
+    /* ─── Page header ─── */
+    .emf-hd { margin-bottom: 22px; }
+    .emf-hd-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 1.15rem;
+        font-weight: 600;
+        letter-spacing: -.015em;
+        color: var(--emf-text);
+        margin: 0 0 4px;
+    }
+    .emf-hd-ico {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        background: var(--emf-primary-soft);
+        color: var(--emf-primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .95rem;
+    }
+    .emf-hd-sub {
+        font-size: .82rem;
+        color: var(--emf-text-muted);
+        margin: 0;
+        padding-left: 44px;
+    }
+
+    /* ─── Card ─── */
+    .emf-card {
+        background: var(--emf-surface);
+        border: 1px solid var(--emf-border);
+        border-radius: 12px;
+        overflow: hidden;
+        transition: border-color .2s var(--emf-ease);
+    }
+    .emf-card:hover { border-color: var(--emf-border-hover); }
+    .emf-card-bd { padding: 28px 32px; }
+
+    /* ─── Section ─── */
+    .emf-section {
+        padding-bottom: 24px;
+        margin-bottom: 24px;
+        border-bottom: 1px solid var(--emf-border);
+    }
+    .emf-section:last-of-type {
+        border-bottom: none;
+        padding-bottom: 0;
+        margin-bottom: 0;
+    }
+    .emf-section-hd {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 18px;
+    }
+    .emf-section-icon {
+        width: 30px;
+        height: 30px;
+        border-radius: 9px;
+        background: var(--emf-primary-soft);
+        color: var(--emf-primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .82rem;
+        flex-shrink: 0;
+    }
+    .emf-section-title {
+        font-size: .82rem;
+        font-weight: 600;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--emf-text-muted);
+        margin: 0;
+    }
+
+    /* ─── Fields ─── */
+    .emf-field { min-width: 0; }
+    .emf-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: .78rem;
+        font-weight: 600;
+        letter-spacing: .02em;
+        color: var(--emf-text);
+        margin-bottom: 8px;
+    }
+    .emf-label i {
+        color: var(--emf-text-faint);
+        font-size: .85rem;
+    }
+    .emf-req {
+        color: var(--emf-danger);
+        margin-left: 2px;
+        font-weight: 500;
+    }
+
+    .emf-input,
+    .emf-select,
+    .emf-textarea {
+        width: 100%;
+        padding: 11px 14px;
+        font-size: .875rem;
+        font-family: inherit;
+        color: var(--emf-text);
+        background: var(--emf-surface);
+        border: 1px solid var(--emf-border);
+        border-radius: 10px;
+        outline: none;
+        transition: border-color .15s var(--emf-ease), box-shadow .15s var(--emf-ease);
+        appearance: none;
+        -webkit-appearance: none;
+        font-variant-numeric: tabular-nums;
+    }
+    .emf-select {
+        background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3e%3cpath fill='none' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M3 5l3 3 3-3'/%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right 14px center;
+        background-size: 12px;
+        padding-right: 38px;
+        cursor: pointer;
+    }
+    .emf-textarea {
+        resize: vertical;
+        min-height: 68px;
+        line-height: 1.5;
+        font-variant-numeric: normal;
+    }
+    .emf-input::placeholder,
+    .emf-textarea::placeholder { color: var(--emf-text-faint); }
+    .emf-input:hover,
+    .emf-select:hover,
+    .emf-textarea:hover { border-color: var(--emf-border-hover); }
+    .emf-input:focus,
+    .emf-select:focus,
+    .emf-textarea:focus {
+        border-color: var(--emf-primary);
+        box-shadow: 0 0 0 3px rgba(79,70,229,.12);
+    }
+    .emf-input[type="date"]::-webkit-calendar-picker-indicator {
+        cursor: pointer;
+        opacity: .55;
+        transition: opacity .15s var(--emf-ease);
+    }
+    .emf-input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+    .emf-input[type="password"] { letter-spacing: .04em; }
+
+    .emf-hint {
+        font-size: .7rem;
+        color: var(--emf-text-faint);
+        margin-top: 6px;
+        line-height: 1.45;
+        display: flex;
+        align-items: flex-start;
+        gap: 4px;
+    }
+    .emf-hint i {
+        font-size: .72rem;
+        margin-top: 1px;
+        flex-shrink: 0;
+    }
+
+    /* ─── Info note (auto-generated ID) ─── */
+    .emf-note {
+        display: flex;
+        gap: 10px;
+        padding: 12px 14px;
+        background: var(--emf-info-soft);
+        border-radius: 10px;
+        font-size: .78rem;
+        color: #075985;
+        line-height: 1.5;
+        margin-bottom: 20px;
+    }
+    .emf-note > i {
+        flex-shrink: 0;
+        font-size: .95rem;
+        margin-top: 1px;
+        color: var(--emf-info);
+    }
+    .emf-note strong { color: #0c4a6e; font-weight: 600; }
+    .emf-note code {
+        padding: 1px 6px;
+        background: rgba(2,132,199,.1);
+        border-radius: 4px;
+        font-size: .78em;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: var(--emf-info);
+        font-weight: 600;
+    }
+
+    /* ─── Footer ─── */
+    .emf-foot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: flex-end;
+        padding-top: 22px;
+        border-top: 1px solid var(--emf-border);
+        margin-top: 26px;
+    }
+    .emf-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 22px;
+        font-size: .82rem;
+        font-weight: 500;
+        border-radius: var(--emf-pill);
+        border: 1px solid transparent;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all .15s var(--emf-ease);
+        line-height: 1.3;
+    }
+    .emf-btn i { font-size: .85rem; }
+
+    .emf-btn-primary {
+        background: var(--emf-primary);
+        color: #fff;
+    }
+    .emf-btn-primary:hover {
+        background: var(--emf-primary-hover);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(79,70,229,.25);
+    }
+
+    .emf-btn-ghost {
+        background: transparent;
+        color: var(--emf-text-muted);
+        border-color: var(--emf-border);
+    }
+    .emf-btn-ghost:hover {
+        background: var(--emf-surface-2);
+        color: var(--emf-text);
+        border-color: var(--emf-border-hover);
+    }
+    /* ─────────── Password rules panel ─────────── */
+.emf-pw-rules {
+    padding: 14px 18px;
+    background: var(--emf-surface-2, #fafbfc);
+    border: 1px solid var(--emf-border, #e8eaee);
+    border-radius: 10px;
+    font-size: .75rem;
+    color: var(--emf-text-muted, #64748b);
+    line-height: 1.5;
+}
+.emf-pw-rules-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    color: var(--emf-text, #0f172a);
+    margin-bottom: 8px;
+    font-size: .75rem;
+}
+.emf-pw-rules-title i {
+    color: var(--emf-primary, #4f46e5);
+    font-size: .85rem;
+}
+.emf-pw-rules ul {
+    margin: 0;
+    padding-left: 0;
+    list-style: none;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 24px;
+}
+.emf-pw-rules li {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding-left: 0;
+}
+.emf-pw-rules li::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #cbd5e1;
+    flex-shrink: 0;
+    margin-top: 6px;
+}
+.emf-pw-rules li strong {
+    color: var(--emf-text, #0f172a);
+    font-weight: 600;
+}
+
+/* ─────────── Password input error state ─────────── */
+.emf-input.is-invalid {
+    border-color: #dc2626 !important;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1) !important;
+}
+.emf-input.is-invalid:hover {
+    border-color: #dc2626 !important;
+}
+.emf-input.is-invalid:focus {
+    border-color: #dc2626 !important;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15) !important;
+}
+
+/* ─────────── Inline error message ─────────── */
+.emf-error {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin-top: 8px;
+    font-size: .72rem;
+    color: #dc2626;
+    line-height: 1.45;
+}
+.emf-error i {
+    font-size: .78rem;
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+/* ─────────── Password rules panel ─────────── */
+.emf-pw-rules {
+    padding: 14px 18px;
+    background: var(--emf-surface-2, #fafbfc);
+    border: 1px solid var(--emf-border, #e8eaee);
+    border-radius: 10px;
+    font-size: .75rem;
+    color: var(--emf-text-muted, #64748b);
+    line-height: 1.5;
+    transition: border-color .2s, background .2s;
+}
+.emf-pw-rules-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    color: var(--emf-text, #0f172a);
+    margin-bottom: 8px;
+    font-size: .75rem;
+}
+.emf-pw-rules-title i {
+    color: var(--emf-primary, #4f46e5);
+    font-size: .85rem;
+}
+.emf-pw-rules ul {
+    margin: 0;
+    padding-left: 0;
+    list-style: none;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 24px;
+}
+.emf-pw-rules li {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding-left: 0;
+    transition: color .15s;
+}
+.emf-pw-rules li::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #cbd5e1;
+    flex-shrink: 0;
+    margin-top: 6px;
+    transition: background .15s;
+}
+.emf-pw-rules li strong {
+    color: var(--emf-text, #0f172a);
+    font-weight: 600;
+}
+
+/* Rule passed */
+.emf-pw-rules li.ok {
+    color: #059669;
+}
+.emf-pw-rules li.ok::before {
+    background: #059669;
+}
+
+/* Rule failed */
+.emf-pw-rules li.fail {
+    color: #dc2626;
+}
+.emf-pw-rules li.fail::before {
+    background: #dc2626;
+}
+
+@media (max-width: 767.98px) {
+    .emf-pw-rules ul { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 767.98px) {
+    .emf-pw-rules ul { grid-template-columns: 1fr; }
+}
+
+    /* ─── Responsive ─── */
+    @media (max-width: 767.98px) {
+        .emf-card-bd { padding: 22px 20px; }
+        .emf-hd-sub { padding-left: 0; }
+        .emf-btn { padding: 9px 18px; font-size: .8rem; }
+        .emf-foot { gap: 8px; }
+        .emf-foot .emf-btn { flex: 1; justify-content: center; }
+    }
+</style>
+
+<div class="emf-wrap">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+
+            <!-- Page header -->
+            <div class="emf-hd">
+                <h5 class="emf-hd-title">
+                    <span class="emf-hd-ico"><i class="las la-user-plus"></i></span>
                     {% if action == 'Edit' %}Edit{% else %}Add New{% endif %} Employee
                 </h5>
-                <p class="text-muted small mt-1">Fill in the details below to {% if action == 'Edit' %}update{% else %}create{% endif %} an employee account.</p>
+                <p class="emf-hd-sub">
+                    {% if action == 'Edit' %}
+                        Update account and profile details for this employee.
+                    {% else %}
+                        Fill in the details below to create a new employee account.
+                    {% endif %}
+                </p>
             </div>
-            <div class="card-body p-4">
-                <form method="post" novalidate>
-                    {% csrf_token %}
-                    
-                    <!-- User Account Info -->
-                    <h6 class="fw-bold text-primary mt-2 mb-3"><i class="las la-user-circle me-2"></i>Account Details</h6>
-                    
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label for="username" class="form-label fw-semibold">Username *</label>
-                            <input type="text" name="username" id="username" class="form-control" 
-                                   value="{{ user.username|default:'' }}" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="email" class="form-label fw-semibold">Email Address</label>
-                            <input type="email" name="email" id="email" class="form-control" 
-                                   value="{{ user.email|default:'' }}" placeholder="optional@example.com">
-                            <div class="form-text text-muted small">Optional – can be left blank.</div>
-                        </div>
-                    </div>
 
-                    <div class="row g-3 mt-2">
-                        <div class="col-md-6">
-                            <label for="password1" class="form-label fw-semibold">Password {% if action == 'Create' %}*{% endif %}</label>
-                            <input type="password" name="password1" id="password1" class="form-control" 
-                                   placeholder="{% if action == 'Create' %}Enter password{% else %}Leave blank to keep current{% endif %}"
-                                   {% if action == 'Create' %}required{% endif %}>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="password2" class="form-label fw-semibold">Confirm Password {% if action == 'Create' %}*{% endif %}</label>
-                            <input type="password" name="password2" id="password2" class="form-control" 
-                                   placeholder="Confirm password"
-                                   {% if action == 'Create' %}required{% endif %}>
-                        </div>
-                    </div>
+            <!-- Card -->
+            <div class="emf-card">
+                <div class="emf-card-bd">
+                    <form method="post" novalidate>
+                        {% csrf_token %}
 
-                    <hr class="my-4">
+                        <!-- ═══════════ SECTION 1: ACCOUNT ═══════════ -->
+                        <div class="emf-section">
+                            <div class="emf-section-hd">
+                                <span class="emf-section-icon"><i class="las la-user-circle"></i></span>
+                                <h6 class="emf-section-title">Account Details</h6>
+                            </div>
 
-                    <!-- Employee Profile -->
-                    <h6 class="fw-bold text-primary mb-3"><i class="fas fa-id-badge me-2"></i>Employee Profile</h6>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="emf-field">
+                                        <label for="username" class="emf-label">
+                                            <i class="las la-user"></i> Username <span class="emf-req">*</span>
+                                        </label>
+                                        <input type="text" name="username" id="username" class="emf-input"
+                                               value="{{ user.username|default:'' }}" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="emf-field">
+                                        <label for="email" class="emf-label">
+                                            <i class="las la-envelope"></i> Email Address
+                                        </label>
+                                        <input type="email" name="email" id="email" class="emf-input"
+                                               value="{{ user.email|default:'' }}"
+                                               placeholder="optional@example.com">
+                                        <div class="emf-hint">
+                                            <i class="las la-info-circle"></i>
+                                            <span>Optional — can be left blank.</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
 
-                    <!-- Employee ID is AUTO-GENERATED, so we don't show it -->
-                    <div class="alert alert-info bg-light border-0 p-3 mb-3">
-                        <i class="fas fa-info-circle text-primary me-2"></i>
-                        <strong>Employee ID</strong> will be automatically generated based on your company prefix (e.g., <code>DML001</code>) after saving.
-                    </div>
+                            
+                            <!-- {# ═══════════════════════════════════════════════════════
+                            PASSWORD FIELDS + RULES PANEL
+                            ═══════════════════════════════════════════════════════ #} -->
+                            
+                            <div class="row g-3 mt-1">
+                                <div class="col-md-6">
+                                    <div class="emf-field">
+                                        <label for="password1" class="emf-label">
+                                            <i class="las la-lock"></i> Password
+                                            {% if action == 'Create' %}<span class="emf-req">*</span>{% endif %}
+                                        </label>
+                                        <input type="password" name="password1" id="password1"
+                                            class="emf-input {% if form.is_bound and form.password1.errors %}is-invalid{% endif %}"
+                                            autocomplete="new-password"
+                                            placeholder="{% if action == 'Create' %}Enter password{% else %}Leave blank to keep current{% endif %}"
+                                            {% if action == 'Create' %}required{% endif %}>
 
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label for="full_name" class="form-label fw-semibold">Full Name *</label>
-                            <input type="text" name="full_name" id="full_name" class="form-control" 
-                                   value="{{ profile.full_name|default:'' }}" required>
+                                        <div class="emf-error" id="pw1-error"
+                                            {% if not form.is_bound or not form.password1.errors %}style="display:none;"{% endif %}>
+                                            <i class="las la-exclamation-circle"></i>
+                                            <span>{% if form.password1.errors %}{{ form.password1.errors|join:" " }}{% endif %}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <div class="emf-field">
+                                        <label for="password2" class="emf-label">
+                                            <i class="las la-lock"></i> Confirm Password
+                                            {% if action == 'Create' %}<span class="emf-req">*</span>{% endif %}
+                                        </label>
+                                        <input type="password" name="password2" id="password2"
+                                            class="emf-input {% if form.is_bound and form.password2.errors %}is-invalid{% endif %}"
+                                            autocomplete="new-password"
+                                            placeholder="Confirm password"
+                                            {% if action == 'Create' %}required{% endif %}>
+
+                                        <div class="emf-error" id="pw2-error"
+                                            {% if not form.is_bound or not form.password2.errors %}style="display:none;"{% endif %}>
+                                            <i class="las la-exclamation-circle"></i>
+                                            <span>{% if form.password2.errors %}{{ form.password2.errors|join:" " }}{% endif %}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {# Rules panel #}
+                                <div class="col-12">
+                                    <div class="emf-pw-rules" id="pw-rules-panel">
+                                        <div class="emf-pw-rules-title">
+                                            <i class="las la-shield-alt"></i> Password must:
+                                        </div>
+                                        <ul>
+                                            <li data-rule="length">Be at least <strong>8 characters</strong> long</li>
+                                            <li data-rule="numeric">Not be entirely numeric</li>
+                                            <li data-rule="common">Not be a commonly used password</li>
+                                            <li data-rule="similar">Not be too similar to the username</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+
+
+
+
+
                         </div>
-                        <div class="col-md-6">
-                            <label for="date_of_birth" class="form-label fw-semibold">Date of Birth</label>
-                            <input type="date" name="date_of_birth" id="date_of_birth" class="form-control" 
-                                   value="{{ profile.date_of_birth|date:'Y-m-d'|default:'' }}">
-                        </div>
-                    </div>
 
-                    <div class="row g-3 mt-2">
-                        <div class="col-md-6">
-                            <label for="date_of_joining" class="form-label fw-semibold">Date of Joining</label>
-                            <input type="date" name="date_of_joining" id="date_of_joining" class="form-control" 
-                                   value="{{ profile.date_of_joining|date:'Y-m-d'|default:'' }}">
-                        </div>
-                        <div class="col-md-6">
-                            <label for="designation" class="form-label fw-semibold">Designation</label>
-                            <input type="text" name="designation" id="designation" class="form-control" 
-                                   value="{{ profile.designation|default:'' }}" placeholder="e.g., Software Engineer">
-                        </div>
-                    </div>
+                        <!-- ═══════════ SECTION 2: PROFILE ═══════════ -->
+                        <div class="emf-section">
+                            <div class="emf-section-hd">
+                                <span class="emf-section-icon"><i class="fas fa-id-badge"></i></span>
+                                <h6 class="emf-section-title">Employee Profile</h6>
+                            </div>
 
-                    <div class="row g-3 mt-2">
-                        <div class="col-md-6">
-                            <label for="department" class="form-label fw-semibold">Department</label>
-                            <input type="text" name="department" id="department" class="form-control" 
-                                   value="{{ profile.department|default:'' }}" placeholder="e.g., Engineering">
-                        </div>
-                        <div class="col-md-6">
-                            <label for="shift" class="form-label fw-semibold">
-                                <i class="las la-clock text-primary me-1"></i> Assigned Shift
-                            </label>
-                            <select name="shift" id="shift" class="form-select" required>
-                                <option value="">-- Select a shift --</option>
-                                {% for shift in shifts %}
-                                    <option value="{{ shift.id }}" 
-                                        {% if profile.shift.id == shift.id %}selected{% endif %}>
-                                        {{ shift.name }} ({{ shift.start_time|time:"h:i A" }} – {{ shift.end_time|time:"h:i A" }})
-                                    </option>
-                                {% endfor %}
-                            </select>
-                            <div class="form-text text-muted small">Select a shift for this employee – required.</div>
-                        </div>
-                    </div>
+                            <!-- Info note (auto-generated ID) -->
+                            <div class="emf-note">
+                                <i class="fas fa-info-circle"></i>
+                                <span>
+                                    <strong>Employee ID</strong> is auto-generated based on your company prefix (e.g., <code>DML001</code>) after saving.
+                                </span>
+                            </div>
 
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="emf-field">
+                                        <label for="full_name" class="emf-label">
+                                            <i class="las la-id-card"></i> Full Name <span class="emf-req">*</span>
+                                        </label>
+                                        <input type="text" name="full_name" id="full_name" class="emf-input"
+                                               value="{{ profile.full_name|default:'' }}" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="emf-field">
+                                        <label for="date_of_birth" class="emf-label">
+                                            <i class="las la-birthday-cake"></i> Date of Birth
+                                        </label>
+                                        <input type="date" name="date_of_birth" id="date_of_birth" class="emf-input"
+                                               value="{{ profile.date_of_birth|date:'Y-m-d'|default:'' }}">
+                                    </div>
+                                </div>
+                            </div>
 
-                    <!-- NEW: Attendance Type & Office Location -->
-                    <div class="row g-3 mt-2">
-                        <div class="col-md-6">
-                            <label for="attendance_type" class="form-label fw-semibold">
-                                <i class="fas fa-map-marker-alt text-primary me-1"></i> Attendance Type *
-                            </label>
-                            <select name="attendance_type" id="attendance_type" class="form-select" required>
-                                <option value="office" {% if profile.attendance_type == 'office' %}selected{% endif %}>Office</option>
-                                <option value="remote" {% if profile.attendance_type == 'remote' %}selected{% endif %}>Remote</option>
-                                <option value="flexible" {% if profile.attendance_type == 'flexible' %}selected{% endif %}>Flexible</option>
-                            </select>
-                            <div class="form-text text-muted small">
-                                Office: requires GPS location within office radius. Remote/Flexible: no location restriction.
+                            <div class="row g-3 mt-1">
+                                <div class="col-md-6">
+                                    <div class="emf-field">
+                                        <label for="date_of_joining" class="emf-label">
+                                            <i class="las la-calendar-check"></i> Date of Joining
+                                        </label>
+                                        <input type="date" name="date_of_joining" id="date_of_joining" class="emf-input"
+                                               value="{{ profile.date_of_joining|date:'Y-m-d'|default:'' }}">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="emf-field">
+                                        <label for="designation" class="emf-label">
+                                            <i class="las la-briefcase"></i> Designation
+                                        </label>
+                                        <input type="text" name="designation" id="designation" class="emf-input"
+                                               value="{{ profile.designation|default:'' }}"
+                                               placeholder="e.g. Software Engineer">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row g-3 mt-1">
+                                <div class="col-md-6">
+                                    <div class="emf-field">
+                                        <label for="department" class="emf-label">
+                                            <i class="las la-sitemap"></i> Department
+                                        </label>
+                                        <input type="text" name="department" id="department" class="emf-input"
+                                               value="{{ profile.department|default:'' }}"
+                                               placeholder="e.g. Engineering">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="emf-field">
+                                        <label for="shift" class="emf-label">
+                                            <i class="las la-clock"></i> Assigned Shift <span class="emf-req">*</span>
+                                        </label>
+                                        <select name="shift" id="shift" class="emf-select" required>
+                                            <option value="">-- Select a shift --</option>
+                                            {% for shift in shifts %}
+                                                <option value="{{ shift.id }}"
+                                                    {% if profile.shift.id == shift.id %}selected{% endif %}>
+                                                    {{ shift.name }} ({{ shift.start_time|time:"h:i A" }} – {{ shift.end_time|time:"h:i A" }})
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                        <div class="emf-hint">
+                                            <i class="las la-info-circle"></i>
+                                            <span>Required — determines working hours and late calculation.</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row g-3 mt-1">
+                                <div class="col-md-6">
+                                    <div class="emf-field">
+                                        <label for="attendance_type" class="emf-label">
+                                            <i class="fas fa-map-marker-alt"></i> Attendance Type <span class="emf-req">*</span>
+                                        </label>
+                                        <select name="attendance_type" id="attendance_type" class="emf-select" required>
+                                            <option value="office" {% if profile.attendance_type == 'office' %}selected{% endif %}>Office</option>
+                                            <option value="remote" {% if profile.attendance_type == 'remote' %}selected{% endif %}>Remote</option>
+                                            <option value="flexible" {% if profile.attendance_type == 'flexible' %}selected{% endif %}>Flexible</option>
+                                        </select>
+                                        <div class="emf-hint">
+                                            <i class="las la-info-circle"></i>
+                                            <span>Office requires GPS within office radius. Remote / Flexible has no location restriction.</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="emf-field">
+                                        <label for="office_location" class="emf-label">
+                                            <i class="las la-building"></i> Office Location
+                                        </label>
+                                        <select name="office_location" id="office_location" class="emf-select">
+                                            <option value="">-- None --</option>
+                                            {% for office in offices %}
+                                                <option value="{{ office.id }}"
+                                                    {% if profile.office_location.id == office.id %}selected{% endif %}>
+                                                    {{ office.name }}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                        <div class="emf-hint">
+                                            <i class="las la-info-circle"></i>
+                                            <span>Required if Attendance Type is "Office".</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row g-3 mt-1">
+                                <div class="col-md-6">
+                                    <div class="emf-field">
+                                        <label for="role" class="emf-label">
+                                            <i class="las la-user-tag"></i> Role <span class="emf-req">*</span>
+                                        </label>
+                                        <select name="role" id="role" class="emf-select" required>
+                                            <option value="employee" {% if profile.role == 'employee' %}selected{% endif %}>Employee</option>
+                                            <option value="manager" {% if profile.role == 'manager' %}selected{% endif %}>Manager</option>
+                                            <option value="hr_admin" {% if profile.role == 'hr_admin' %}selected{% endif %}>HR Admin</option>
+                                        </select>
+                                        <div class="emf-hint">
+                                            <i class="las la-info-circle"></i>
+                                            <span>Manager can approve team requests. HR Admin has full HR access.</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="emf-field">
+                                        <label for="manager" class="emf-label">
+                                            <i class="las la-user-tie"></i> Reporting Manager
+                                        </label>
+                                        <select name="manager" id="manager" class="emf-select">
+                                            <option value="">-- None --</option>
+                                            {% for emp in all_managers %}
+                                                <option value="{{ emp.id }}"
+                                                    {% if profile.manager.id == emp.id %}selected{% endif %}>
+                                                    {{ emp.full_name }} ({{ emp.get_role_display }})
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                        <div class="emf-hint">
+                                            <i class="las la-info-circle"></i>
+                                            <span>Only Managers and HR Admins can be assigned as managers.</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row g-3 mt-1">
+                                <div class="col-md-6">
+                                    <div class="emf-field">
+                                        <label for="phone" class="emf-label">
+                                            <i class="las la-phone"></i> Phone Number
+                                        </label>
+                                        <input type="text" name="phone" id="phone" class="emf-input"
+                                               value="{{ profile.phone|default:'' }}"
+                                               placeholder="+91 98765 43210">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="emf-field">
+                                        <label for="address" class="emf-label">
+                                            <i class="las la-map-marker"></i> Address
+                                        </label>
+                                        <textarea name="address" id="address" class="emf-textarea" rows="2"
+                                                  placeholder="Enter full address">{{ profile.address|default:'' }}</textarea>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        <div class="col-md-6">
-                            <label for="office_location" class="form-label fw-semibold">
-                                <i class="las la-building text-primary me-1"></i> Office Location
-                            </label>
-                            <select name="office_location" id="office_location" class="form-select">
-                                <option value="">-- None --</option>
-                                {% for office in offices %}
-                                    <option value="{{ office.id }}" 
-                                        {% if profile.office_location.id == office.id %}selected{% endif %}>
-                                        {{ office.name }}
-                                    </option>
-                                {% endfor %}
-                            </select>
-                            <div class="form-text text-muted small">
-                                Required if Attendance Type is "Office".
-                            </div>
-                        </div>
-                    </div>
 
-                   <!-- Role & Manager -->
-                    <div class="row g-3 mt-2">
-                        <div class="col-md-6">
-                            <label for="role" class="form-label fw-semibold">
-                                <i class="las la-user-tag text-primary me-1"></i> Role *
-                            </label>
-                            <select name="role" id="role" class="form-select" required>
-                                <option value="employee" {% if profile.role == 'employee' %}selected{% endif %}>Employee</option>
-                                <option value="manager" {% if profile.role == 'manager' %}selected{% endif %}>Manager</option>
-                                <option value="hr_admin" {% if profile.role == 'hr_admin' %}selected{% endif %}>HR Admin</option>
-                            </select>
-                            <div class="form-text text-muted small">
-                                Manager: Can approve team requests. HR Admin: Full HR access.
-                            </div>
+                        <!-- ═══════════ FOOTER ═══════════ -->
+                        <div class="emf-foot">
+                            <a href="{% url 'employee_list' %}" class="emf-btn emf-btn-ghost">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                            <button type="submit" class="emf-btn emf-btn-primary">
+                                <i class="fas fa-save"></i>
+                                {% if action == 'Edit' %}Update{% else %}Create{% endif %} Employee
+                            </button>
                         </div>
-                        <div class="col-md-6">
-                            <label for="manager" class="form-label fw-semibold">
-                                <i class="las la-user-tie text-primary me-1"></i> Manager
-                            </label>
-                            <select name="manager" id="manager" class="form-select">
-                                <option value="">-- None --</option>
-                                {% for emp in all_managers %}
-                                    <option value="{{ emp.id }}" 
-                                        {% if profile.manager.id == emp.id %}selected{% endif %}>
-                                        {{ emp.full_name }} ({{ emp.get_role_display }})
-                                    </option>
-                                {% endfor %}
-                            </select>
-                            <div class="form-text text-muted small">
-                                Only Managers and HR Admins can be assigned as managers.
-                            </div>
-                            <div class="form-text text-muted small">Select the manager this employee reports to.</div>
-                        </div>
-                    </div>
-
-
-
-                    <div class="row g-3 mt-2">
-                        <div class="col-md-6">
-                            <label for="phone" class="form-label fw-semibold">Phone Number</label>
-                            <input type="text" name="phone" id="phone" class="form-control" 
-                                   value="{{ profile.phone|default:'' }}" placeholder="+91 98765 43210">
-                        </div>
-                        <div class="col-md-6">
-                            <label for="address" class="form-label fw-semibold">Address</label>
-                            <textarea name="address" id="address" class="form-control" rows="2" 
-                                      placeholder="Enter full address">{{ profile.address|default:'' }}</textarea>
-                        </div>
-                    </div>
-
-                    <!-- Submit Buttons -->
-                    <div class="d-flex justify-content-end gap-2 pt-4 mt-3 border-top">
-                        <a href="{% url 'employee_list' %}" class="btn btn-outline-secondary rounded-pill px-4">
-                            <i class="fas fa-times me-2"></i> Cancel
-                        </a>
-                        <button type="submit" class="btn btn-primary rounded-pill px-4">
-                            <i class="fas fa-save me-2"></i> 
-                            {% if action == 'Edit' %}Update{% else %}Create{% endif %} Employee
-                        </button>
-                    </div>
-                </form>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+(function () {
+    var pw1  = document.getElementById('password1');
+    var pw2  = document.getElementById('password2');
+    var user = document.getElementById('username');
+    if (!pw1 || !pw2) return;
+
+    var err1 = document.getElementById('pw1-error');
+    var err2 = document.getElementById('pw2-error');
+
+    var ruleEls = {
+        length:  document.querySelector('[data-rule="length"]'),
+        numeric: document.querySelector('[data-rule="numeric"]'),
+        common:  document.querySelector('[data-rule="common"]'),
+        similar: document.querySelector('[data-rule="similar"]'),
+    };
+
+    var commonPasswords = [
+        'password', '12345678', 'qwerty', 'letmein', 'admin', 'welcome',
+        'password1', '123456789', 'abc12345', '11111111', 'admin123',
+        'password123', 'qwerty123', '111111', '1234567890'
+    ];
+
+    function setRule(el, state) {
+        if (!el) return;
+        el.classList.remove('ok', 'fail');
+        if (state === 'ok') el.classList.add('ok');
+        if (state === 'fail') el.classList.add('fail');
+    }
+
+    function hideError(el) {
+        if (el) el.style.display = 'none';
+    }
+
+    function showError(el, msg) {
+        if (!el) return;
+        var span = el.querySelector('span');
+        if (span && msg) span.textContent = msg;
+        el.style.display = 'flex';
+    }
+
+    function check() {
+        var v1 = pw1.value;
+        var v2 = pw2.value;
+        var u  = (user && user.value) ? user.value.toLowerCase().trim() : '';
+        var isBlank = v1.length === 0;
+
+        var lenOk     = v1.length >= 8;
+        var numericOk = !/^\d+$/.test(v1);
+        var commonOk  = commonPasswords.indexOf(v1.toLowerCase()) === -1;
+        var similarOk = !(u.length > 0 && v1.toLowerCase().indexOf(u) !== -1);
+
+        // ─── Update rule list visuals ───
+        if (isBlank) {
+            setRule(ruleEls.length, null);
+            setRule(ruleEls.numeric, null);
+            setRule(ruleEls.common, null);
+            setRule(ruleEls.similar, null);
+        } else {
+            setRule(ruleEls.length, lenOk ? 'ok' : 'fail');
+            setRule(ruleEls.numeric, numericOk ? 'ok' : 'fail');
+            setRule(ruleEls.common, commonOk ? 'ok' : 'fail');
+            setRule(ruleEls.similar, similarOk ? 'ok' : 'fail');
+        }
+
+        // ─── Decide if password1 is currently valid ───
+        var pw1Valid = !isBlank && lenOk && numericOk && commonOk && similarOk;
+
+        // ─── Password1 error state ───
+        if (isBlank) {
+            // Don't force-hide server-side errors on a truly blank field
+            // unless the user explicitly cleared it — leave as-is
+            // (server may have shown "Password is required.")
+        } else if (pw1Valid) {
+            pw1.classList.remove('is-invalid');
+            hideError(err1);
+        } else {
+            // Mark as invalid but don't overwrite server error text
+            pw1.classList.add('is-invalid');
+            // Show a generic live error only if there isn't one already
+            if (err1 && err1.style.display === 'none') {
+                showError(err1, 'Password doesn\'t meet the rules yet.');
+            }
+        }
+
+        // ─── Password2 (confirm) error state ───
+        if (v2.length === 0) {
+            // nothing yet — leave as-is
+        } else if (v1 === v2 && pw1Valid) {
+            pw2.classList.remove('is-invalid');
+            hideError(err2);
+        } else if (v1 !== v2) {
+            pw2.classList.add('is-invalid');
+            if (err2) showError(err2, 'Passwords do not match.');
+        } else if (v1 === v2 && !pw1Valid) {
+            // they match, but pw1 itself fails the rules — no error on pw2
+            pw2.classList.remove('is-invalid');
+            hideError(err2);
+        }
+    }
+
+    pw1.addEventListener('input', check);
+    pw2.addEventListener('input', check);
+    if (user) user.addEventListener('input', check);
+
+    // Run once on page load — clears stale server errors if the field
+    // already holds a valid value (e.g. browser autofilled a strong password)
+    check();
+})();
+</script>
+
+
+
 {% endblock %}

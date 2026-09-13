@@ -6,96 +6,666 @@
 
 {% block content %}
 
-<!-- ===== TABS ===== -->
-<ul class="nav nav-tabs mb-4" id="leaveTabs" role="tablist">
-    <li class="nav-item" role="presentation">
-        <a class="nav-link {% if tab == 'status' %}active{% endif %}" href="?tab=status">
-            <i class="las la-chart-pie me-1"></i> Status
-        </a>
-    </li>
-    <li class="nav-item" role="presentation">
-        <a class="nav-link {% if tab == 'requests' %}active{% endif %}" href="?tab=requests">
-            <i class="fas fa-list me-1"></i> Requests
-        </a>
-    </li>
-    <li class="nav-item" role="presentation">
-        <a class="nav-link {% if tab == 'holidays' %}active{% endif %}" href="?tab=holidays">
-            <i class="las la-calendar-alt me-1"></i> Holidays
-        </a>
-    </li>
-</ul>
+<style>
+    /* ═══════════════════════════════════════════════════
+       My Leaves — refined design system
+       Prefix: .mlv-
+       ═══════════════════════════════════════════════════ */
+    .mlv-wrap {
+        --mlv-surface:        #ffffff;
+        --mlv-surface-2:      #fafbfc;
+        --mlv-surface-3:      #f4f6f8;
+        --mlv-border:         #e8eaee;
+        --mlv-border-hover:   #d5d9e0;
+        --mlv-text:           #0f172a;
+        --mlv-text-muted:     #64748b;
+        --mlv-text-faint:     #94a3b8;
+        --mlv-primary:        #4f46e5;
+        --mlv-primary-soft:   #eef2ff;
+        --mlv-primary-hover:  #4338ca;
+        --mlv-success:        #059669;
+        --mlv-success-soft:   #ecfdf5;
+        --mlv-warning:        #d97706;
+        --mlv-warning-soft:   #fffbeb;
+        --mlv-danger:         #dc2626;
+        --mlv-danger-soft:    #fef2f2;
+        --mlv-info:           #0284c7;
+        --mlv-info-soft:      #f0f9ff;
+        --mlv-pill:           999px;
+        --mlv-shadow-xs:      0 1px 2px rgba(15,23,42,.04);
+        --mlv-shadow-sm:      0 1px 3px rgba(15,23,42,.06), 0 1px 2px rgba(15,23,42,.04);
+        --mlv-shadow-md:      0 8px 24px rgba(15,23,42,.08);
+        --mlv-ease:           cubic-bezier(.4, 0, .2, 1);
+    }
 
-<div class="tab-content">
-    <!-- ===== TAB 1: STATUS ===== -->
-    <div class="tab-pane fade {% if tab == 'status' %}show active{% endif %}" id="status" role="tabpanel">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="mb-0">
-                <i class="fas fa-balance-scale text-primary me-2"></i> Leave Balance
-            </h5>
-            <a href="{% url 'leave_apply' %}" class="btn btn-primary rounded-pill">
-                <i class="fas fa-plus me-1"></i> Apply for Leave
-            </a>
-        </div>
+    /* ─── Page-level heading ─── */
+    .mlv-page-hd {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+    .mlv-page-hd-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        letter-spacing: -.02em;
+        color: var(--mlv-text);
+        margin: 0;
+        line-height: 1.2;
+    }
+    .mlv-page-hd-sub {
+        font-size: .82rem;
+        color: var(--mlv-text-muted);
+        margin: 4px 0 0;
+    }
 
-        <div class="row g-3">
-            {% for item in leave_balance %}
-                <div class="col-12 col-md-6 col-lg-4">
-                    <div class="card border-0 shadow-sm h-100 hover-lift">
-                        <div class="card-body">
-                            <!-- Header -->
-                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                <h6 class="card-title fw-bold mb-0">{{ item.leave_type.name }}</h6>
-                                <span class="badge {% if item.available <= 2 %}bg-danger{% elif item.available <= 5 %}bg-warning text-dark{% else %}bg-success{% endif %} rounded-pill">
-                                    {{ item.available }} left
-                                </span>
-                            </div>
-                            <!-- Progress bar -->
-                            <div class="progress mb-2" style="height: 6px;">
-                                {% with used_percent=item.used|floatformat:0 %}
-                                    <div class="progress-bar bg-primary" role="progressbar" 
-                                         style="width: {% if item.total > 0 %}{{ item.used|floatformat:0 }}{% else %}0{% endif %}%;" 
-                                         aria-valuenow="{{ item.used }}" 
-                                         aria-valuemin="0" aria-valuemax="{{ item.total }}">
-                                    </div>
-                                {% endwith %}
-                            </div>
-                            <!-- Stats -->
-                            <div class="d-flex justify-content-between small text-muted mb-1">
-                                <span>Total: <strong>{{ item.total }}</strong></span>
-                                <span>Used: <strong class="text-warning">{{ item.used }}</strong></span>
-                                <span>Pending: <strong class="text-primary">{{ item.pending }}</strong></span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            {% empty %}
-                <div class="col-12 text-center py-4">
-                    <i class="las la-inbox text-secondary fa-3x mb-3 d-block"></i>
-                    <p class="text-muted">No leave types configured yet.</p>
-                </div>
-            {% endfor %}
+    /* ─── Segmented tabs ─── */
+    .mlv-tabs {
+        display: inline-flex;
+        gap: 2px;
+        padding: 4px;
+        background: var(--mlv-surface);
+        border: 1px solid var(--mlv-border);
+        border-radius: 10px;
+        list-style: none;
+        margin: 0 0 22px;
+        box-shadow: var(--mlv-shadow-xs);
+    }
+    .mlv-tabs .nav-item { margin: 0; }
+    .mlv-tabs .nav-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 8px 16px;
+        border-radius: 7px;
+        font-size: .82rem;
+        font-weight: 500;
+        color: var(--mlv-text-muted);
+        background: transparent;
+        text-decoration: none;
+        position: relative;
+        transition: color .15s var(--mlv-ease), background .15s var(--mlv-ease);
+    }
+    .mlv-tabs .nav-link i { font-size: .88rem; opacity: .75; }
+    .mlv-tabs .nav-link:hover { color: var(--mlv-text); }
+    .mlv-tabs .nav-link:hover i { opacity: 1; }
+    .mlv-tabs .nav-link.active {
+        background: var(--mlv-primary);
+        color: #fff;
+    }
+    .mlv-tabs .nav-link.active i { opacity: 1; }
+
+    /* ─── Section header ─── */
+    .mlv-sec {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+    .mlv-sec-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: .95rem;
+        font-weight: 600;
+        letter-spacing: -.01em;
+        color: var(--mlv-text);
+        margin: 0;
+    }
+    .mlv-sec-title i {
+        color: var(--mlv-text-faint);
+        font-size: .95rem;
+    }
+
+    /* ─── Buttons ─── */
+    .mlv-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 16px;
+        font-size: .78rem;
+        font-weight: 500;
+        border-radius: var(--mlv-pill);
+        border: 1px solid transparent;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all .15s var(--mlv-ease);
+        line-height: 1.3;
+    }
+    .mlv-btn i { font-size: .82rem; }
+    .mlv-btn-primary {
+        background: var(--mlv-primary);
+        color: #fff;
+        box-shadow: 0 1px 2px rgba(79,70,229,.2);
+    }
+    .mlv-btn-primary:hover {
+        background: var(--mlv-primary-hover);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(79,70,229,.28);
+    }
+
+    /* ─── Filter segmented control ─── */
+    .mlv-filter {
+        display: inline-flex;
+        background: var(--mlv-surface);
+        border: 1px solid var(--mlv-border);
+        border-radius: 8px;
+        padding: 3px;
+        gap: 2px;
+        box-shadow: var(--mlv-shadow-xs);
+    }
+    .mlv-filter a {
+        padding: 5px 12px;
+        font-size: .74rem;
+        font-weight: 500;
+        border-radius: 6px;
+        color: var(--mlv-text-muted);
+        text-decoration: none;
+        transition: background .15s var(--mlv-ease), color .15s var(--mlv-ease);
+    }
+    .mlv-filter a:hover { color: var(--mlv-text); background: var(--mlv-surface-3); }
+    .mlv-filter a.active {
+        background: var(--mlv-primary);
+        color: #fff;
+    }
+
+    /* ─── Leave balance card ─── */
+    .mlv-balance {
+        background: var(--mlv-surface);
+        border: 1px solid var(--mlv-border);
+        border-radius: 14px;
+        padding: 18px 20px;
+        height: 100%;
+        position: relative;
+        overflow: hidden;
+        transition: border-color .15s var(--mlv-ease),
+                    box-shadow .2s var(--mlv-ease),
+                    transform .2s var(--mlv-ease);
+    }
+    .mlv-balance:hover {
+        border-color: var(--mlv-border-hover);
+        box-shadow: var(--mlv-shadow-md);
+        transform: translateY(-2px);
+    }
+    .mlv-balance::before {
+        content: "";
+        position: absolute;
+        left: 0; top: 0; bottom: 0;
+        width: 3px;
+        background: var(--mlv-success);
+    }
+    .mlv-balance.warning::before { background: var(--mlv-warning); }
+    .mlv-balance.danger::before  { background: var(--mlv-danger); }
+
+    .mlv-balance-hd {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 14px;
+    }
+    .mlv-balance-name {
+        font-size: .9rem;
+        font-weight: 600;
+        color: var(--mlv-text);
+        letter-spacing: -.005em;
+        margin: 0;
+        line-height: 1.3;
+    }
+    .mlv-left-pill {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 4px;
+        padding: 4px 11px;
+        border-radius: var(--mlv-pill);
+        font-size: .68rem;
+        font-weight: 600;
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+    }
+    .mlv-left-pill .num {
+        font-size: .82rem;
+        font-weight: 700;
+    }
+    .mlv-left-pill.ok      { background: var(--mlv-success-soft); color: var(--mlv-success); }
+    .mlv-left-pill.warning { background: var(--mlv-warning-soft); color: var(--mlv-warning); }
+    .mlv-left-pill.danger  { background: var(--mlv-danger-soft);  color: var(--mlv-danger); }
+
+    /* Balance visual: ring of used segments */
+    .mlv-balance-visual {
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+        margin-bottom: 12px;
+    }
+    .mlv-balance-big {
+        font-size: 1.85rem;
+        font-weight: 700;
+        color: var(--mlv-text);
+        line-height: 1;
+        letter-spacing: -.03em;
+        font-variant-numeric: tabular-nums;
+    }
+    .mlv-balance-of {
+        font-size: .78rem;
+        color: var(--mlv-text-muted);
+        font-variant-numeric: tabular-nums;
+    }
+
+    .mlv-balance-bar {
+        height: 5px;
+        background: var(--mlv-surface-3);
+        border-radius: var(--mlv-pill);
+        overflow: hidden;
+        margin-bottom: 12px;
+    }
+    .mlv-balance-bar > div {
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, var(--mlv-primary) 0%, #6366f1 100%);
+        transition: width .5s var(--mlv-ease);
+    }
+
+    .mlv-balance-foot {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: .72rem;
+        color: var(--mlv-text-muted);
+        padding-top: 12px;
+        border-top: 1px solid var(--mlv-surface-3);
+    }
+    .mlv-balance-foot-item {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+    }
+    .mlv-balance-foot-label {
+        font-size: .65rem;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+        color: var(--mlv-text-faint);
+        font-weight: 600;
+    }
+    .mlv-balance-foot-value {
+        font-size: .82rem;
+        font-weight: 600;
+        color: var(--mlv-text);
+        font-variant-numeric: tabular-nums;
+    }
+    .mlv-balance-foot-item.used .mlv-balance-foot-value    { color: var(--mlv-warning); }
+    .mlv-balance-foot-item.pending .mlv-balance-foot-value { color: var(--mlv-primary); }
+
+    /* ─── Card shell ─── */
+    .mlv-card {
+        background: var(--mlv-surface);
+        border: 1px solid var(--mlv-border);
+        border-radius: 12px;
+        overflow: hidden;
+        transition: border-color .2s var(--mlv-ease);
+        box-shadow: var(--mlv-shadow-xs);
+    }
+    .mlv-card:hover { border-color: var(--mlv-border-hover); }
+
+    /* ─── Table ─── */
+    .mlv-table {
+        width: 100%;
+        margin: 0;
+        border-collapse: collapse;
+    }
+    .mlv-table thead th {
+        font-size: .68rem;
+        font-weight: 600;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: var(--mlv-text-faint);
+        padding: 12px 20px;
+        border-bottom: 1px solid var(--mlv-border);
+        background: var(--mlv-surface-2);
+        white-space: nowrap;
+        text-align: left;
+    }
+    .mlv-table tbody td {
+        padding: 14px 20px;
+        vertical-align: middle;
+        border-bottom: 1px solid var(--mlv-border);
+        font-size: .875rem;
+        color: var(--mlv-text);
+    }
+    .mlv-table tbody tr:last-child td { border-bottom: none; }
+    .mlv-table tbody tr { transition: background .12s var(--mlv-ease); }
+    .mlv-table tbody tr:hover { background: var(--mlv-surface-2); }
+
+    .mlv-table .name { font-weight: 600; }
+    .mlv-table .num {
+        font-variant-numeric: tabular-nums;
+        font-weight: 500;
+    }
+    .mlv-table .muted { color: var(--mlv-text-faint); }
+
+    /* ─── Reason column ─── */
+    .mlv-reason {
+        max-width: 220px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: var(--mlv-text-muted);
+        font-size: .82rem;
+    }
+
+    /* ─── Status pill ─── */
+    .mlv-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 11px;
+        border-radius: var(--mlv-pill);
+        font-size: .72rem;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+    .mlv-status::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+        flex-shrink: 0;
+    }
+    .mlv-status.pending  { background: var(--mlv-warning-soft); color: var(--mlv-warning); }
+    .mlv-status.approved { background: var(--mlv-success-soft); color: var(--mlv-success); }
+    .mlv-status.rejected { background: var(--mlv-danger-soft);  color: var(--mlv-danger); }
+
+    /* ─── Duration pill ─── */
+    .mlv-duration {
+        display: inline-flex;
+        align-items: center;
+        padding: 3px 10px;
+        border-radius: var(--mlv-pill);
+        background: var(--mlv-surface-2);
+        border: 1px solid var(--mlv-border);
+        font-size: .72rem;
+        font-weight: 600;
+        color: var(--mlv-text-muted);
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* ─── Icon button (View) ─── */
+    .mlv-icon-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        border: 1px solid var(--mlv-border);
+        background: var(--mlv-surface);
+        color: var(--mlv-text-muted);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .85rem;
+        transition: all .15s var(--mlv-ease);
+        padding: 0;
+    }
+    .mlv-icon-btn:hover {
+        background: var(--mlv-info-soft);
+        color: var(--mlv-info);
+        border-color: transparent;
+        transform: scale(1.05);
+    }
+    .mlv-icon-btn:focus-visible {
+        outline: 2px solid var(--mlv-info);
+        outline-offset: 2px;
+    }
+
+    /* ─── Holiday row ─── */
+    .mlv-holiday-tile {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .mlv-holiday-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 9px;
+        background: linear-gradient(135deg, var(--mlv-primary-soft) 0%, #e0e7ff 100%);
+        color: var(--mlv-primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .85rem;
+        flex-shrink: 0;
+    }
+    .mlv-holiday-day-pill {
+        display: inline-flex;
+        padding: 3px 10px;
+        border-radius: var(--mlv-pill);
+        background: var(--mlv-surface-2);
+        border: 1px solid var(--mlv-border);
+        font-size: .72rem;
+        font-weight: 500;
+        color: var(--mlv-text-muted);
+    }
+
+    /* ─── Empty state ─── */
+    .mlv-empty {
+        text-align: center;
+        padding: 52px 20px;
+    }
+    .mlv-empty-ico {
+        width: 68px;
+        height: 68px;
+        border-radius: 50%;
+        background: var(--mlv-surface-2);
+        border: 1px solid var(--mlv-border);
+        color: var(--mlv-text-faint);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.85rem;
+        margin-bottom: 16px;
+    }
+    .mlv-empty-title {
+        font-size: .9rem;
+        font-weight: 600;
+        color: var(--mlv-text);
+        margin: 0 0 4px;
+    }
+    .mlv-empty-sub {
+        font-size: .8rem;
+        color: var(--mlv-text-muted);
+        margin: 0;
+    }
+
+    /* ─── Modal ─── */
+    .mlv-modal .modal-content {
+        border: none;
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow: 0 24px 48px rgba(15,23,42,.18);
+    }
+    .mlv-modal .modal-header {
+        border-bottom: 1px solid var(--mlv-border);
+        padding: 18px 22px;
+    }
+    .mlv-modal .modal-title {
+        font-size: .95rem;
+        font-weight: 600;
+        color: var(--mlv-text);
+        letter-spacing: -.01em;
+    }
+    .mlv-modal .modal-body { padding: 4px 22px 20px; }
+    .mlv-modal .modal-footer {
+        border-top: 1px solid var(--mlv-border);
+        padding: 14px 22px;
+    }
+
+    .mlv-modal-row {
+        display: flex;
+        gap: 14px;
+        padding: 13px 0;
+        border-bottom: 1px solid var(--mlv-border);
+        font-size: .84rem;
+    }
+    .mlv-modal-row:last-child { border-bottom: none; }
+    .mlv-modal-row-label {
+        min-width: 120px;
+        font-size: .7rem;
+        font-weight: 600;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+        color: var(--mlv-text-faint);
+        padding-top: 3px;
+    }
+    .mlv-modal-row-value {
+        flex: 1;
+        color: var(--mlv-text);
+        line-height: 1.55;
+        word-wrap: break-word;
+        min-width: 0;
+    }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 767.98px) {
+        .mlv-page-hd-title { font-size: 1.1rem; }
+        .mlv-tabs { width: 100%; }
+        .mlv-tabs .nav-item { flex: 1; }
+        .mlv-tabs .nav-link {
+            width: 100%;
+            justify-content: center;
+            padding: 8px 10px;
+            font-size: .76rem;
+        }
+        .mlv-table thead th,
+        .mlv-table tbody td { padding: 11px 14px; }
+        .mlv-reason { max-width: 140px; }
+        .mlv-balance { padding: 15px 17px; }
+        .mlv-balance-big { font-size: 1.55rem; }
+        .mlv-modal-row { flex-direction: column; gap: 4px; padding: 10px 0; }
+        .mlv-modal-row-label { min-width: auto; }
+    }
+</style>
+
+<div class="mlv-wrap">
+
+    <!-- ═══════════ Page heading ═══════════ -->
+    <div class="mlv-page-hd">
+        <div>
+            <h1 class="mlv-page-hd-title">My Leaves</h1>
+            <p class="mlv-page-hd-sub">Track your balance, requests, and upcoming holidays.</p>
         </div>
     </div>
 
-    <!-- ===== TAB 2: REQUESTS ===== -->
-    <div class="tab-pane fade {% if tab == 'requests' %}show active{% endif %}" id="requests" role="tabpanel">
-        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-            <h5 class="mb-0">
-                <i class="fas fa-list-ul text-primary me-2"></i> My Leave Requests
-            </h5>
-            <div class="btn-group btn-group-sm" role="group">
-                <a href="?tab=requests&filter=all" class="btn btn-outline-secondary {% if filter_status == 'all' %}active{% endif %}">All</a>
-                <a href="?tab=requests&filter=Pending" class="btn btn-outline-secondary {% if filter_status == 'Pending' %}active{% endif %}">Pending</a>
-                <a href="?tab=requests&filter=Approved" class="btn btn-outline-secondary {% if filter_status == 'Approved' %}active{% endif %}">Approved</a>
-                <a href="?tab=requests&filter=Rejected" class="btn btn-outline-secondary {% if filter_status == 'Rejected' %}active{% endif %}">Rejected</a>
+    <!-- ═══════════ Tabs ═══════════ -->
+    <ul class="nav mlv-tabs" id="leaveTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <a class="nav-link {% if tab == 'status' %}active{% endif %}" href="?tab=status">
+                <i class="las la-chart-pie"></i> Status
+            </a>
+        </li>
+        <li class="nav-item" role="presentation">
+            <a class="nav-link {% if tab == 'requests' %}active{% endif %}" href="?tab=requests">
+                <i class="fas fa-list"></i> Requests
+            </a>
+        </li>
+        <li class="nav-item" role="presentation">
+            <a class="nav-link {% if tab == 'holidays' %}active{% endif %}" href="?tab=holidays">
+                <i class="las la-calendar-alt"></i> Holidays
+            </a>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+
+        <!-- {# ═══════════════ TAB 1: STATUS ═══════════════ #} -->
+        <div class="tab-pane fade {% if tab == 'status' %}show active{% endif %}" id="status" role="tabpanel">
+
+            <div class="mlv-sec">
+                <h5 class="mlv-sec-title">
+                    <i class="fas fa-balance-scale"></i> Leave Balance
+                </h5>
+                <a href="{% url 'leave_apply' %}" class="mlv-btn mlv-btn-primary">
+                    <i class="fas fa-plus"></i> Apply for Leave
+                </a>
+            </div>
+
+            <div class="row g-3">
+                {% for item in leave_balance %}
+                    <div class="col-12 col-md-6 col-lg-4">
+                        <div class="mlv-balance
+                            {% if item.available <= 2 %}danger
+                            {% elif item.available <= 5 %}warning{% endif %}">
+
+                            <div class="mlv-balance-hd">
+                                <h6 class="mlv-balance-name">{{ item.leave_type.name }}</h6>
+                                <span class="mlv-left-pill
+                                    {% if item.available <= 2 %}danger
+                                    {% elif item.available <= 5 %}warning
+                                    {% else %}ok{% endif %}">
+                                    <span class="num">{{ item.available }}</span> left
+                                </span>
+                            </div>
+
+                            <div class="mlv-balance-visual">
+                                <span class="mlv-balance-big">{{ item.available }}</span>
+                                <span class="mlv-balance-of">of {{ item.total }} days</span>
+                            </div>
+
+                            <div class="mlv-balance-bar">
+                                <div style="width: {% if item.total > 0 %}{{ item.used|floatformat:0 }}{% else %}0{% endif %}%;"></div>
+                            </div>
+
+                            <div class="mlv-balance-foot">
+                                <div class="mlv-balance-foot-item">
+                                    <span class="mlv-balance-foot-label">Total</span>
+                                    <span class="mlv-balance-foot-value">{{ item.total }}</span>
+                                </div>
+                                <div class="mlv-balance-foot-item used">
+                                    <span class="mlv-balance-foot-label">Used</span>
+                                    <span class="mlv-balance-foot-value">{{ item.used }}</span>
+                                </div>
+                                <div class="mlv-balance-foot-item pending">
+                                    <span class="mlv-balance-foot-label">Pending</span>
+                                    <span class="mlv-balance-foot-value">{{ item.pending }}</span>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                {% empty %}
+                    <div class="col-12">
+                        <div class="mlv-empty">
+                            <div class="mlv-empty-ico"><i class="las la-inbox"></i></div>
+                            <p class="mlv-empty-title">No leave types configured</p>
+                            <p class="mlv-empty-sub">Ask your HR admin to set them up.</p>
+                        </div>
+                    </div>
+                {% endfor %}
             </div>
         </div>
 
-        <div class="card border-0 shadow-sm">
-            <div class="card-body p-0">
+        {# ═══════════════ TAB 2: REQUESTS ═══════════════ #}
+        <div class="tab-pane fade {% if tab == 'requests' %}show active{% endif %}" id="requests" role="tabpanel">
+
+            <div class="mlv-sec">
+                <h5 class="mlv-sec-title">
+                    <i class="fas fa-list-ul"></i> My Leave Requests
+                </h5>
+                <div class="mlv-filter">
+                    <a href="?tab=requests&filter=all"      class="{% if filter_status == 'all' %}active{% endif %}">All</a>
+                    <a href="?tab=requests&filter=Pending"  class="{% if filter_status == 'Pending' %}active{% endif %}">Pending</a>
+                    <a href="?tab=requests&filter=Approved" class="{% if filter_status == 'Approved' %}active{% endif %}">Approved</a>
+                    <a href="?tab=requests&filter=Rejected" class="{% if filter_status == 'Rejected' %}active{% endif %}">Rejected</a>
+                </div>
+            </div>
+
+            <div class="mlv-card">
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light">
+                    <table class="mlv-table">
+                        <thead>
                             <tr>
                                 <th>Leave Type</th>
                                 <th>Date</th>
@@ -103,32 +673,37 @@
                                 <th>Reason</th>
                                 <th>Status</th>
                                 <th>Applied</th>
-                                <th>View</th>
+                                <th class="text-end">View</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for req in requests %}
                                 <tr>
-                                    <td><strong>{{ req.leave_type.name }}</strong></td>
-                                    <td>{{ req.start_date|date:"d M Y" }} – {{ req.end_date|date:"d M Y" }}</td>
+                                    <td class="name">{{ req.leave_type.name }}</td>
+                                    <td class="num">{{ req.start_date|date:"d M Y" }} – {{ req.end_date|date:"d M Y" }}</td>
                                     <td>
-                                        <span class="badge bg-secondary">{{ req.get_duration }} day{{ req.get_duration|pluralize }}</span>
+                                        <span class="mlv-duration">{{ req.get_duration }} day{{ req.get_duration|pluralize }}</span>
                                     </td>
-                                    <td>{{ req.reason|truncatechars:30 }}</td>
                                     <td>
-                                        <span class="badge {% if req.status == 'Pending' %}bg-warning text-dark{% elif req.status == 'Approved' %}bg-success{% else %}bg-danger{% endif %}">
+                                        <div class="mlv-reason" title="{{ req.reason }}">
+                                            {{ req.reason|truncatechars:30 }}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="mlv-status {% if req.status == 'Pending' %}pending{% elif req.status == 'Approved' %}approved{% else %}rejected{% endif %}">
                                             {{ req.status }}
                                         </span>
                                     </td>
-                                    <td>{{ req.applied_on|date:"d M Y" }}</td>
-                                    <td>
-                                        <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#requestModal{{ req.id }}">
+                                    <td class="num muted">{{ req.applied_on|date:"d M Y" }}</td>
+                                    <td class="text-end">
+                                        <button type="button" class="mlv-icon-btn" data-bs-toggle="modal" data-bs-target="#requestModal{{ req.id }}" title="View details">
                                             <i class="las la-eye"></i>
                                         </button>
                                     </td>
                                 </tr>
-                                <!-- Detail Modal -->
-                                <div class="modal fade" id="requestModal{{ req.id }}" tabindex="-1">
+
+                                {# ───── Detail modal ───── #}
+                                <div class="modal fade mlv-modal" id="requestModal{{ req.id }}" tabindex="-1">
                                     <div class="modal-dialog modal-dialog-centered">
                                         <div class="modal-content">
                                             <div class="modal-header">
@@ -136,33 +711,59 @@
                                                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                             </div>
                                             <div class="modal-body">
-                                                <p><strong>Leave Type:</strong> {{ req.leave_type.name }}</p>
-                                                <p><strong>Date:</strong> {{ req.start_date|date:"d M Y" }} – {{ req.end_date|date:"d M Y" }}</p>
-                                                <p><strong>Duration:</strong> {{ req.get_duration }} day{{ req.get_duration|pluralize }}</p>
-                                                <p><strong>Reason:</strong> {{ req.reason }}</p>
-                                                <p><strong>Status:</strong> 
-                                                    <span class="badge {% if req.status == 'Pending' %}bg-warning text-dark{% elif req.status == 'Approved' %}bg-success{% else %}bg-danger{% endif %}">
-                                                        {{ req.status }}
-                                                    </span>
-                                                </p>
+                                                <div class="mlv-modal-row">
+                                                    <div class="mlv-modal-row-label">Leave Type</div>
+                                                    <div class="mlv-modal-row-value fw-semibold">{{ req.leave_type.name }}</div>
+                                                </div>
+                                                <div class="mlv-modal-row">
+                                                    <div class="mlv-modal-row-label">Date</div>
+                                                    <div class="mlv-modal-row-value num">{{ req.start_date|date:"d M Y" }} – {{ req.end_date|date:"d M Y" }}</div>
+                                                </div>
+                                                <div class="mlv-modal-row">
+                                                    <div class="mlv-modal-row-label">Duration</div>
+                                                    <div class="mlv-modal-row-value num">{{ req.get_duration }} day{{ req.get_duration|pluralize }}</div>
+                                                </div>
+                                                <div class="mlv-modal-row">
+                                                    <div class="mlv-modal-row-label">Reason</div>
+                                                    <div class="mlv-modal-row-value">{{ req.reason }}</div>
+                                                </div>
+                                                <div class="mlv-modal-row">
+                                                    <div class="mlv-modal-row-label">Status</div>
+                                                    <div class="mlv-modal-row-value">
+                                                        <span class="mlv-status {% if req.status == 'Pending' %}pending{% elif req.status == 'Approved' %}approved{% else %}rejected{% endif %}">
+                                                            {{ req.status }}
+                                                        </span>
+                                                    </div>
+                                                </div>
                                                 {% if req.admin_comment %}
-                                                    <p><strong>Admin Comment:</strong> {{ req.admin_comment }}</p>
+                                                    <div class="mlv-modal-row">
+                                                        <div class="mlv-modal-row-label">Admin Comment</div>
+                                                        <div class="mlv-modal-row-value">{{ req.admin_comment }}</div>
+                                                    </div>
                                                 {% endif %}
                                                 {% if req.rejection_reason %}
-                                                    <p><strong>Rejection Reason:</strong> {{ req.rejection_reason }}</p>
+                                                    <div class="mlv-modal-row">
+                                                        <div class="mlv-modal-row-label">Rejection Reason</div>
+                                                        <div class="mlv-modal-row-value">{{ req.rejection_reason }}</div>
+                                                    </div>
                                                 {% endif %}
                                             </div>
                                             <div class="modal-footer">
-                                                <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Close</button>
+                                                <button type="button" class="mlv-btn mlv-btn-primary" data-bs-dismiss="modal">
+                                                    Close
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             {% empty %}
                                 <tr>
-                                    <td colspan="7" class="text-center text-muted py-4">
-                                        <i class="las la-inbox fa-2x mb-2 d-block"></i>
-                                        No leave requests found.
+                                    <td colspan="7">
+                                        <div class="mlv-empty">
+                                            <div class="mlv-empty-ico"><i class="las la-inbox"></i></div>
+                                            <p class="mlv-empty-title">No leave requests found</p>
+                                            <p class="mlv-empty-sub">Try a different filter or apply for a new leave.</p>
+                                        </div>
                                     </td>
                                 </tr>
                             {% endfor %}
@@ -171,18 +772,20 @@
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- ===== TAB 3: HOLIDAYS ===== -->
-    <div class="tab-pane fade {% if tab == 'holidays' %}show active{% endif %}" id="holidays" role="tabpanel">
-        <h5 class="mb-3">
-            <i class="las la-calendar-alt text-primary me-2"></i> Company Holidays
-        </h5>
-        <div class="card border-0 shadow-sm">
-            <div class="card-body p-0">
+        {# ═══════════════ TAB 3: HOLIDAYS ═══════════════ #}
+        <div class="tab-pane fade {% if tab == 'holidays' %}show active{% endif %}" id="holidays" role="tabpanel">
+
+            <div class="mlv-sec">
+                <h5 class="mlv-sec-title">
+                    <i class="las la-calendar-alt"></i> Company Holidays
+                </h5>
+            </div>
+
+            <div class="mlv-card">
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light">
+                    <table class="mlv-table">
+                        <thead>
                             <tr>
                                 <th><i class="las la-gift me-1"></i> Holiday Name</th>
                                 <th><i class="las la-calendar-day me-1"></i> Date</th>
@@ -192,15 +795,25 @@
                         <tbody>
                             {% for holiday in holidays %}
                                 <tr>
-                                    <td><strong>{{ holiday.name }}</strong></td>
-                                    <td>{{ holiday.date|date:"d M Y" }}</td>
-                                    <td>{{ holiday.day }}</td>
+                                    <td>
+                                        <div class="mlv-holiday-tile">
+                                            <span class="mlv-holiday-icon"><i class="las la-gift"></i></span>
+                                            <span class="name">{{ holiday.name }}</span>
+                                        </div>
+                                    </td>
+                                    <td class="num">{{ holiday.date|date:"d M Y" }}</td>
+                                    <td>
+                                        <span class="mlv-holiday-day-pill">{{ holiday.day }}</span>
+                                    </td>
                                 </tr>
                             {% empty %}
                                 <tr>
-                                    <td colspan="3" class="text-center text-muted py-4">
-                                        <i class="fas fa-calendar-times fa-2x mb-2 d-block"></i>
-                                        No holidays added yet.
+                                    <td colspan="3">
+                                        <div class="mlv-empty">
+                                            <div class="mlv-empty-ico"><i class="fas fa-calendar-times"></i></div>
+                                            <p class="mlv-empty-title">No holidays added yet</p>
+                                            <p class="mlv-empty-sub">Check back later — your HR team will add them soon.</p>
+                                        </div>
                                     </td>
                                 </tr>
                             {% endfor %}
@@ -209,18 +822,8 @@
                 </div>
             </div>
         </div>
+
     </div>
 </div>
-
-<!-- ===== EXTRA STYLES ===== -->
-<style>
-    .hover-lift {
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-    .hover-lift:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.1) !important;
-    }
-</style>
 
 {% endblock %}

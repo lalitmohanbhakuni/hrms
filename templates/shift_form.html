@@ -5,181 +5,674 @@
 {% block page_title %}{{ action }} Shift{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-lg-10">
-        <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
-            <!-- Card Header -->
-            <div class="card-header bg-transparent border-0 pt-4 pb-0 px-4">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="rounded-circle bg-primary bg-opacity-10 p-3">
-                        <i class="las la-clock text-primary fs-4"></i>
-                    </div>
-                    <div>
-                        <h5 class="fw-bold mb-0">{{ action }} Shift</h5>
-                        <p class="text-muted small mb-0">Configure shift timings, overtime rules, and working days</p>
-                    </div>
+
+<style>
+    /* ═══════════════════════════════════════════════════
+       Shift Form — refined design system
+       Prefix: .shf-
+       ═══════════════════════════════════════════════════ */
+    .shf-wrap {
+        --shf-surface:        #ffffff;
+        --shf-surface-2:      #fafbfc;
+        --shf-surface-3:      #f4f6f8;
+        --shf-border:         #e8eaee;
+        --shf-border-hover:   #d5d9e0;
+        --shf-text:           #0f172a;
+        --shf-text-muted:     #64748b;
+        --shf-text-faint:     #94a3b8;
+        --shf-primary:        #4f46e5;
+        --shf-primary-soft:   #eef2ff;
+        --shf-primary-hover:  #4338ca;
+        --shf-success:        #059669;
+        --shf-success-soft:   #ecfdf5;
+        --shf-danger:         #dc2626;
+        --shf-pill:           999px;
+        --shf-shadow-xs:      0 1px 2px rgba(15,23,42,.04);
+        --shf-ease:           cubic-bezier(.4, 0, .2, 1);
+    }
+
+    /* ─── Page header ─── */
+    .shf-hd {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 22px;
+    }
+    .shf-hd-ico {
+        width: 40px;
+        height: 40px;
+        border-radius: 11px;
+        background: var(--shf-primary-soft);
+        color: var(--shf-primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.05rem;
+        flex-shrink: 0;
+    }
+    .shf-hd-title {
+        font-size: 1.15rem;
+        font-weight: 600;
+        letter-spacing: -.015em;
+        color: var(--shf-text);
+        margin: 0 0 2px;
+        line-height: 1.2;
+    }
+    .shf-hd-sub {
+        font-size: .82rem;
+        color: var(--shf-text-muted);
+        margin: 0;
+    }
+
+    /* ─── Card ─── */
+    .shf-card {
+        background: var(--shf-surface);
+        border: 1px solid var(--shf-border);
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow: var(--shf-shadow-xs);
+    }
+    .shf-card-bd { padding: 28px 32px; }
+
+    /* ─── Section ─── */
+    .shf-section {
+        padding-bottom: 24px;
+        margin-bottom: 24px;
+        border-bottom: 1px solid var(--shf-border);
+    }
+    .shf-section:last-of-type {
+        border-bottom: none;
+        padding-bottom: 0;
+        margin-bottom: 0;
+    }
+    .shf-section-hd {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 18px;
+    }
+    .shf-section-ico {
+        width: 30px;
+        height: 30px;
+        border-radius: 9px;
+        background: var(--shf-primary-soft);
+        color: var(--shf-primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .82rem;
+        flex-shrink: 0;
+    }
+    .shf-section-title {
+        font-size: .82rem;
+        font-weight: 600;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--shf-text-muted);
+        margin: 0;
+    }
+
+    /* ─── Fields ─── */
+    .shf-field { min-width: 0; }
+    .shf-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: .78rem;
+        font-weight: 600;
+        letter-spacing: .02em;
+        color: var(--shf-text);
+        margin-bottom: 8px;
+    }
+    .shf-label i {
+        color: var(--shf-text-faint);
+        font-size: .85rem;
+    }
+    .shf-req {
+        color: var(--shf-danger);
+        margin-left: 2px;
+    }
+    .shf-optional {
+        font-size: .7rem;
+        font-weight: 400;
+        color: var(--shf-text-faint);
+        margin-left: 4px;
+    }
+
+    .shf-input {
+        width: 100%;
+        padding: 11px 14px;
+        font-size: .875rem;
+        font-family: inherit;
+        color: var(--shf-text);
+        background: var(--shf-surface);
+        border: 1px solid var(--shf-border);
+        border-radius: 10px;
+        outline: none;
+        transition: border-color .15s var(--shf-ease), box-shadow .15s var(--shf-ease);
+        font-variant-numeric: tabular-nums;
+    }
+    .shf-input::placeholder { color: var(--shf-text-faint); }
+    .shf-input:hover { border-color: var(--shf-border-hover); }
+    .shf-input:focus {
+        border-color: var(--shf-primary);
+        box-shadow: 0 0 0 3px rgba(79,70,229,.12);
+    }
+    .shf-input[type="time"]::-webkit-calendar-picker-indicator,
+    .shf-input[type="date"]::-webkit-calendar-picker-indicator {
+        cursor: pointer;
+        opacity: .55;
+        transition: opacity .15s var(--shf-ease);
+    }
+    .shf-input[type="time"]::-webkit-calendar-picker-indicator:hover,
+    .shf-input[type="date"]::-webkit-calendar-picker-indicator:hover {
+        opacity: 1;
+    }
+    .shf-input[type="number"]::-webkit-outer-spin-button,
+    .shf-input[type="number"]::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    .shf-input[type="number"] { -moz-appearance: textfield; }
+
+    .shf-hint {
+        font-size: .7rem;
+        color: var(--shf-text-faint);
+        margin-top: 6px;
+        display: flex;
+        align-items: flex-start;
+        gap: 4px;
+        line-height: 1.45;
+    }
+    .shf-hint i {
+        font-size: .72rem;
+        margin-top: 1px;
+        flex-shrink: 0;
+    }
+
+    /* ─── Overtime toggle row ─── */
+    .shf-toggle-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 14px 16px;
+        background: var(--shf-surface-2);
+        border: 1px solid var(--shf-border);
+        border-radius: 10px;
+    }
+    .shf-toggle-label {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+    .shf-toggle-label strong {
+        font-size: .82rem;
+        font-weight: 600;
+        color: var(--shf-text);
+    }
+    .shf-toggle-label small {
+        font-size: .72rem;
+        color: var(--shf-text-faint);
+    }
+    .shf-switch {
+        position: relative;
+        width: 40px;
+        height: 22px;
+        flex-shrink: 0;
+        cursor: pointer;
+    }
+    .shf-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+        position: absolute;
+    }
+    .shf-switch-track {
+        position: absolute;
+        inset: 0;
+        background: #cbd5e1;
+        border-radius: var(--shf-pill);
+        transition: background .2s var(--shf-ease);
+    }
+    .shf-switch-track::after {
+        content: "";
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 18px;
+        height: 18px;
+        background: #fff;
+        border-radius: 50%;
+        transition: transform .2s var(--shf-ease);
+        box-shadow: 0 1px 3px rgba(0,0,0,.15);
+    }
+    .shf-switch input:checked + .shf-switch-track {
+        background: var(--shf-success);
+    }
+    .shf-switch input:checked + .shf-switch-track::after {
+        transform: translateX(18px);
+    }
+    .shf-switch input:focus-visible + .shf-switch-track {
+        box-shadow: 0 0 0 3px rgba(79,70,229,.15);
+    }
+
+    /* ─── Working days grid ─── */
+    .shf-days-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 8px;
+        padding: 16px;
+        background: var(--shf-surface-2);
+        border: 1px solid var(--shf-border);
+        border-radius: 10px;
+    }
+    .shf-day {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        padding: 10px 4px;
+        background: var(--shf-surface);
+        border: 1px solid var(--shf-border);
+        border-radius: 9px;
+        cursor: pointer;
+        transition: all .15s var(--shf-ease);
+        user-select: none;
+    }
+    .shf-day:hover {
+        border-color: var(--shf-border-hover);
+    }
+    .shf-day input {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+    }
+    .shf-day-letter {
+        font-size: .78rem;
+        font-weight: 600;
+        color: var(--shf-text-muted);
+        letter-spacing: .02em;
+        transition: color .15s var(--shf-ease);
+    }
+    .shf-day-check {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--shf-surface-2);
+        border: 1.5px solid var(--shf-border);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all .15s var(--shf-ease);
+    }
+    .shf-day-check i {
+        font-size: .6rem;
+        color: transparent;
+        transition: color .15s var(--shf-ease);
+    }
+    /* Checked state */
+    .shf-day input:checked ~ .shf-day-letter {
+        color: var(--shf-primary);
+    }
+    .shf-day input:checked ~ .shf-day-check {
+        background: var(--shf-primary);
+        border-color: var(--shf-primary);
+    }
+    .shf-day input:checked ~ .shf-day-check i {
+        color: #fff;
+    }
+    .shf-day:has(input:checked) {
+        background: var(--shf-primary-soft);
+        border-color: transparent;
+    }
+    .shf-day input:focus-visible ~ .shf-day-check {
+        box-shadow: 0 0 0 3px rgba(79,70,229,.15);
+    }
+
+    /* ─── Working days preview ─── */
+    .shf-preview {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 12px;
+        padding: 10px 14px;
+        background: var(--shf-primary-soft);
+        border-radius: 10px;
+        font-size: .78rem;
+    }
+    .shf-preview-label {
+        color: #3730a3;
+        font-weight: 500;
+    }
+    .shf-preview-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 3px 11px;
+        border-radius: var(--shf-pill);
+        background: var(--shf-surface);
+        color: var(--shf-primary);
+        font-size: .72rem;
+        font-weight: 600;
+        letter-spacing: .01em;
+        box-shadow: var(--shf-shadow-xs);
+    }
+
+    /* ─── Footer / buttons ─── */
+    .shf-foot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: flex-end;
+        padding-top: 22px;
+        border-top: 1px solid var(--shf-border);
+        margin-top: 26px;
+    }
+    .shf-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 22px;
+        font-size: .82rem;
+        font-weight: 500;
+        border-radius: var(--shf-pill);
+        border: 1px solid transparent;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all .15s var(--shf-ease);
+        line-height: 1.3;
+    }
+    .shf-btn i { font-size: .85rem; }
+
+    .shf-btn-primary {
+        background: var(--shf-primary);
+        color: #fff;
+    }
+    .shf-btn-primary:hover {
+        background: var(--shf-primary-hover);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(79,70,229,.25);
+    }
+
+    .shf-btn-ghost {
+        background: transparent;
+        color: var(--shf-text-muted);
+        border-color: var(--shf-border);
+    }
+    .shf-btn-ghost:hover {
+        background: var(--shf-surface-2);
+        color: var(--shf-text);
+        border-color: var(--shf-border-hover);
+    }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 767.98px) {
+        .shf-card-bd { padding: 22px 20px; }
+        .shf-hd-title { font-size: 1rem; }
+        .shf-hd-ico { width: 34px; height: 34px; font-size: .95rem; }
+        .shf-days-grid { grid-template-columns: repeat(4, 1fr); }
+        .shf-btn { padding: 9px 18px; font-size: .8rem; }
+        .shf-foot { gap: 8px; }
+        .shf-foot .shf-btn { flex: 1; justify-content: center; }
+    }
+</style>
+
+<div class="shf-wrap">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+
+            <!-- Page header -->
+            <div class="shf-hd">
+                <span class="shf-hd-ico"><i class="las la-clock"></i></span>
+                <div>
+                    <h1 class="shf-hd-title">{{ action }} Shift</h1>
+                    <p class="shf-hd-sub">Configure shift timings, overtime rules, and working days.</p>
                 </div>
             </div>
 
-            <!-- Card Body -->
-            <div class="card-body p-4">
-                <form method="post" id="shiftForm">
-                    {% csrf_token %}
+            <!-- Card -->
+            <div class="shf-card">
+                <div class="shf-card-bd">
+                    <form method="post" id="shiftForm">
+                        {% csrf_token %}
 
-                    <!-- ===== BASIC INFORMATION ===== -->
-                    <div class="mb-4">
-                        <h6 class="fw-bold text-primary mb-3">
-                            <i class="fas fa-info-circle me-2"></i> Basic Information
-                        </h6>
-                        <div class="row g-3">
-                            <div class="col-md-12">
-                                <label for="name" class="form-label fw-semibold">Shift Name</label>
-                                <div class="input-group">
-                                    <span class="input-group-text bg-light border-end-0">
-                                        <i class="fas fa-tag text-muted"></i>
-                                    </span>
-                                    <input type="text" name="name" id="name" class="form-control border-start-0" 
-                                           value="{{ shift.name|default:'' }}" placeholder="e.g., General Shift" required>
+                        <!-- ═══════════ SECTION 1: BASIC INFO ═══════════ -->
+                        <div class="shf-section">
+                            <div class="shf-section-hd">
+                                <span class="shf-section-ico"><i class="fas fa-info-circle"></i></span>
+                                <h6 class="shf-section-title">Basic Information</h6>
+                            </div>
+
+                            <div class="shf-field">
+                                <label for="name" class="shf-label">
+                                    <i class="fas fa-tag"></i> Shift Name <span class="shf-req">*</span>
+                                </label>
+                                <input type="text" name="name" id="name" class="shf-input"
+                                       value="{{ shift.name|default:'' }}"
+                                       placeholder="e.g. General Shift" required>
+                            </div>
+                        </div>
+
+                        <!-- ═══════════ SECTION 2: TIMING ═══════════ -->
+                        <div class="shf-section">
+                            <div class="shf-section-hd">
+                                <span class="shf-section-ico"><i class="las la-clock"></i></span>
+                                <h6 class="shf-section-title">Shift Timing</h6>
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-md-3 col-6">
+                                    <div class="shf-field">
+                                        <label for="start_time" class="shf-label">
+                                            <i class="las la-play-circle"></i> Start <span class="shf-req">*</span>
+                                        </label>
+                                        <input type="time" name="start_time" id="start_time" class="shf-input"
+                                               value="{{ shift.start_time|time:'H:i'|default:'' }}" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 col-6">
+                                    <div class="shf-field">
+                                        <label for="end_time" class="shf-label">
+                                            <i class="las la-stop-circle"></i> End <span class="shf-req">*</span>
+                                        </label>
+                                        <input type="time" name="end_time" id="end_time" class="shf-input"
+                                               value="{{ shift.end_time|time:'H:i'|default:'' }}" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 col-6">
+                                    <div class="shf-field">
+                                        <label for="break_start" class="shf-label">
+                                            <i class="las la-mug-hot"></i> Break Start
+                                        </label>
+                                        <input type="time" name="break_start" id="break_start" class="shf-input"
+                                               value="{{ shift.break_start|time:'H:i'|default:'' }}">
+                                    </div>
+                                </div>
+                                <div class="col-md-3 col-6">
+                                    <div class="shf-field">
+                                        <label for="break_end" class="shf-label">
+                                            <i class="las la-mug-hot"></i> Break End
+                                        </label>
+                                        <input type="time" name="break_end" id="break_end" class="shf-input"
+                                               value="{{ shift.break_end|time:'H:i'|default:'' }}">
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <div class="shf-field">
+                                        <label for="grace_period" class="shf-label">
+                                            <i class="las la-hourglass-half"></i> Grace Period
+                                            <span class="shf-optional">(minutes)</span>
+                                        </label>
+                                        <input type="number" name="grace_period" id="grace_period" class="shf-input"
+                                               value="{{ shift.grace_period|default:0 }}" min="0">
+                                        <div class="shf-hint">
+                                            <i class="las la-info-circle"></i>
+                                            <span>Time allowed after shift start before marking late.</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="shf-field">
+                                        <label for="min_working_hours" class="shf-label">
+                                            <i class="las la-business-time"></i> Min Working Hours
+                                            <span class="shf-optional">(minutes)</span>
+                                        </label>
+                                        <input type="number" name="min_working_hours" id="min_working_hours" class="shf-input"
+                                               value="{{ shift.min_working_hours|default:480 }}" min="0" step="1">
+                                        <div class="shf-hint">
+                                            <i class="las la-info-circle"></i>
+                                            <span>Default: 480 minutes = 8 hours.</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- ===== TIMING ===== -->
-                    <div class="mb-4">
-                        <h6 class="fw-bold text-primary mb-3">
-                            <i class="las la-clock me-2"></i> Shift Timing
-                        </h6>
-                        <div class="row g-3">
-                            <div class="col-md-3">
-                                <label for="start_time" class="form-label fw-semibold">Start Time</label>
-                                <input type="time" name="start_time" id="start_time" class="form-control" 
-                                       value="{{ shift.start_time|time:'H:i'|default:'' }}" required>
+                        <!-- ═══════════ SECTION 3: OVERTIME ═══════════ -->
+                        <div class="shf-section">
+                            <div class="shf-section-hd">
+                                <span class="shf-section-ico"><i class="las la-business-time"></i></span>
+                                <h6 class="shf-section-title">Overtime Settings</h6>
                             </div>
-                            <div class="col-md-3">
-                                <label for="end_time" class="form-label fw-semibold">End Time</label>
-                                <input type="time" name="end_time" id="end_time" class="form-control" 
-                                       value="{{ shift.end_time|time:'H:i'|default:'' }}" required>
-                            </div>
-                            <div class="col-md-3">
-                                <label for="break_start" class="form-label fw-semibold">Break Start</label>
-                                <input type="time" name="break_start" id="break_start" class="form-control" 
-                                       value="{{ shift.break_start|time:'H:i'|default:'' }}">
-                            </div>
-                            <div class="col-md-3">
-                                <label for="break_end" class="form-label fw-semibold">Break End</label>
-                                <input type="time" name="break_end" id="break_end" class="form-control" 
-                                       value="{{ shift.break_end|time:'H:i'|default:'' }}">
-                            </div>
-                            <div class="col-md-4">
-                                <label for="grace_period" class="form-label fw-semibold">Grace Period (minutes)</label>
-                                <input type="number" name="grace_period" id="grace_period" class="form-control" 
-                                       value="{{ shift.grace_period|default:0 }}" min="0">
-                            </div>
-                            <div class="col-md-4">
-                                <label for="min_working_hours" class="form-label fw-semibold">Min Working Hours (minutes)</label>
-                                <input type="number" name="min_working_hours" id="min_working_hours" class="form-control" 
-                                       value="{{ shift.min_working_hours|default:480 }}" min="0" step="1">
-                            </div>
-                        </div>
-                    </div>
 
-                    <!-- ===== OVERTIME ===== -->
-                    <div class="mb-4">
-                        <h6 class="fw-bold text-primary mb-3">
-                            <i class="las la-clock me-2"></i> Overtime Settings
-                        </h6>
-                        <div class="row g-3 align-items-center">
-                            <div class="col-md-4">
-                                <div class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" name="overtime_allowed" id="overtime_allowed" 
+                            <div class="shf-toggle-row">
+                                <div class="shf-toggle-label">
+                                    <strong>Allow Overtime</strong>
+                                    <small>Enable extra hours with a per-day limit</small>
+                                </div>
+                                <label class="shf-switch" for="overtime_allowed">
+                                    <input type="checkbox" name="overtime_allowed" id="overtime_allowed"
                                            {% if shift.overtime_allowed %}checked{% endif %}
                                            onchange="toggleOvertimeLimit()">
-                                    <label class="form-check-label fw-semibold" for="overtime_allowed">
-                                         Overtime Allowed
+                                    <span class="shf-switch-track"></span>
+                                </label>
+                            </div>
+
+                            <div class="row g-3"> 
+
+                            <div class="col-md-6" id="overtime_limit_div"
+                                 style="{% if not shift.overtime_allowed %}display: none;{% endif %}; margin-top:32px;">
+                                <div class="shf-field">
+                                    <label for="overtime_limit" class="shf-label">
+                                        <i class="las la-plus-circle"></i> Overtime Limit
+                                        <span class="shf-optional">(hours/day)</span>
                                     </label>
+                                    <input type="number" name="overtime_limit" id="overtime_limit" class="shf-input"
+                                           value="{{ shift.overtime_limit|default:2 }}" min="0" step="0.5">
+                                    <div class="shf-hint">
+                                        <i class="las la-info-circle"></i>
+                                        <span>Maximum overtime allowed per day.</span>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="col-md-4" id="overtime_limit_div" 
-                                 style="{% if not shift.overtime_allowed %}display: none;{% endif %}">
-                                <label for="overtime_limit" class="form-label">Overtime Limit (hours/day)</label>
-                                <input type="number" name="overtime_limit" id="overtime_limit" class="form-control" 
-                                       value="{{ shift.overtime_limit|default:2 }}" min="0" step="0.5">
-                                <div class="form-text text-muted small">Maximum overtime allowed per day</div>
+                            <!-- ─────────── OT Multiplier ─────────── -->
+                            <div class="col-md-6" id="overtime_multiplier_div"
+                                 style="{% if not shift.overtime_allowed %}display: none;{% endif %}; margin-top:32px;">
+                                <div class="shf-field">
+                                    <label for="overtime_multiplier" class="shf-label">
+                                        <i class="las la-percentage"></i> OT Multiplier
+                                        <span class="shf-optional">(× rate)</span>
+                                    </label>
+                                    <input type="number" name="overtime_multiplier" id="overtime_multiplier" class="shf-input"
+                                           value="{{ shift.overtime_multiplier|default:'1.50' }}"
+                                           min="1.00" max="5.00" step="0.01">
+                                    <div class="shf-hint">
+                                        <i class="las la-info-circle"></i>
+                                        <span>1.50 = 1.5× &middot; 2.00 = 2× &middot; 1.00 = straight rate</span>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    </div>
 
-                    <!-- ===== WORKING DAYS ===== -->
-                    <div class="mb-4">
-                        <h6 class="fw-bold text-primary mb-3">
-                            <i class="las la-calendar-day me-2"></i> Working Days
-                        </h6>
-                        <div class="d-flex flex-wrap gap-3 p-3 bg-light rounded-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="mon" id="mon" {% if shift.mon %}checked{% endif %}>
-                                <label class="form-check-label fw-semibold" for="mon">Mon</label>
                             </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="tue" id="tue" {% if shift.tue %}checked{% endif %}>
-                                <label class="form-check-label fw-semibold" for="tue">Tue</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="wed" id="wed" {% if shift.wed %}checked{% endif %}>
-                                <label class="form-check-label fw-semibold" for="wed">Wed</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="thu" id="thu" {% if shift.thu %}checked{% endif %}>
-                                <label class="form-check-label fw-semibold" for="thu">Thu</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="fri" id="fri" {% if shift.fri %}checked{% endif %}>
-                                <label class="form-check-label fw-semibold" for="fri">Fri</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="sat" id="sat" {% if shift.sat %}checked{% endif %}>
-                                <label class="form-check-label fw-semibold" for="sat">Sat</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="sun" id="sun" {% if shift.sun %}checked{% endif %}>
-                                <label class="form-check-label fw-semibold" for="sun">Sun</label>
-                            </div>
-                        </div>
-                        <div class="mt-2" id="workingDaysPreview">
-                            <span class="text-muted small">Preview: </span>
-                            <span class="badge bg-primary" id="workingDaysPreviewText">
-                                {% with days=shift.get_working_days %}
-                                    {{ days|default:"No days set" }}
-                                {% endwith %}
-                            </span>
-                        </div>
-                    </div>
 
-                    <!-- ===== FORM ACTIONS ===== -->
-                    <div class="d-flex gap-2 justify-content-end pt-3 border-top">
-                        <a href="{% url 'shift_list' %}" class="btn btn-outline-secondary rounded-pill px-4">
-                            <i class="fas fa-times me-2"></i> Cancel
-                        </a>
-                        <button type="submit" class="btn btn-primary rounded-pill px-4">
-                            <i class="fas fa-save me-2"></i> {{ action }} Shift
-                        </button>
-                    </div>
-                </form>
+                        </div>
+
+                        <!-- ═══════════ SECTION 4: WORKING DAYS ═══════════ -->
+                        <div class="shf-section">
+                            <div class="shf-section-hd">
+                                <span class="shf-section-ico"><i class="las la-calendar-day"></i></span>
+                                <h6 class="shf-section-title">Working Days</h6>
+                            </div>
+
+                            <div class="shf-days-grid">
+                                <label class="shf-day" for="mon">
+                                    <input class="form-check-input" type="checkbox" name="mon" id="mon" {% if shift.mon %}checked{% endif %}>
+                                    <span class="shf-day-letter">Mon</span>
+                                    <span class="shf-day-check"><i class="fas fa-check"></i></span>
+                                </label>
+                                <label class="shf-day" for="tue">
+                                    <input class="form-check-input" type="checkbox" name="tue" id="tue" {% if shift.tue %}checked{% endif %}>
+                                    <span class="shf-day-letter">Tue</span>
+                                    <span class="shf-day-check"><i class="fas fa-check"></i></span>
+                                </label>
+                                <label class="shf-day" for="wed">
+                                    <input class="form-check-input" type="checkbox" name="wed" id="wed" {% if shift.wed %}checked{% endif %}>
+                                    <span class="shf-day-letter">Wed</span>
+                                    <span class="shf-day-check"><i class="fas fa-check"></i></span>
+                                </label>
+                                <label class="shf-day" for="thu">
+                                    <input class="form-check-input" type="checkbox" name="thu" id="thu" {% if shift.thu %}checked{% endif %}>
+                                    <span class="shf-day-letter">Thu</span>
+                                    <span class="shf-day-check"><i class="fas fa-check"></i></span>
+                                </label>
+                                <label class="shf-day" for="fri">
+                                    <input class="form-check-input" type="checkbox" name="fri" id="fri" {% if shift.fri %}checked{% endif %}>
+                                    <span class="shf-day-letter">Fri</span>
+                                    <span class="shf-day-check"><i class="fas fa-check"></i></span>
+                                </label>
+                                <label class="shf-day" for="sat">
+                                    <input class="form-check-input" type="checkbox" name="sat" id="sat" {% if shift.sat %}checked{% endif %}>
+                                    <span class="shf-day-letter">Sat</span>
+                                    <span class="shf-day-check"><i class="fas fa-check"></i></span>
+                                </label>
+                                <label class="shf-day" for="sun">
+                                    <input class="form-check-input" type="checkbox" name="sun" id="sun" {% if shift.sun %}checked{% endif %}>
+                                    <span class="shf-day-letter">Sun</span>
+                                    <span class="shf-day-check"><i class="fas fa-check"></i></span>
+                                </label>
+                            </div>
+
+                            <div class="shf-preview" id="workingDaysPreview">
+                                <span class="shf-preview-label">Preview:</span>
+                                <span class="shf-preview-badge" id="workingDaysPreviewText">
+                                    {% with days=shift.get_working_days %}
+                                        {{ days|default:"No days set" }}
+                                    {% endwith %}
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- ═══════════ ACTIONS ═══════════ -->
+                        <div class="shf-foot">
+                            <a href="{% url 'shift_list' %}" class="shf-btn shf-btn-ghost">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                            <button type="submit" class="shf-btn shf-btn-primary">
+                                <i class="fas fa-save"></i> {{ action }} Shift
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- ===== JavaScript ===== -->
+<!-- ===== JavaScript (unchanged) ===== -->
 <script>
+    
     function toggleOvertimeLimit() {
         const checkbox = document.getElementById('overtime_allowed');
-        const div = document.getElementById('overtime_limit_div');
-        if (checkbox.checked) {
-            div.style.display = 'block';
-        } else {
-            div.style.display = 'none';
-        }
+        const limitDiv = document.getElementById('overtime_limit_div');
+        const multDiv  = document.getElementById('overtime_multiplier_div');   // ← NEW
+
+        const show = checkbox.checked;
+        if (limitDiv) limitDiv.style.display = show ? 'block' : 'none';
+        if (multDiv)  multDiv.style.display  = show ? 'block' : 'none';       // ← NEW
     }
 
     // Live preview of working days
@@ -216,24 +709,4 @@
     });
 </script>
 
-<style>
-    .rounded-4 {
-        border-radius: 1rem !important;
-    }
-    .form-check-input:checked {
-        background-color: #667eea;
-        border-color: #667eea;
-    }
-    .form-control:focus {
-        border-color: #667eea;
-        box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.15);
-    }
-    .input-group-text {
-        background-color: #f8f9fa;
-        border-color: #ced4da;
-    }
-    .input-group .form-control:focus {
-        border-color: #667eea;
-    }
-</style>
 {% endblock %}

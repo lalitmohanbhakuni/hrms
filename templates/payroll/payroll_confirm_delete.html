@@ -1,0 +1,184 @@
+{% extends 'payroll/base_payroll.html' %}
+
+{% block extra_head %}
+
+
+{% endblock %}
+
+{% block payroll_content %}
+
+<style>
+    .pcd-card {
+        background: #fff;
+        border: 1px solid #e8eaee;
+        border-radius: 14px;
+        overflow: hidden;
+    }
+    .pcd-bd { padding: 32px; }
+    .pcd-ico {
+        width: 72px;
+        height: 72px;
+        margin: 0 auto 20px;
+        border-radius: 50%;
+        background: #fef2f2;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+    }
+    .pcd-ico::before,
+    .pcd-ico::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        border: 1px solid #dc2626;
+        opacity: 0;
+        animation: pcd-pulse 2.4s cubic-bezier(.4,0,.2,1) infinite;
+    }
+    .pcd-ico::after { animation-delay: 1.2s; }
+    @keyframes pcd-pulse {
+        0%   { transform: scale(1);   opacity: .5; }
+        100% { transform: scale(1.6); opacity: 0; }
+    }
+    .pcd-ico i { font-size: 1.85rem; color: #dc2626; }
+    .pcd-title {
+        font-size: 1.15rem;
+        font-weight: 600;
+        color: #0f172a;
+        text-align: center;
+        margin: 0 0 8px;
+    }
+    .pcd-msg {
+        font-size: .875rem;
+        color: #64748b;
+        text-align: center;
+        margin: 0 0 8px;
+        line-height: 1.55;
+    }
+    .pcd-detail {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: #fafbfc;
+        border: 1px solid #e8eaee;
+        border-radius: 999px;
+        font-size: .84rem;
+        font-weight: 600;
+        color: #0f172a;
+        margin: 12px auto;
+        font-variant-numeric: tabular-nums;
+    }
+    .pcd-warn {
+        display: flex;
+        gap: 10px;
+        padding: 12px 14px;
+        background: #fef2f2;
+        border-radius: 10px;
+        font-size: .78rem;
+        color: #991b1b;
+        line-height: 1.5;
+        margin: 20px auto;
+        max-width: 420px;
+        text-align: left;
+    }
+    .pcd-warn i {
+        flex-shrink: 0;
+        font-size: .95rem;
+        margin-top: 1px;
+        color: #dc2626;
+    }
+    .pcd-foot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: center;
+        padding-top: 24px;
+        border-top: 1px solid #e8eaee;
+        margin-top: 8px;
+    }
+    .pcd-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 22px;
+        font-size: .82rem;
+        font-weight: 500;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all .15s cubic-bezier(.4,0,.2,1);
+        min-width: 140px;
+        justify-content: center;
+    }
+    .pcd-btn-ghost {
+        background: transparent;
+        color: #64748b;
+        border-color: #e8eaee;
+    }
+    .pcd-btn-ghost:hover {
+        background: #fafbfc;
+        color: #0f172a;
+    }
+    .pcd-btn-danger {
+        background: #dc2626;
+        color: #fff;
+    }
+    .pcd-btn-danger:hover {
+        background: #b91c1c;
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(220,38,38,.3);
+    }
+</style>
+
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+        <div class="pcd-card">
+            <div class="pcd-bd">
+
+                <div class="pcd-ico">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+
+                <h4 class="pcd-title">Delete Draft Payroll?</h4>
+                <p class="pcd-msg">
+                    This will remove the Draft payroll record. You can then regenerate it from Payroll Processing.
+                </p>
+
+                <div class="text-center">
+                    <span class="pcd-detail">
+                        <i class="las la-user"></i>
+                        {{ payroll.employee.full_name|default:payroll.employee.user.username }}
+                        &nbsp;·&nbsp;
+                        {{ payroll.month }}/{{ payroll.year }}
+                    </span>
+                </div>
+
+                <div class="pcd-warn">
+                    <i class="las la-exclamation-circle"></i>
+                    <span>
+                        <strong>Only Draft payrolls can be deleted.</strong>
+                        Once a payroll is Processed or Paid, it becomes a permanent historical record and cannot be removed.
+                    </span>
+                </div>
+
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="pcd-foot">
+                        <a href="{% url 'payroll_list' %}" class="pcd-btn pcd-btn-ghost">
+                            <i class="fas fa-arrow-left"></i> Cancel
+                        </a>
+                        <button type="submit" class="pcd-btn pcd-btn-danger">
+                            <i class="fas fa-trash"></i> Yes, Delete
+                        </button>
+                    </div>
+                </form>
+
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

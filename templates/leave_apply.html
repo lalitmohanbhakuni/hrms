@@ -5,59 +5,410 @@
 {% block page_title %}Apply for Leave{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-lg-8">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body p-4">
-                <form method="post" enctype="multipart/form-data">
-                    {% csrf_token %}
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label for="leave_type" class="form-label fw-semibold">Leave Type</label>
-                            <select name="leave_type" id="leave_type" class="form-select" required>
-                                <option value="">Select...</option>
-                                {% for lt in leave_types %}
-                                    <option value="{{ lt.id }}">{{ lt.name }} ({{ lt.days_allowed }} days)</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold">Duration</label>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="is_half_day" id="is_half_day">
-                                <label class="form-check-label" for="is_half_day">Half Day</label>
-                            </div>
-                            <div id="half_day_session_div" style="display:none;">
-                                <select name="half_day_session" class="form-select mt-2">
-                                    <option value="First">First Half</option>
-                                    <option value="Second">Second Half</option>
+
+<style>
+    /* ─────────── Scoped tokens ─────────── */
+    .lva-wrap {
+        --lva-surface:       #ffffff;
+        --lva-surface-2:     #fafbfc;
+        --lva-border:        #e8eaee;
+        --lva-border-hover:  #d5d9e0;
+        --lva-text:          #0f172a;
+        --lva-text-muted:    #64748b;
+        --lva-text-faint:    #94a3b8;
+        --lva-primary:       #4f46e5;
+        --lva-primary-soft:  #eef2ff;
+        --lva-primary-hover: #4338ca;
+        --lva-danger:        #dc2626;
+        --lva-danger-soft:   #fef2f2;
+        --lva-pill:          999px;
+        --lva-ease:          cubic-bezier(.4, 0, .2, 1);
+    }
+
+    /* ─────────── Page header ─────────── */
+    .lva-head { margin-bottom: 22px; }
+    .lva-head-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 1.15rem;
+        font-weight: 600;
+        letter-spacing: -.015em;
+        color: var(--lva-text);
+        margin: 0 0 4px;
+    }
+    .lva-head-ico {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        background: var(--lva-primary-soft);
+        color: var(--lva-primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .95rem;
+    }
+    .lva-head-sub {
+        font-size: .82rem;
+        color: var(--lva-text-muted);
+        margin: 0;
+        padding-left: 44px;
+    }
+
+    /* ─────────── Card ─────────── */
+    .lva-card {
+        background: var(--lva-surface);
+        border: 1px solid var(--lva-border);
+        border-radius: 12px;
+        overflow: hidden;
+        transition: border-color .2s var(--lva-ease);
+    }
+    .lva-card:hover { border-color: var(--lva-border-hover); }
+    .lva-card-bd { padding: 28px 32px; }
+
+    /* ─────────── Form grid ─────────── */
+    .lva-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px 24px;
+    }
+    .lva-grid .full { grid-column: 1 / -1; }
+
+    /* ─────────── Fields ─────────── */
+    .lva-field { min-width: 0; }
+    .lva-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: .78rem;
+        font-weight: 600;
+        letter-spacing: .02em;
+        color: var(--lva-text);
+        margin-bottom: 8px;
+    }
+    .lva-label i {
+        color: var(--lva-text-faint);
+        font-size: .85rem;
+    }
+    .lva-req {
+        color: var(--lva-danger);
+        margin-left: 2px;
+    }
+    .lva-optional {
+        font-size: .7rem;
+        font-weight: 400;
+        color: var(--lva-text-faint);
+        margin-left: 4px;
+    }
+
+    .lva-input,
+    .lva-select,
+    .lva-textarea {
+        width: 100%;
+        padding: 11px 14px;
+        font-size: .875rem;
+        font-family: inherit;
+        color: var(--lva-text);
+        background: var(--lva-surface);
+        border: 1px solid var(--lva-border);
+        border-radius: 10px;
+        outline: none;
+        transition: border-color .15s var(--lva-ease), box-shadow .15s var(--lva-ease);
+        font-variant-numeric: tabular-nums;
+        appearance: none;
+        -webkit-appearance: none;
+    }
+    .lva-select {
+        background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3e%3cpath fill='none' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M3 5l3 3 3-3'/%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right 14px center;
+        background-size: 12px;
+        padding-right: 38px;
+        cursor: pointer;
+    }
+    .lva-textarea {
+        resize: vertical;
+        min-height: 92px;
+        line-height: 1.5;
+        font-variant-numeric: normal;
+    }
+    .lva-input::placeholder,
+    .lva-textarea::placeholder { color: var(--lva-text-faint); }
+    .lva-input:hover,
+    .lva-select:hover,
+    .lva-textarea:hover { border-color: var(--lva-border-hover); }
+    .lva-input:focus,
+    .lva-select:focus,
+    .lva-textarea:focus {
+        border-color: var(--lva-primary);
+        box-shadow: 0 0 0 3px rgba(79,70,229,.12);
+    }
+
+    /* File input */
+    .lva-input[type="file"] {
+        padding: 9px 14px;
+        cursor: pointer;
+        font-size: .82rem;
+    }
+    .lva-input[type="file"]::file-selector-button {
+        padding: 6px 14px;
+        margin-right: 12px;
+        font-size: .75rem;
+        font-weight: 500;
+        border: none;
+        border-radius: 6px;
+        background: var(--lva-surface-2);
+        color: var(--lva-text);
+        border: 1px solid var(--lva-border);
+        cursor: pointer;
+        transition: background .15s var(--lva-ease);
+    }
+    .lva-input[type="file"]::file-selector-button:hover {
+        background: var(--lva-primary-soft);
+        color: var(--lva-primary);
+        border-color: transparent;
+    }
+
+    /* Date/time picker icon */
+    .lva-input[type="date"]::-webkit-calendar-picker-indicator {
+        cursor: pointer;
+        opacity: .55;
+        transition: opacity .15s var(--lva-ease);
+    }
+    .lva-input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+
+    /* ─────────── Half-day toggle ─────────── */
+    .lva-toggle {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        background: var(--lva-surface-2);
+        border: 1px solid var(--lva-border);
+        border-radius: 10px;
+        cursor: pointer;
+        transition: border-color .15s var(--lva-ease), background .15s var(--lva-ease);
+    }
+    .lva-toggle:hover {
+        border-color: var(--lva-border-hover);
+        background: var(--lva-surface);
+    }
+    .lva-toggle .form-check-input {
+        margin: 0;
+        cursor: pointer;
+        width: 16px;
+        height: 16px;
+        border: 1.5px solid var(--lva-border-hover);
+        transition: all .15s var(--lva-ease);
+    }
+    .lva-toggle .form-check-input:checked {
+        background-color: var(--lva-primary);
+        border-color: var(--lva-primary);
+    }
+    .lva-toggle .form-check-input:focus {
+        box-shadow: 0 0 0 3px rgba(79,70,229,.15);
+        border-color: var(--lva-primary);
+    }
+    .lva-toggle .form-check-label {
+        font-size: .82rem;
+        font-weight: 500;
+        color: var(--lva-text);
+        cursor: pointer;
+        margin: 0;
+        user-select: none;
+    }
+    .lva-toggle-hint {
+        font-size: .7rem;
+        color: var(--lva-text-faint);
+        margin-left: auto;
+    }
+
+    /* ─────────── Note ─────────── */
+    .lva-note {
+        display: flex;
+        gap: 10px;
+        padding: 12px 14px;
+        background: var(--lva-primary-soft);
+        border-radius: 10px;
+        font-size: .78rem;
+        color: #3730a3;
+        line-height: 1.5;
+        margin-bottom: 22px;
+    }
+    .lva-note i {
+        flex-shrink: 0;
+        font-size: .95rem;
+        margin-top: 1px;
+        color: var(--lva-primary);
+    }
+
+    /* ─────────── Footer ─────────── */
+    .lva-foot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding-top: 22px;
+        border-top: 1px solid var(--lva-border);
+        margin-top: 22px;
+        grid-column: 1 / -1;
+    }
+    .lva-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 22px;
+        font-size: .82rem;
+        font-weight: 500;
+        border-radius: var(--lva-pill);
+        border: 1px solid transparent;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all .15s var(--lva-ease);
+    }
+    .lva-btn i { font-size: .85rem; }
+
+    .lva-btn-primary {
+        background: var(--lva-primary);
+        color: #fff;
+    }
+    .lva-btn-primary:hover {
+        background: var(--lva-primary-hover);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(79,70,229,.25);
+    }
+
+    .lva-btn-ghost {
+        background: transparent;
+        color: var(--lva-text-muted);
+        border-color: var(--lva-border);
+    }
+    .lva-btn-ghost:hover {
+        background: var(--lva-surface-2);
+        color: var(--lva-text);
+        border-color: var(--lva-border-hover);
+    }
+
+    /* ─────────── Responsive ─────────── */
+    @media (max-width: 767.98px) {
+        .lva-card-bd { padding: 22px 20px; }
+        .lva-head-sub { padding-left: 0; }
+        .lva-grid { grid-template-columns: 1fr; gap: 18px; }
+        .lva-btn { padding: 9px 18px; font-size: .8rem; }
+        .lva-foot { gap: 8px; }
+        .lva-foot .lva-btn { flex: 1; justify-content: center; }
+    }
+</style>
+
+<div class="lva-wrap">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+
+            <!-- Page header -->
+            <div class="lva-head">
+                <h5 class="lva-head-title">
+                    <span class="lva-head-ico"><i class="fas fa-plus-circle"></i></span>
+                    Apply for Leave
+                </h5>
+                <p class="lva-head-sub">
+                    Fill out the details below. Your request will be sent to your approver.
+                </p>
+            </div>
+
+            <!-- Card -->
+            <div class="lva-card">
+                <div class="lva-card-bd">
+
+                    <div class="lva-note">
+                        <i class="las la-info-circle"></i>
+                        <span>
+                            Half-day leave only requires the "From" date. Full-day leave needs both dates.
+                        </span>
+                    </div>
+
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+
+                        <div class="lva-grid">
+
+                            <!-- Leave Type -->
+                            <div class="lva-field">
+                                <label for="leave_type" class="lva-label">
+                                    <i class="las la-tag"></i> Leave Type <span class="lva-req">*</span>
+                                </label>
+                                <select name="leave_type" id="leave_type" class="lva-select" required>
+                                    <option value="">Select...</option>
+                                    {% for lt in leave_types %}
+                                        <option value="{{ lt.id }}">{{ lt.name }} ({{ lt.days_allowed }} days)</option>
+                                    {% endfor %}
                                 </select>
                             </div>
+
+                            <!-- Duration: Half day toggle -->
+                            <div class="lva-field">
+                                <label class="lva-label">
+                                    <i class="las la-hourglass-half"></i> Duration
+                                </label>
+                                <label for="is_half_day" class="lva-toggle">
+                                    <input class="form-check-input" type="checkbox" name="is_half_day" id="is_half_day">
+                                    <span class="form-check-label">Half Day</span>
+                                    <span class="lva-toggle-hint">Optional</span>
+                                </label>
+                                <div id="half_day_session_div" style="display:none; margin-top:10px;">
+                                    <select name="half_day_session" class="lva-select">
+                                        <option value="First">First Half</option>
+                                        <option value="Second">Second Half</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- From Date -->
+                            <div class="lva-field">
+                                <label for="start_date" class="lva-label">
+                                    <i class="las la-calendar-day"></i> From Date <span class="lva-req">*</span>
+                                </label>
+                                <input type="date" name="start_date" id="start_date" class="lva-input" required>
+                            </div>
+
+                            <!-- To Date -->
+                            <div class="lva-field" id="end_date_div">
+                                <label for="end_date" class="lva-label">
+                                    <i class="las la-calendar-check"></i> To Date <span class="lva-req">*</span>
+                                </label>
+                                <input type="date" name="end_date" id="end_date" class="lva-input" required>
+                            </div>
+
+                            <!-- Reason -->
+                            <div class="lva-field full">
+                                <label for="reason" class="lva-label">
+                                    <i class="las la-comment-alt"></i> Reason <span class="lva-req">*</span>
+                                </label>
+                                <textarea name="reason" id="reason" rows="3" class="lva-textarea" required
+                                          placeholder="Describe your reason..."></textarea>
+                            </div>
+
+                            <!-- Attachment -->
+                            <div class="lva-field full">
+                                <label for="attachment" class="lva-label">
+                                    <i class="las la-paperclip"></i> Attachment
+                                    <span class="lva-optional">(optional)</span>
+                                </label>
+                                <input type="file" name="attachment" id="attachment" class="lva-input">
+                            </div>
+
+                            <!-- Actions -->
+                            <div class="lva-foot">
+                                <button type="submit" class="lva-btn lva-btn-primary">
+                                    <i class="fas fa-paper-plane"></i> Submit Leave Request
+                                </button>
+                                <a href="{% url 'employee_leaves' %}" class="lva-btn lva-btn-ghost">
+                                    <i class="fas fa-times"></i> Cancel
+                                </a>
+                            </div>
                         </div>
-                        <div class="col-md-6">
-                            <label for="start_date" class="form-label fw-semibold">From Date</label>
-                            <input type="date" name="start_date" id="start_date" class="form-control" required>
-                        </div>
-                        <div class="col-md-6" id="end_date_div">
-                            <label for="end_date" class="form-label fw-semibold">To Date</label>
-                            <input type="date" name="end_date" id="end_date" class="form-control" required>
-                        </div>
-                        <div class="col-12">
-                            <label for="reason" class="form-label fw-semibold">Reason</label>
-                            <textarea name="reason" id="reason" rows="3" class="form-control" required placeholder="Describe your reason..."></textarea>
-                        </div>
-                        <div class="col-12">
-                            <label for="attachment" class="form-label fw-semibold">Attachment (optional)</label>
-                            <input type="file" name="attachment" id="attachment" class="form-control">
-                        </div>
-                        <div class="col-12">
-                            <button type="submit" class="btn btn-primary rounded-pill px-4">
-                                <i class="fas fa-paper-plane me-2"></i> Submit Leave Request
-                            </button>
-                            <a href="{% url 'employee_leaves' %}" class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
-                        </div>
-                    </div>
-                </form>
+                    </form>
+
+                </div>
             </div>
         </div>
     </div>

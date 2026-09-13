@@ -67,6 +67,24 @@ urlpatterns = [
     path('shifts/delete/<int:pk>/', views.shift_delete, name='shift_delete'),
 
     path('assign-shift/', views.assign_shift, name='assign_shift'),
+    path('change-password/', views.change_password, name='change_password'),
+
+
+
+    path('forgot-password/', views.forgot_password, name='forgot_password'),
+    path('password-reset/request/<int:request_id>/',
+         views.password_reset_request_detail,
+         name='password_reset_request_detail'),
+    path('password-reset/request/<int:request_id>/approve/',
+         views.password_reset_approve,
+         name='password_reset_approve'),
+    path('password-reset/request/<int:request_id>/reject/',
+         views.password_reset_reject,
+         name='password_reset_reject'),
+    path('password-reset/request/<int:request_id>/set-password/',
+         views.password_reset_set_new,
+         name='password_reset_set_new'),
+
 
 
     
@@ -85,6 +103,8 @@ urlpatterns = [
 
 
     path('profile/', views.profile, name='profile'),
+
+    path('payroll/payslips/<int:pk>/delete/', views.payroll_delete, name='payroll_delete'),
 
 
 

@@ -5,34 +5,290 @@
 {% block page_title %}Delete Leave Type{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body text-center p-4">
-                <div class="mb-3">
-                    <i class="fas fa-exclamation-triangle text-warning" style="font-size: 3rem;"></i>
-                </div>
-                <h4>Delete Leave Type?</h4>
-                <p class="text-muted">
-                    Are you sure you want to delete 
-                    <strong>{{ leave_type.name }}</strong>?
-                </p>
-                <p class="text-muted small">
-                    This action cannot be undone.
-                </p>
-                <form method="post">
-                    {% csrf_token %}
-                    <div class="d-flex justify-content-center gap-2">
-                        <a href="{% url 'leave_type_list' %}" class="btn btn-outline-secondary rounded-pill px-4">
-                            <i class="fas fa-times me-1"></i> Cancel
-                        </a>
-                        <button type="submit" class="btn btn-danger rounded-pill px-4">
-                            <i class="fas fa-trash me-1"></i> Yes, Delete
-                        </button>
+
+<style>
+    /* ═══════════════════════════════════════════════════
+       Delete Leave Type — refined design system
+       Prefix: .ltd-
+       ═══════════════════════════════════════════════════ */
+    .ltd-wrap {
+        --ltd-surface:       #ffffff;
+        --ltd-surface-2:     #fafbfc;
+        --ltd-surface-3:     #f4f6f8;
+        --ltd-border:        #e8eaee;
+        --ltd-border-hover:  #d5d9e0;
+        --ltd-text:          #0f172a;
+        --ltd-text-muted:    #64748b;
+        --ltd-text-faint:    #94a3b8;
+        --ltd-danger:        #dc2626;
+        --ltd-danger-soft:   #fef2f2;
+        --ltd-danger-hover:  #b91c1c;
+        --ltd-pill:          999px;
+        --ltd-ease:          cubic-bezier(.4, 0, .2, 1);
+    }
+
+    /* ─── Page heading ─── */
+    .ltd-hd { margin-bottom: 22px; }
+    .ltd-hd-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 1.15rem;
+        font-weight: 600;
+        letter-spacing: -.015em;
+        color: var(--ltd-text);
+        margin: 0 0 4px;
+    }
+    .ltd-hd-ico {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        background: var(--ltd-danger-soft);
+        color: var(--ltd-danger);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .95rem;
+    }
+    .ltd-hd-sub {
+        font-size: .82rem;
+        color: var(--ltd-text-muted);
+        margin: 0;
+        padding-left: 44px;
+    }
+
+    /* ─── Card ─── */
+    .ltd-card {
+        background: var(--ltd-surface);
+        border: 1px solid var(--ltd-border);
+        border-radius: 14px;
+        overflow: hidden;
+        transition: border-color .2s var(--ltd-ease);
+    }
+    .ltd-card:hover { border-color: var(--ltd-border-hover); }
+    .ltd-card-bd { padding: 32px 32px 28px; }
+
+    /* ─── Warning icon ─── */
+    .ltd-icon-wrap {
+        width: 72px;
+        height: 72px;
+        margin: 0 auto 20px;
+        border-radius: 50%;
+        background: var(--ltd-danger-soft);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+    }
+    .ltd-icon-wrap::before,
+    .ltd-icon-wrap::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        border: 1px solid var(--ltd-danger);
+        opacity: 0;
+        animation: ltd-pulse 2.4s var(--ltd-ease) infinite;
+    }
+    .ltd-icon-wrap::after { animation-delay: 1.2s; }
+    @keyframes ltd-pulse {
+        0%   { transform: scale(1);    opacity: .5; }
+        100% { transform: scale(1.6);  opacity: 0;  }
+    }
+    .ltd-icon-wrap i {
+        font-size: 1.85rem;
+        color: var(--ltd-danger);
+    }
+
+    /* ─── Content ─── */
+    .ltd-title {
+        font-size: 1.15rem;
+        font-weight: 600;
+        letter-spacing: -.015em;
+        color: var(--ltd-text);
+        margin: 0 0 10px;
+        text-align: center;
+    }
+    .ltd-message {
+        font-size: .875rem;
+        color: var(--ltd-text-muted);
+        line-height: 1.55;
+        text-align: center;
+        margin: 0 0 4px;
+    }
+
+    /* ─── Highlighted name ─── */
+    .ltd-name {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: var(--ltd-surface-2);
+        border: 1px solid var(--ltd-border);
+        border-radius: var(--ltd-pill);
+        font-size: .875rem;
+        font-weight: 600;
+        color: var(--ltd-text);
+        margin: 16px auto;
+        letter-spacing: -.005em;
+        max-width: 100%;
+        word-break: break-word;
+    }
+    .ltd-name i {
+        color: var(--ltd-text-faint);
+        font-size: .85rem;
+        flex-shrink: 0;
+    }
+
+    /* ─── Info/warning row ─── */
+    .ltd-warning {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 12px 14px;
+        background: var(--ltd-danger-soft);
+        border-radius: 10px;
+        font-size: .78rem;
+        color: #991b1b;
+        line-height: 1.5;
+        margin: 20px auto;
+        max-width: 380px;
+        text-align: left;
+    }
+    .ltd-warning i {
+        flex-shrink: 0;
+        font-size: .95rem;
+        margin-top: 1px;
+        color: var(--ltd-danger);
+    }
+    .ltd-warning strong {
+        color: #7f1d1d;
+        font-weight: 600;
+    }
+
+    /* ─── Footer / buttons ─── */
+    .ltd-foot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: center;
+        padding-top: 24px;
+        border-top: 1px solid var(--ltd-border);
+        margin-top: 8px;
+    }
+    .ltd-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 22px;
+        font-size: .82rem;
+        font-weight: 500;
+        border-radius: var(--ltd-pill);
+        border: 1px solid transparent;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all .15s var(--ltd-ease);
+        line-height: 1.3;
+        min-width: 140px;
+        justify-content: center;
+    }
+    .ltd-btn i { font-size: .85rem; }
+
+    .ltd-btn-ghost {
+        background: transparent;
+        color: var(--ltd-text-muted);
+        border-color: var(--ltd-border);
+    }
+    .ltd-btn-ghost:hover {
+        background: var(--ltd-surface-2);
+        color: var(--ltd-text);
+        border-color: var(--ltd-border-hover);
+    }
+
+    .ltd-btn-danger {
+        background: var(--ltd-danger);
+        color: #fff;
+    }
+    .ltd-btn-danger:hover {
+        background: var(--ltd-danger-hover);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(220,38,38,.3);
+    }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 767.98px) {
+        .ltd-card-bd { padding: 26px 20px 22px; }
+        .ltd-hd-sub { padding-left: 0; }
+        .ltd-icon-wrap { width: 60px; height: 60px; }
+        .ltd-icon-wrap i { font-size: 1.5rem; }
+        .ltd-title { font-size: 1rem; }
+        .ltd-message { font-size: .82rem; }
+        .ltd-foot { gap: 8px; }
+        .ltd-foot .ltd-btn { flex: 1; min-width: 0; }
+    }
+</style>
+
+<div class="ltd-wrap">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+
+            <!-- Page header -->
+            <div class="ltd-hd">
+                <h5 class="ltd-hd-title">
+                    <span class="ltd-hd-ico"><i class="fas fa-trash"></i></span>
+                    Delete Leave Type
+                </h5>
+                <p class="ltd-hd-sub">This action is permanent and cannot be undone.</p>
+            </div>
+
+            <!-- Card -->
+            <div class="ltd-card">
+                <div class="ltd-card-bd">
+
+                    <!-- Warning icon with pulse -->
+                    <div class="ltd-icon-wrap">
+                        <i class="fas fa-exclamation-triangle"></i>
                     </div>
-                </form>
+
+                    <!-- Title + message -->
+                    <h4 class="ltd-title">Delete this leave type?</h4>
+                    <p class="ltd-message">
+                        The leave type below will be permanently removed from your company.
+                    </p>
+
+                    <!-- Name chip -->
+                    <div class="text-center">
+                        <span class="ltd-name">
+                            <i class="las la-tag"></i> {{ leave_type.name }}
+                        </span>
+                    </div>
+
+                    <!-- Warning note -->
+                    <div class="ltd-warning">
+                        <i class="las la-exclamation-circle"></i>
+                        <span>
+                            <strong>Warning:</strong> Existing leave requests using this type will remain, but employees won't be able to select it for new requests.
+                        </span>
+                    </div>
+
+                    <!-- Actions -->
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="ltd-foot">
+                            <a href="{% url 'leave_type_list' %}" class="ltd-btn ltd-btn-ghost">
+                                <i class="fas fa-arrow-left"></i> Cancel
+                            </a>
+                            <button type="submit" class="ltd-btn ltd-btn-danger">
+                                <i class="fas fa-trash"></i> Yes, Delete
+                            </button>
+                        </div>
+                    </form>
+
+                </div>
             </div>
         </div>
     </div>
 </div>
+
 {% endblock %}

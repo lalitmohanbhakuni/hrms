@@ -4,118 +4,643 @@
 {% block page_icon %}users-cog{% endblock %}
 {% block page_title %}Bulk Shift Assignment{% endblock %}
 
+{% block extra_head %}
+
+{% endblock %}
+
 {% block content %}
 
-<div class="row">
-    <div class="col-lg-12">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body p-4">
-                <form method="post">
-                    {% csrf_token %}
+<style>
+    /* ═══════════════════════════════════════════════════
+       Assign Shift — refined design system
+       Prefix: .ash-
+       ═══════════════════════════════════════════════════ */
+    .ash-wrap {
+        --ash-surface:        #ffffff;
+        --ash-surface-2:      #fafbfc;
+        --ash-surface-3:      #f4f6f8;
+        --ash-border:         #e8eaee;
+        --ash-border-hover:   #d5d9e0;
+        --ash-text:           #0f172a;
+        --ash-text-muted:     #64748b;
+        --ash-text-faint:     #94a3b8;
+        --ash-primary:        #4f46e5;
+        --ash-primary-soft:   #eef2ff;
+        --ash-primary-hover:  #4338ca;
+        --ash-success:        #059669;
+        --ash-success-soft:   #ecfdf5;
+        --ash-warning:        #d97706;
+        --ash-warning-soft:   #fffbeb;
+        --ash-danger:         #dc2626;
+        --ash-danger-soft:    #fef2f2;
+        --ash-info:           #0284c7;
+        --ash-info-soft:      #f0f9ff;
+        --ash-pill:           999px;
+        --ash-shadow-xs:      0 1px 2px rgba(15,23,42,.04);
+        --ash-ease:           cubic-bezier(.4, 0, .2, 1);
+    }
+
+    /* ─── Page header ─── */
+    .ash-hd {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 22px;
+    }
+    .ash-hd-ico {
+        width: 40px;
+        height: 40px;
+        border-radius: 11px;
+        background: var(--ash-primary-soft);
+        color: var(--ash-primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.05rem;
+        flex-shrink: 0;
+    }
+    .ash-hd-title {
+        font-size: 1.15rem;
+        font-weight: 600;
+        letter-spacing: -.015em;
+        color: var(--ash-text);
+        margin: 0 0 2px;
+        line-height: 1.2;
+    }
+    .ash-hd-sub {
+        font-size: .82rem;
+        color: var(--ash-text-muted);
+        margin: 0;
+    }
+
+    /* ─── Card ─── */
+    .ash-card {
+        background: var(--ash-surface);
+        border: 1px solid var(--ash-border);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: var(--ash-shadow-xs);
+    }
+    .ash-card-bd { padding: 26px 30px; }
+
+    /* ─── Section ─── */
+    .ash-section {
+        padding-bottom: 22px;
+        margin-bottom: 22px;
+        border-bottom: 1px solid var(--ash-border);
+    }
+    .ash-section:last-of-type {
+        border-bottom: none;
+        padding-bottom: 0;
+        margin-bottom: 0;
+    }
+    .ash-section-hd {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 18px;
+    }
+    .ash-section-ico {
+        width: 30px;
+        height: 30px;
+        border-radius: 9px;
+        background: var(--ash-primary-soft);
+        color: var(--ash-primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .82rem;
+        flex-shrink: 0;
+    }
+    .ash-section-title {
+        font-size: .8rem;
+        font-weight: 600;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--ash-text-muted);
+        margin: 0;
+    }
+
+    /* ─── Fields ─── */
+    .ash-field { min-width: 0; }
+    .ash-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: .78rem;
+        font-weight: 600;
+        letter-spacing: .02em;
+        color: var(--ash-text);
+        margin-bottom: 8px;
+    }
+    .ash-label i {
+        color: var(--ash-text-faint);
+        font-size: .85rem;
+    }
+    .ash-req {
+        color: var(--ash-danger);
+        margin-left: 2px;
+    }
+    .ash-optional {
+        font-size: .7rem;
+        font-weight: 400;
+        color: var(--ash-text-faint);
+        margin-left: 4px;
+    }
+
+    .ash-input,
+    .ash-select {
+        width: 100%;
+        padding: 11px 14px;
+        font-size: .875rem;
+        font-family: inherit;
+        color: var(--ash-text);
+        background: var(--ash-surface);
+        border: 1px solid var(--ash-border);
+        border-radius: 10px;
+        outline: none;
+        transition: border-color .15s var(--ash-ease), box-shadow .15s var(--ash-ease);
+        appearance: none;
+        -webkit-appearance: none;
+    }
+    .ash-select {
+        background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3e%3cpath fill='none' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M3 5l3 3 3-3'/%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right 14px center;
+        background-size: 12px;
+        padding-right: 38px;
+        cursor: pointer;
+    }
+    .ash-input::placeholder { color: var(--ash-text-faint); }
+    .ash-input:hover,
+    .ash-select:hover { border-color: var(--ash-border-hover); }
+    .ash-input:focus,
+    .ash-select:focus {
+        border-color: var(--ash-primary);
+        box-shadow: 0 0 0 3px rgba(79,70,229,.12);
+    }
+    .ash-input[type="date"]::-webkit-calendar-picker-indicator {
+        cursor: pointer;
+        opacity: .55;
+        transition: opacity .15s var(--ash-ease);
+    }
+    .ash-input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+
+    .ash-hint {
+        font-size: .7rem;
+        color: var(--ash-text-faint);
+        margin-top: 6px;
+        display: flex;
+        align-items: flex-start;
+        gap: 4px;
+        line-height: 1.45;
+    }
+    .ash-hint i {
+        font-size: .72rem;
+        margin-top: 1px;
+        flex-shrink: 0;
+    }
+
+    /* ─── Buttons ─── */
+    .ash-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 9px 18px;
+        font-size: .8rem;
+        font-weight: 500;
+        border-radius: var(--ash-pill);
+        border: 1px solid transparent;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all .15s var(--ash-ease);
+        line-height: 1.3;
+        white-space: nowrap;
+    }
+    .ash-btn i { font-size: .82rem; }
+
+    .ash-btn-primary {
+        background: var(--ash-primary);
+        color: #fff;
+    }
+    .ash-btn-primary:hover {
+        background: var(--ash-primary-hover);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(79,70,229,.25);
+    }
+
+    .ash-btn-ghost {
+        background: transparent;
+        color: var(--ash-text-muted);
+        border-color: var(--ash-border);
+    }
+    .ash-btn-ghost:hover {
+        background: var(--ash-surface-2);
+        color: var(--ash-text);
+        border-color: var(--ash-border-hover);
+    }
+
+    /* ─── Select-all toggle row ─── */
+    .ash-selectall {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 16px;
+        background: var(--ash-primary-soft);
+        border-radius: 10px;
+        margin-bottom: 14px;
+    }
+    .ash-selectall-left {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+    }
+    .ash-selectall .form-check-input {
+        margin: 0;
+        width: 16px;
+        height: 16px;
+        border: 1.5px solid var(--ash-primary);
+        cursor: pointer;
+        transition: all .15s var(--ash-ease);
+    }
+    .ash-selectall .form-check-input:checked {
+        background-color: var(--ash-primary);
+        border-color: var(--ash-primary);
+    }
+    .ash-selectall .form-check-input:focus {
+        box-shadow: 0 0 0 3px rgba(79,70,229,.15);
+    }
+    .ash-selectall-label {
+        font-size: .82rem;
+        font-weight: 600;
+        color: var(--ash-primary);
+        cursor: pointer;
+    }
+    .ash-selectall-hint {
+        font-size: .72rem;
+        color: #4338ca;
+        opacity: .75;
+    }
+
+    /* ─── Employee list container ─── */
+    .ash-emp-list {
+        border: 1px solid var(--ash-border);
+        border-radius: 10px;
+        background: var(--ash-surface);
+        max-height: 380px;
+        overflow-y: auto;
+    }
+    .ash-emp-list::-webkit-scrollbar { width: 6px; }
+    .ash-emp-list::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+    }
+    .ash-emp-list::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    /* ─── Employee row ─── */
+    .ash-emp {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--ash-border);
+        cursor: pointer;
+        transition: background .12s var(--ash-ease);
+        user-select: none;
+    }
+    .ash-emp:last-child { border-bottom: none; }
+    .ash-emp:hover { background: var(--ash-surface-2); }
+    .ash-emp input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        margin: 0;
+        border: 1.5px solid var(--ash-border-hover);
+        cursor: pointer;
+        flex-shrink: 0;
+        transition: all .15s var(--ash-ease);
+    }
+    .ash-emp input[type="checkbox"]:checked {
+        background-color: var(--ash-primary);
+        border-color: var(--ash-primary);
+    }
+    .ash-emp input[type="checkbox"]:focus {
+        box-shadow: 0 0 0 3px rgba(79,70,229,.15);
+        border-color: var(--ash-primary);
+    }
+
+    .ash-emp-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        color: #fff;
+        font-weight: 600;
+        font-size: .72rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        letter-spacing: -.02em;
+    }
+
+    .ash-emp-body {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+    .ash-emp-name {
+        font-size: .84rem;
+        font-weight: 600;
+        color: var(--ash-text);
+        letter-spacing: -.005em;
+    }
+    .ash-emp-name small {
+        color: var(--ash-text-faint);
+        font-weight: 400;
+        margin-left: 4px;
+        font-size: .78rem;
+    }
+    .ash-emp-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+    }
+
+    /* ─── Tag styles ─── */
+    .ash-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 9px;
+        border-radius: var(--ash-pill);
+        font-size: .65rem;
+        font-weight: 500;
+        letter-spacing: .01em;
+        white-space: nowrap;
+    }
+    .ash-tag i { font-size: .68rem; }
+    .ash-tag.shift    { background: var(--ash-surface-3);    color: var(--ash-text-muted); }
+    .ash-tag.shift.on { background: var(--ash-success-soft); color: var(--ash-success); }
+    .ash-tag.dept     { background: var(--ash-info-soft);    color: var(--ash-info); }
+    .ash-tag.role     { background: var(--ash-surface-2);    color: var(--ash-text-muted); border: 1px solid var(--ash-border); }
+
+    /* ─── Empty state ─── */
+    .ash-empty {
+        text-align: center;
+        padding: 48px 20px;
+    }
+    .ash-empty-ico {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: var(--ash-surface-2);
+        border: 1px solid var(--ash-border);
+        color: var(--ash-text-faint);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        margin-bottom: 14px;
+    }
+    .ash-empty-title {
+        font-size: .88rem;
+        font-weight: 600;
+        color: var(--ash-text);
+        margin: 0 0 4px;
+    }
+    .ash-empty-sub {
+        font-size: .78rem;
+        color: var(--ash-text-muted);
+        margin: 0;
+    }
+
+    /* ─── Footer ─── */
+    .ash-foot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding-top: 22px;
+        border-top: 1px solid var(--ash-border);
+        margin-top: 22px;
+    }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 767.98px) {
+        .ash-card-bd { padding: 20px; }
+        .ash-hd-title { font-size: 1rem; }
+        .ash-hd-ico { width: 34px; height: 34px; font-size: .95rem; }
+        .ash-section { padding-bottom: 18px; margin-bottom: 18px; }
+        .ash-btn { padding: 8px 16px; font-size: .76rem; }
+        .ash-emp { padding: 10px 14px; gap: 10px; }
+        .ash-emp-avatar { width: 28px; height: 28px; font-size: .66rem; }
+        .ash-foot .ash-btn { flex: 1; justify-content: center; }
+    }
+</style>
+
+
+<div class="ash-wrap">
+
+    <!-- ═══════════ Page header ═══════════ -->
+    <div class="ash-hd">
+        <span class="ash-hd-ico"><i class="las la-users-cog"></i></span>
+        <div>
+            <h1 class="ash-hd-title">Bulk Shift Assignment</h1>
+            <p class="ash-hd-sub">Pick a shift and assign it to multiple employees at once.</p>
+        </div>
+    </div>
+
+    <!-- ═══════════ Card ═══════════ -->
+    <div class="ash-card">
+        <div class="ash-card-bd">
+            <form method="post">
+                {% csrf_token %}
+
+                <!-- ═══ SECTION 1: Shift + Effective Date ═══ -->
+                <div class="ash-section">
+                    <div class="ash-section-hd">
+                        <span class="ash-section-ico"><i class="las la-clock"></i></span>
+                        <h6 class="ash-section-title">Shift & Schedule</h6>
+                    </div>
+
                     <div class="row g-3">
-                        <!-- Shift Selection -->
-                        <div class="col-md-4">
-                            <label for="shift" class="form-label fw-semibold">Select Shift</label>
-                            <select name="shift" id="shift" class="form-select" required>
-                                <option value="">-- Choose a shift --</option>
-                                {% for shift in shifts %}
-                                    <option value="{{ shift.id }}">{{ shift.name }} ({{ shift.start_time|time:"h:i A" }} – {{ shift.end_time|time:"h:i A" }})</option>
-                                {% endfor %}
-                            </select>
+                        <div class="col-md-5">
+                            <div class="ash-field">
+                                <label for="shift" class="ash-label">
+                                    <i class="las la-business-time"></i> Select Shift <span class="ash-req">*</span>
+                                </label>
+                                <select name="shift" id="shift" class="ash-select" required>
+                                    <option value="">-- Choose a shift --</option>
+                                    {% for shift in shifts %}
+                                        <option value="{{ shift.id }}">{{ shift.name }} ({{ shift.start_time|time:"h:i A" }} – {{ shift.end_time|time:"h:i A" }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
                         </div>
 
-                        <!-- Effective From -->
-                        <div class="col-md-4">
-                            <label for="effective_from" class="form-label fw-semibold">Effective From</label>
-                            <input type="date" name="effective_from" id="effective_from" class="form-control" value="{{ today|date:'Y-m-d' }}">
-                            <div class="form-text text-muted small">Date when this shift assignment starts.</div>
+                        <div class="col-md-5">
+                            <div class="ash-field">
+                                <label for="effective_from" class="ash-label">
+                                    <i class="las la-calendar-check"></i> Effective From
+                                </label>
+                                <input type="date" name="effective_from" id="effective_from"
+                                       class="ash-input" value="{{ today|date:'Y-m-d' }}">
+                                <div class="ash-hint">
+                                    <i class="las la-info-circle"></i>
+                                    <span>Date when this shift assignment starts.</span>
+                                </div>
+                            </div>
                         </div>
 
-                        <!-- Clear Filters -->
-                        <div class="col-md-4 d-flex align-items-end justify-content-end">
-                            <a href="{% url 'assign_shift' %}" class="btn btn-outline-secondary rounded-pill">
-                                <i class="fas fa-times me-1"></i> Clear Filters
+                        <div class="col-md-2 d-flex align-items-end">
+                            <a href="{% url 'assign_shift' %}" class="ash-btn ash-btn-ghost" title="Reset all filters">
+                                <i class="fas fa-times"></i> Clear
                             </a>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Filter Row -->
-                    <div class="row g-3 mt-2">
-                        <div class="col-md-3">
-                            <label for="department_filter" class="form-label fw-semibold">Department</label>
-                            <select name="department" id="department_filter" class="form-select" onchange="this.form.submit()">
-                                <option value="">All Departments</option>
-                                {% for dept in distinct_departments %}
-                                    <option value="{{ dept }}" {% if department_filter == dept %}selected{% endif %}>{{ dept }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label for="designation_filter" class="form-label fw-semibold">Designation</label>
-                            <select name="designation" id="designation_filter" class="form-select" onchange="this.form.submit()">
-                                <option value="">All Designations</option>
-                                {% for desig in distinct_designations %}
-                                    <option value="{{ desig }}" {% if designation_filter == desig %}selected{% endif %}>{{ desig }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label for="location_filter" class="form-label fw-semibold">Location</label>
-                            <input type="text" name="location" id="location_filter" class="form-control" value="{{ location_filter }}" placeholder="Filter by location...">
-                        </div>
-                        <div class="col-md-3">
-                            <label for="team_filter" class="form-label fw-semibold">Team</label>
-                            <input type="text" name="team" id="team_filter" class="form-control" value="{{ team_filter }}" placeholder="Filter by team...">
-                        </div>
+                <!-- ═══ SECTION 2: Filters ═══ -->
+                <div class="ash-section">
+                    <div class="ash-section-hd">
+                        <span class="ash-section-ico"><i class="las la-filter"></i></span>
+                        <h6 class="ash-section-title">Filter Employees</h6>
                     </div>
 
-                    <!-- Employee Selection -->
-                    <div class="mt-4">
-                        <label class="form-label fw-semibold">Select Employees</label>
-                        <div class="card border">
-                            <div class="card-body" style="max-height: 350px; overflow-y: auto;">
-                                <div class="form-check mb-2">
-                                    <input class="form-check-input" type="checkbox" id="selectAll">
-                                    <label class="form-check-label fw-semibold" for="selectAll">Select All</label>
-                                </div>
-                                <hr>
-                                {% for emp in employees %}
-                                    <div class="form-check">
-                                        <input class="form-check-input employee-checkbox" type="checkbox" name="employees" value="{{ emp.id }}" id="emp_{{ emp.id }}">
-                                        <label class="form-check-label" for="emp_{{ emp.id }}">
-                                            {{ emp.full_name }} ({{ emp.username }})
-                                            <span class="badge bg-secondary ms-1">{{ emp.shift_name|default:"No shift" }}</span>
-                                            {% if emp.department %}<span class="badge bg-info ms-1">{{ emp.department }}</span>{% endif %}
-                                            {% if emp.designation %}<span class="badge bg-light text-dark ms-1">{{ emp.designation }}</span>{% endif %}
-                                        </label>
-                                    </div>
-                                {% empty %}
-                                    <p class="text-muted">No employees found matching the filters.</p>
-                                {% endfor %}
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <div class="ash-field">
+                                <label for="department_filter" class="ash-label">
+                                    <i class="las la-sitemap"></i> Department
+                                </label>
+                                <select name="department" id="department_filter" class="ash-select" onchange="this.form.submit()">
+                                    <option value="">All Departments</option>
+                                    {% for dept in distinct_departments %}
+                                        <option value="{{ dept }}" {% if department_filter == dept %}selected{% endif %}>{{ dept }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-md-3">
+                            <div class="ash-field">
+                                <label for="designation_filter" class="ash-label">
+                                    <i class="las la-briefcase"></i> Designation
+                                </label>
+                                <select name="designation" id="designation_filter" class="ash-select" onchange="this.form.submit()">
+                                    <option value="">All Designations</option>
+                                    {% for desig in distinct_designations %}
+                                        <option value="{{ desig }}" {% if designation_filter == desig %}selected{% endif %}>{{ desig }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-md-3">
+                            <div class="ash-field">
+                                <label for="location_filter" class="ash-label">
+                                    <i class="las la-map-marker-alt"></i> Location
+                                </label>
+                                <input type="text" name="location" id="location_filter" class="ash-input"
+                                       value="{{ location_filter }}" placeholder="Filter by location...">
+                            </div>
+                        </div>
+
+                        <div class="col-md-3">
+                            <div class="ash-field">
+                                <label for="team_filter" class="ash-label">
+                                    <i class="las la-users"></i> Team
+                                </label>
+                                <input type="text" name="team" id="team_filter" class="ash-input"
+                                       value="{{ team_filter }}" placeholder="Filter by team...">
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Submit -->
-                    <div class="mt-4 d-flex gap-2">
-                        <button type="submit" class="btn btn-primary rounded-pill px-4">
-                            <i class="fas fa-save me-2"></i> Assign Shift
-                        </button>
-                        <a href="{% url 'setup' %}" class="btn btn-outline-secondary rounded-pill px-4">
-                            <i class="fas fa-times me-2"></i> Cancel
-                        </a>
+                <!-- ═══ SECTION 3: Employee Selection ═══ -->
+                <div class="ash-section">
+                    <div class="ash-section-hd">
+                        <span class="ash-section-ico"><i class="las la-user-check"></i></span>
+                        <h6 class="ash-section-title">Select Employees</h6>
                     </div>
-                </form>
-            </div>
+
+                    <div class="ash-selectall">
+                        <label class="ash-selectall-left" for="selectAll">
+                            <input class="form-check-input" type="checkbox" id="selectAll">
+                            <span class="ash-selectall-label">Select All</span>
+                        </label>
+                        <span class="ash-selectall-hint">
+                            {{ employees|length }} employee{{ employees|length|pluralize }} available
+                        </span>
+                    </div>
+
+                    <div class="ash-emp-list">
+                        {% for emp in employees %}
+                            <label class="ash-emp" for="emp_{{ emp.id }}">
+                                <input class="form-check-input employee-checkbox" type="checkbox"
+                                       name="employees" value="{{ emp.id }}" id="emp_{{ emp.id }}">
+                                <span class="ash-emp-avatar">{{ emp.full_name|slice:":1"|upper }}</span>
+                                <span class="ash-emp-body">
+                                    <span class="ash-emp-name">
+                                        {{ emp.full_name }}
+                                        <small>({{ emp.username }})</small>
+                                    </span>
+                                    <span class="ash-emp-tags">
+                                        {% if emp.shift_name %}
+                                            <span class="ash-tag shift on">
+                                                <i class="las la-clock"></i> {{ emp.shift_name }}
+                                            </span>
+                                        {% else %}
+                                            <span class="ash-tag shift">
+                                                <i class="las la-clock"></i> No shift
+                                            </span>
+                                        {% endif %}
+                                        {% if emp.department %}
+                                            <span class="ash-tag dept">
+                                                <i class="las la-sitemap"></i> {{ emp.department }}
+                                            </span>
+                                        {% endif %}
+                                        {% if emp.designation %}
+                                            <span class="ash-tag role">{{ emp.designation }}</span>
+                                        {% endif %}
+                                    </span>
+                                </span>
+                            </label>
+                        {% empty %}
+                            <div class="ash-empty">
+                                <div class="ash-empty-ico"><i class="las la-users-slash"></i></div>
+                                <p class="ash-empty-title">No employees found</p>
+                                <p class="ash-empty-sub">Try adjusting the filters above.</p>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- ═══ Footer ═══ -->
+                <div class="ash-foot">
+                    <a href="{% url 'setup' %}" class="ash-btn ash-btn-ghost">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                    <button type="submit" class="ash-btn ash-btn-primary">
+                        <i class="fas fa-save"></i> Assign Shift
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
 
 <script>
-    // Select / Deselect all
+    // Select / Deselect all (unchanged)
     document.getElementById('selectAll').addEventListener('change', function() {
         const checkboxes = document.querySelectorAll('.employee-checkbox');
         checkboxes.forEach(cb => cb.checked = this.checked);
     });
 </script>
+
 {% endblock %}
