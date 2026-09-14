@@ -299,6 +299,11 @@ class EmployeeProfile(models.Model):
             ),
         ]
 
+    # ── INSERT THESE TWO LINES HERE ──
+    is_active = models.BooleanField(default=True)
+    terminated_at = models.DateField(null=True, blank=True)
+    # ─────────────────────────────────
+    
     def __str__(self):
         return self.full_name or self.user.username
 

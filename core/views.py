@@ -850,9 +850,13 @@ def is_admin(user):
 def employee_list(request):
     employees = get_company_filtered(
         request,
-        User.objects.filter(is_superuser=False)
+        User.objects.filter(
+            is_superuser=False,
+            profile__is_active=True,          # ← ADD THIS
+        )
     ).order_by('username')
     return render(request, 'employee_list.html', {'employees': employees})
+
 
 
 
@@ -865,8 +869,12 @@ def employee_create(request):
     from django.contrib.auth.password_validation import validate_password
     from django.core.exceptions import ValidationError
 
+    # ✅ FIX #1 — fetch company BEFORE creating the form
+    company = get_user_company(request)
+
     if request.method == 'POST':
-        form = EmployeeForm(request.POST)
+        # ✅ FIX #2 — pass company so office_location/manager querysets are populated
+        form = EmployeeForm(request.POST, company=company)
         if form.is_valid():
             username  = form.cleaned_data['username']
             email     = form.cleaned_data['email']
@@ -899,7 +907,7 @@ def employee_create(request):
             if password_errors:
                 for err in password_errors:
                     form.add_error('password1', err)
-                    # messages.error(request, err)  
+                    # messages.error(request, err)
                 # Skip creation — render form with errors below
             else:
                 # ✅ Password is valid → proceed with normal creation
@@ -907,8 +915,7 @@ def employee_create(request):
                     username=username, email=email, password=password
                 )
 
-                # ✅ Auto-assign company from HR Admin's company
-                company = get_user_company(request)
+                # ✅ Company already fetched at top — reuse it
                 if not company and request.user.is_superuser:
                     # Superuser must pick a company from form
                     company_id = request.POST.get('company')
@@ -985,7 +992,8 @@ def employee_create(request):
                 for error in errors:
                     messages.error(request, f'{field}: {error}')
     else:
-        form = EmployeeForm()
+        # ✅ FIX #3 — GET form also needs company
+        form = EmployeeForm(company=company)
 
     # Filter dropdowns by company
     from .utils import get_company_filtered
@@ -993,7 +1001,10 @@ def employee_create(request):
     offices = get_company_filtered(request, OfficeLocation.objects.all()).filter(is_active=True)
     all_managers = get_company_filtered(
         request,
-        EmployeeProfile.objects.filter(role__in=['manager', 'hr_admin'])
+        EmployeeProfile.objects.filter(
+            role__in=['manager', 'hr_admin'],
+            is_active=True,                    # ← ADD
+        )
     ).order_by('full_name')
 
     context = {
@@ -1004,31 +1015,37 @@ def employee_create(request):
         'all_managers': all_managers,
     }
     return render(request, 'employee_form.html', context)
-    
 
+    
 
 @login_required
 @hr_admin_required
 @company_required
 def employee_edit(request, user_id):
     from .utils import get_user_company, get_company_filtered
-    
+
+    # ─── Cache company once ───
+    company = None if request.user.is_superuser else get_user_company(request)
+
     # ─── Security: ownership check ───
     if request.user.is_superuser:
         user = get_object_or_404(User, id=user_id)
     else:
-        company = get_user_company(request)
-        # Only allow editing users whose profile belongs to the same company
         user = get_object_or_404(User, id=user_id, profile__company=company)
-    
+
     try:
         profile = EmployeeProfile.objects.get(user=user)
     except EmployeeProfile.DoesNotExist:
+        # Determine company for new profile
+        fallback_company = company
+        if request.user.is_superuser:
+            # For superuser, infer from the user's existing group/context if possible
+            fallback_company = None   # superuser must pick company below
         profile = EmployeeProfile.objects.create(
             user=user,
             employee_id=f"EMP{user.id:04d}",
             full_name=user.username,
-            company=get_user_company(request),   # ← assign company
+            company=fallback_company,
         )
         messages.info(request, f'Profile was missing – created a default profile for {user.username}.')
 
@@ -1053,9 +1070,21 @@ def employee_edit(request, user_id):
         profile.phone = request.POST.get('phone', '')
         profile.address = request.POST.get('address', '')
         profile.attendance_type = request.POST.get('attendance_type')
-        profile.office_location_id = request.POST.get('office_location') or None
         profile.role = request.POST.get('role', 'employee')
-        
+
+        # ─── Security: validate office_location belongs to same company ───
+        office_id = request.POST.get('office_location')
+        if office_id:
+            if request.user.is_superuser:
+                office_ok = OfficeLocation.objects.filter(id=office_id).exists()
+            else:
+                office_ok = OfficeLocation.objects.filter(
+                    id=office_id, company=company
+                ).exists()
+            profile.office_location_id = office_id if office_ok else None
+        else:
+            profile.office_location_id = None
+
         # ─── Security: validate manager belongs to same company ───
         manager_id = request.POST.get('manager')
         if manager_id:
@@ -1063,12 +1092,12 @@ def employee_edit(request, user_id):
                 manager_ok = EmployeeProfile.objects.filter(id=manager_id).exists()
             else:
                 manager_ok = EmployeeProfile.objects.filter(
-                    id=manager_id, company=get_user_company(request)
+                    id=manager_id, company=company
                 ).exists()
             profile.manager_id = manager_id if manager_ok else None
         else:
             profile.manager_id = None
-        
+
         # ─── Security: validate shift belongs to same company ───
         shift_id = request.POST.get('shift')
         if shift_id:
@@ -1076,12 +1105,12 @@ def employee_edit(request, user_id):
                 shift_ok = Shift.objects.filter(id=shift_id).exists()
             else:
                 shift_ok = Shift.objects.filter(
-                    id=shift_id, company=get_user_company(request)
+                    id=shift_id, company=company
                 ).exists()
             profile.shift_id = shift_id if shift_ok else None
         else:
-            profile.shift = None
-        
+            profile.shift_id = None                # ← was `profile.shift = None`
+
         profile.save()
 
         # ─── Role → Group sync ───
@@ -1103,13 +1132,16 @@ def employee_edit(request, user_id):
     offices = get_company_filtered(
         request, OfficeLocation.objects.all()
     ).filter(is_active=True)
-    
+
     # Only managers from the SAME company can be assigned
     all_managers = get_company_filtered(
         request,
-        EmployeeProfile.objects.filter(role__in=['manager', 'hr_admin'])
+        EmployeeProfile.objects.filter(
+            role__in=['manager', 'hr_admin'],
+            is_active=True,                    # ← ADD
+        )
     ).order_by('full_name')
-    
+
     context = {
         'user': user,
         'profile': profile,
@@ -1123,28 +1155,43 @@ def employee_edit(request, user_id):
         
 
 
-
 @login_required
 @hr_admin_required
 @company_required
 def employee_delete(request, user_id):
     from .utils import get_user_company
-    
+    from django.utils import timezone
+
+    # ─── Security: ownership check ───
     if request.user.is_superuser:
         employee = get_object_or_404(User, id=user_id)
     else:
         company = get_user_company(request)
         employee = get_object_or_404(User, id=user_id, profile__company=company)
-    
+
     if request.method == 'POST':
         if request.user == employee:
             messages.error(request, 'You cannot delete your own account!')
         else:
-            employee.delete()
-            messages.success(request, 'Employee deleted successfully.')
+            # ─── SOFT DELETE (never hard-delete) ───
+            profile = getattr(employee, 'profile', None)
+            if profile:
+                profile.is_active = False
+                profile.terminated_at = timezone.localdate()
+                profile.save(update_fields=['is_active', 'terminated_at'])
+
+            employee.is_active = False
+            employee.save(update_fields=['is_active'])
+
+            emp_id = profile.employee_id if profile else employee.username
+            messages.success(
+                request,
+                f'Employee {emp_id} deactivated. Their ID is retired and will not be reused.'
+            )
         return redirect('employee_list')
-    
+
     return render(request, 'employee_confirm_delete.html', {'employee': employee})
+
 
 # ---------- Employee Detail ----------
 @login_required
