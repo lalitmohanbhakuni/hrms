@@ -139,6 +139,55 @@
 .event-badge.leave    { background: #e0e7ff; color: #3730a3; }
 .event-badge.halfday  { background: #fef3c7; color: #92400e; }
 
+/* Pills are now buttons — reset defaults */
+.att-summary-pill {
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s ease;
+    user-select: none;
+}
+
+.att-summary-pill:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+/* Active state — bold + border */
+.att-summary-pill.active {
+    font-weight: 700;
+    box-shadow: 0 0 0 2px currentColor inset;
+    transform: translateY(0);
+}
+
+/* "All" pill */
+.att-summary-pill.all {
+    background: #f3f4f6;
+    color: #374151;
+}
+.att-summary-pill.all .dot {
+    background: #6b7280;
+}
+.att-summary-pill.all.active {
+    box-shadow: 0 0 0 2px #374151 inset;
+}
+
+/* Empty state */
+.att-empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: #9ca3af;
+}
+.att-empty i {
+    font-size: 2rem;
+    opacity: 0.5;
+    display: block;
+    margin-bottom: 8px;
+}
+.att-empty p {
+    margin: 0;
+    font-size: 0.85rem;
+}
+
 </style>
 
 
@@ -1406,10 +1455,110 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const modal = new bootstrap.Modal(modalEl);
 
+    // ── Currently displayed employees (for filtering) ──
+    let currentEmployees = [];
+    let currentFilter = 'All';
+
     function escapeHtml(s) {
         return String(s == null ? '' : s)
             .replace(/&/g, '&amp;').replace(/</g, '&lt;')
             .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // ── Render table rows (respects currentFilter) ──
+    function renderTable() {
+        const list = currentFilter === 'All'
+            ? currentEmployees
+            : currentEmployees.filter(e => e.status === currentFilter);
+
+        if (!list.length) {
+            bodyEl.innerHTML = ''
+                + '<tr><td colspan="4">'
+                +   '<div class="att-empty">'
+                +     '<i class="las la-inbox"></i>'
+                +     '<p>No employees in this category.</p>'
+                +   '</div>'
+                + '</td></tr>';
+            return;
+        }
+
+        bodyEl.innerHTML = list.map(function (e) {
+            const initial = (e.name || '?').charAt(0).toUpperCase();
+
+            const statusCls = {
+                'Present':  'present',
+                'Absent':   'absent',
+                'Half-Day': 'halfday',
+                'Leave':    'leave',
+                'Future':   'future',
+            }[e.status] || 'future';
+
+            let timeText  = '—';
+            let timeMuted = ' muted';
+            if (e.status === 'Present' || e.status === 'Half-Day') {
+                timeText  = escapeHtml(e.check_in) + ' – ' + escapeHtml(e.check_out);
+                timeMuted = '';
+            } else if (e.status === 'Leave') {
+                timeText = 'On leave';
+            }
+
+            return ''
+                + '<tr>'
+                +   '<td>'
+                +     '<div class="att-emp-cell">'
+                +       '<div class="att-emp-avatar">' + initial + '</div>'
+                +       '<div class="att-emp-text">'
+                +         '<div class="att-emp-name">' + escapeHtml(e.name) + '</div>'
+                +         '<span class="att-emp-id">' + escapeHtml(e.employee_id) + '</span>'
+                +       '</div>'
+                +     '</div>'
+                +   '</td>'
+                +   '<td><span class="att-designation">' + escapeHtml(e.designation) + '</span></td>'
+                +   '<td><span class="att-emp-status ' + statusCls + '">' + escapeHtml(e.status) + '</span></td>'
+                +   '<td class="text-end"><span class="att-time' + timeMuted + '">' + timeText + '</span></td>'
+                + '</tr>';
+        }).join('');
+    }
+
+    // ── Build summary pills (clickable) ──
+    function renderSummary() {
+        const counts = { 'Present': 0, 'Absent': 0, 'Half-Day': 0, 'Leave': 0 };
+        currentEmployees.forEach(function (e) {
+            if (counts[e.status] !== undefined) counts[e.status]++;
+        });
+
+        const total = currentEmployees.length;
+
+        const pills = [
+            { key: 'All',       count: total,               cls: 'all',     label: 'All' },
+            { key: 'Present',   count: counts.Present,      cls: 'present', label: 'Present' },
+            { key: 'Absent',    count: counts.Absent,       cls: 'absent',  label: 'Absent' },
+            { key: 'Half-Day',  count: counts['Half-Day'],  cls: 'halfday', label: 'Half-Day' },
+            { key: 'Leave',     count: counts.Leave,        cls: 'leave',   label: 'On Leave' },
+        ];
+
+        summaryEl.innerHTML = pills
+            .filter(p => p.key === 'All' || p.count > 0)
+            .map(function (p) {
+                const active = currentFilter === p.key ? ' active' : '';
+                return ''
+                    + '<button type="button" '
+                    +   'class="att-summary-pill ' + p.cls + active + '" '
+                    +   'data-filter="' + p.key + '">'
+                    +   '<span class="dot"></span>'
+                    +   p.count + ' ' + p.label
+                    + '</button>';
+            })
+            .join('');
+
+        // Attach click handlers
+        summaryEl.querySelectorAll('.att-summary-pill').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                currentFilter = btn.dataset.filter;
+                renderSummary();   // re-render to update active state
+                renderTable();
+            });
+        });
     }
 
     console.log('Attaching click handlers to', document.querySelectorAll('.js-cal-day').length, 'cells');
@@ -1421,65 +1570,21 @@ document.addEventListener('DOMContentLoaded', function () {
             const employees = calendarData[day] || [];
             if (!employees.length) return;
 
-            // ── Header ──
+            // Reset filter to "All" each time modal opens
+            currentFilter   = 'All';
+            currentEmployees = employees;
+
             titleEl.textContent = 'Attendance — ' + dateStr;
             subEl.textContent   = employees.length + ' employee' + (employees.length > 1 ? 's' : '');
 
-            // ── Summary pills ──
-            const counts = { 'Present': 0, 'Absent': 0, 'Half-Day': 0, 'Leave': 0 };
-            employees.forEach(function (e) {
-                if (counts[e.status] !== undefined) counts[e.status]++;
-            });
-
-            summaryEl.innerHTML = ''
-                + (counts.Present     ? '<span class="att-summary-pill present"><span class="dot"></span>' + counts.Present + ' Present</span>' : '')
-                + (counts.Absent      ? '<span class="att-summary-pill absent"><span class="dot"></span>'  + counts.Absent  + ' Absent</span>'  : '')
-                + (counts['Half-Day'] ? '<span class="att-summary-pill halfday"><span class="dot"></span>' + counts['Half-Day'] + ' Half-Day</span>' : '')
-                + (counts.Leave       ? '<span class="att-summary-pill leave"><span class="dot"></span>'   + counts.Leave   + ' On Leave</span>'  : '');
-
-            // ── Table rows ──
-            bodyEl.innerHTML = employees.map(function (e) {
-                const initial = (e.name || '?').charAt(0).toUpperCase();
-
-                const statusCls = {
-                    'Present':  'present',
-                    'Absent':   'absent',
-                    'Half-Day': 'halfday',
-                    'Leave':    'leave',
-                    'Future':   'future',
-                }[e.status] || 'future';
-
-                let timeText = '—';
-                let timeMuted = ' muted';
-                if (e.status === 'Present' || e.status === 'Half-Day') {
-                    timeText  = escapeHtml(e.check_in) + ' – ' + escapeHtml(e.check_out);
-                    timeMuted = '';
-                } else if (e.status === 'Leave') {
-                    timeText = 'On leave';
-                }
-
-                return ''
-                    + '<tr>'
-                    +   '<td>'
-                    +     '<div class="att-emp-cell">'
-                    +       '<div class="att-emp-avatar">' + initial + '</div>'
-                    +       '<div class="att-emp-text">'
-                    +         '<div class="att-emp-name">' + escapeHtml(e.name) + '</div>'
-                    +         '<span class="att-emp-id">' + escapeHtml(e.employee_id) + '</span>'
-                    +       '</div>'
-                    +     '</div>'
-                    +   '</td>'
-                    +   '<td><span class="att-designation">' + escapeHtml(e.designation) + '</span></td>'
-                    +   '<td><span class="att-emp-status ' + statusCls + '">' + escapeHtml(e.status) + '</span></td>'
-                    +   '<td class="text-end"><span class="att-time' + timeMuted + '">' + timeText + '</span></td>'
-                    + '</tr>';
-            }).join('');
-
+            renderSummary();
+            renderTable();
             modal.show();
         });
     });
 });
 </script>
+
 
 
 
