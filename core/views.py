@@ -132,14 +132,13 @@ def logout_view(request):
 
 
 # ---------- Dashboard ----------
-
 @login_required
 def dashboard(request):
     from .utils import get_company_filtered, get_user_company
     
     user = request.user
     today = date.today()
-    current_company = get_user_company(request)   # ✅ NEW
+    current_company = get_user_company(request)
 
     month_str = request.GET.get('month', '')
     year_str = request.GET.get('year', '')
@@ -188,51 +187,188 @@ def dashboard(request):
                 
         
 
-    # ---------- Attendance Calendar ----------
+    # ---------- Attendance Calendar (role-aware) ----------
     first_day = date(year, month, 1)
     _, num_days = monthrange(year, month)
     last_day = date(year, month, num_days)
 
-    attendance_dict = {att.date.day: att.status for att in monthly_history}
+    # Determine scope + mode
+    is_admin_or_owner = (
+        user.is_superuser
+        or user.groups.filter(name='HR Admin').exists()
+    )
+    is_manager = (
+        not is_admin_or_owner
+        and hasattr(user, 'profile')
+        and user.profile
+        and user.profile.role == 'manager'
+    )
 
-    leave_requests = LeaveRequest.objects.filter(
-        user=user,
+    if is_admin_or_owner:
+        scope_user_ids = list(
+            User.objects.filter(
+                is_superuser=False,
+                profile__is_active=True,
+                profile__company=current_company,
+            ).values_list('id', flat=True)
+        )
+        calendar_mode = 'team'
+    elif is_manager:
+        scope_user_ids = list(
+            EmployeeProfile.objects.filter(
+                manager=user.profile,
+                is_active=True,
+            ).values_list('user_id', flat=True)
+        )
+        calendar_mode = 'team'
+    else:
+        scope_user_ids = [user.id]
+        calendar_mode = 'self'
+
+    # Per-day attendance aggregates within scope
+    month_attendance = Attendance.objects.filter(
+        date__year=year,
+        date__month=month,
+        user_id__in=scope_user_ids,
+    ).values('date', 'user_id', 'status')
+
+    attendance_by_day = {}   # day -> {'Present': n, 'Absent': n, 'Half-Day': n}
+    for row in month_attendance:
+        d = row['date'].day
+        st = row['status'] or 'Absent'
+        attendance_by_day.setdefault(d, {}).setdefault(st, 0)
+        attendance_by_day[d][st] += 1
+
+    # Per-day leave counts within scope
+    month_leaves = LeaveRequest.objects.filter(
         status='Approved',
         start_date__lte=last_day,
-        end_date__gte=first_day
-    )
-    leave_dates = set()
-    for req in leave_requests:
-        start = max(req.start_date, first_day)
-        end = min(req.end_date, last_day)
-        for d in range((end - start).days + 1):
-            leave_dates.add((start + timedelta(days=d)).day)
+        end_date__gte=first_day,
+        user_id__in=scope_user_ids,
+    ).values('user_id', 'start_date', 'end_date')
 
+    leave_by_day = {}
+    for lv in month_leaves:
+        s = max(lv['start_date'], first_day)
+        e = min(lv['end_date'], last_day)
+        for i in range((e - s).days + 1):
+            d = (s + timedelta(days=i)).day
+            leave_by_day[d] = leave_by_day.get(d, 0) + 1
+
+    # Per-day holidays
+    month_holidays = {
+        h.date.day: h.name
+        for h in Holiday.objects.filter(
+            company=current_company,
+            date__gte=first_day,
+            date__lte=last_day,
+        )
+    }
     calendar_data = []
     for day in range(1, num_days + 1):
         current_date = date(year, month, day)
         is_weekend = current_date.weekday() >= 5
-        if is_weekend:
-            status = 'weekend'
-        elif day in attendance_dict:
-            status = attendance_dict[day]
-        elif day in leave_dates:
-            status = 'leave'
-        else:
-            status = 'none'
-        calendar_data.append({
+
+        holiday_name = month_holidays.get(day)
+        counts = attendance_by_day.get(day, {})
+        on_leave = leave_by_day.get(day, 0)
+
+        row = {
             'day': day,
             'date': current_date,
-            'status': status,
             'is_weekend': is_weekend,
-        })
+            'is_holiday': bool(holiday_name),
+            'holiday_name': holiday_name,
+            'mode': calendar_mode,
+            'counts': {
+                'present': counts.get('Present', 0),
+                'absent':  counts.get('Absent', 0),
+                'half':    counts.get('Half-Day', 0),
+                'leave':   on_leave,
+            },
+            'employees': [],
+        }
+
+        # ── Build per-employee list for team mode ──
+        if calendar_mode == 'team':
+            day_attendance = Attendance.objects.filter(
+                date=current_date,
+                user_id__in=scope_user_ids,
+            ).select_related('user', 'user__profile')
+
+            att_by_user = {a.user_id: a for a in day_attendance}
+
+            day_leaves = LeaveRequest.objects.filter(
+                status='Approved',
+                start_date__lte=current_date,
+                end_date__gte=current_date,
+                user_id__in=scope_user_ids,
+            ).values_list('user_id', flat=True)
+            leave_user_ids = set(day_leaves)
+
+            emps = EmployeeProfile.objects.filter(
+                user_id__in=scope_user_ids,
+                is_active=True,
+            ).select_related('user')
+
+            for emp in emps:
+                att = att_by_user.get(emp.user_id)
+
+                if emp.user_id in leave_user_ids:
+                    status = 'Leave'
+                elif att:
+                    status = att.status or 'Absent'
+                elif current_date > today:
+                    status = 'Future'
+                else:
+                    status = 'Absent'
+
+                row['employees'].append({
+                    'name':         emp.full_name or emp.user.username,
+                    'employee_id':  emp.employee_id,
+                    'designation':  emp.designation or '—',
+                    'department':   emp.department or '—',
+                    'status':       status,
+                    'check_in':     att.check_in_time.strftime('%I:%M %p') if att and att.check_in_time else '--:--',
+                    'check_out':    att.check_out_time.strftime('%I:%M %p') if att and att.check_out_time else '--:--',
+                })
+
+        # Self mode → own status
+        if calendar_mode == 'self':
+            if holiday_name:
+                row['self_status'] = 'holiday'
+            elif is_weekend:
+                row['self_status'] = 'weekend'
+            elif on_leave:
+                row['self_status'] = 'leave'
+            elif counts.get('Present'):
+                row['self_status'] = 'present'
+            elif counts.get('Half-Day'):
+                row['self_status'] = 'halfday'
+            elif counts.get('Absent'):
+                row['self_status'] = 'absent'
+            elif current_date > today:
+                row['self_status'] = 'future'
+            else:
+                row['self_status'] = 'none'
+        else:
+            row['self_status'] = None
+
+        calendar_data.append(row)
+
+    # ✅ OUTSIDE the loop — builds once, after all rows are in
+    calendar_employees_json = {
+        str(r['day']): r['employees']
+        for r in calendar_data
+        if r['mode'] == 'team'
+    }
+        
 
     first_weekday = first_day.weekday()
 
     pending_leaves = LeaveRequest.objects.filter(user=user, status='Pending').count()
 
     # ---------- Leave Balance ----------
-    # ✅ Company-filtered leave types
     leave_types = get_company_filtered(request, LeaveType.objects.filter(is_active=True))
     leave_balance = []
     total_available = 0
@@ -264,7 +400,6 @@ def dashboard(request):
             pass
 
     # ---------- Pending Actions Count & List (Team-based) ----------
-    # ✅ Company-scoped for superuser & HR Admin
     if user.is_superuser or user.groups.filter(name='HR Admin').exists():
         admin_requests = get_company_filtered(
             request,
@@ -276,7 +411,6 @@ def dashboard(request):
         pending_actions_count = admin_requests.count()
         pending_leave_requests = admin_requests.order_by('-applied_on')[:10]
 
-        # Keep additional data for superuser (charts, all employees, etc.)
         if user.is_superuser:
             all_today_attendance = Attendance.objects.filter(date=today).select_related('user')
             all_employees = User.objects.all().order_by('username')
@@ -285,7 +419,6 @@ def dashboard(request):
                 date__month=admin_month
             ).select_related('user').order_by('user__username', 'date')
         else:
-            # ✅ HR Admin: scoped to their company
             all_today_attendance = get_company_filtered(
                 request, Attendance.objects.filter(date=today)
             ).select_related('user')
@@ -301,7 +434,6 @@ def dashboard(request):
             ).select_related('user').order_by('user__username', 'date')
 
     elif user.groups.filter(name='Manager').exists():
-        # Manager → see only their team's pending requests
         try:
             profile = user.profile
             team_members = EmployeeProfile.objects.filter(manager=profile).values_list('user_id', flat=True)
@@ -318,50 +450,56 @@ def dashboard(request):
         all_employees = None
         all_employees_attendance = None
     else:
-        # Employee → see only their own pending requests
         pending_actions_count = LeaveRequest.objects.filter(user=user, status='Pending').count()
         pending_leave_requests = LeaveRequest.objects.filter(user=user, status='Pending').order_by('-applied_on')[:10]
         all_today_attendance = None
         all_employees = None
         all_employees_attendance = None
 
-    # For the notification dropdown "Actions" tab
     pending_actions = pending_leave_requests
-
 
     # ---------- Manager-specific Stats ----------
     team_count = 0
     team_present_today = 0
     team_on_leave_today = 0
     team_pending_actions_count = 0
+    team_attendance_rate = 0
 
     if user.groups.filter(name='Manager').exists():
         try:
             profile = user.profile
-            team_members = EmployeeProfile.objects.filter(manager=profile).values_list('user_id', flat=True)
+            team_members = EmployeeProfile.objects.filter(
+                manager=profile,
+                is_active=True,
+            ).values_list('user_id', flat=True)
             team_count = team_members.count()
-            
-            # Present today in team
+
             team_present_today = Attendance.objects.filter(
                 date=today,
                 status='Present',
                 user_id__in=team_members
             ).values('user').distinct().count()
-            
-            # On leave today in team
+
             team_on_leave_today = LeaveRequest.objects.filter(
                 status='Approved',
                 start_date__lte=today,
                 end_date__gte=today,
                 user_id__in=team_members
             ).values('user').distinct().count()
-            
-            # Pending requests in team
+
             team_pending_actions_count = LeaveRequest.objects.filter(
                 status='Pending',
                 user_id__in=team_members
             ).count()
-            
+
+            # ✅ Team Attendance Rate
+            team_expected = max(0, team_count - team_on_leave_today)
+            if team_expected > 0:
+                team_attendance_rate = round((team_present_today / team_expected) * 100)
+            else:
+                team_attendance_rate = 0
+            team_attendance_rate = max(0, min(100, team_attendance_rate))
+
         except EmployeeProfile.DoesNotExist:
             pass
 
@@ -372,7 +510,6 @@ def dashboard(request):
     attendance_chart_half = []
 
     if user.is_superuser or user.groups.filter(name='HR Admin').exists():
-        # ✅ Company-filtered attendance base
         year_attendances = get_company_filtered(
             request,
             Attendance.objects.filter(date__year=today.year)
@@ -390,14 +527,12 @@ def dashboard(request):
     week_start = start_of_week
     week_end = start_of_week + timedelta(days=6)
 
-    # Default empty data for ALL users
     weekly_days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
     weekly_day_present = [0, 0, 0, 0, 0, 0, 0]
     weekly_day_absent = [0, 0, 0, 0, 0, 0, 0]
     weekly_day_half = [0, 0, 0, 0, 0, 0, 0]
     weekly_day_onleave = [0, 0, 0, 0, 0, 0, 0]
 
-    # -------- Manager chart variables (always defined) --------
     manager_weekly_days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
     manager_weekly_day_present = [0, 0, 0, 0, 0, 0, 0]
     manager_weekly_day_absent = [0, 0, 0, 0, 0, 0, 0]
@@ -408,7 +543,10 @@ def dashboard(request):
     if user.is_superuser or user.groups.filter(name='HR Admin').exists():
         total_employees = get_company_filtered(
             request,
-            User.objects.filter(is_superuser=False)
+            User.objects.filter(
+                is_superuser=False,
+                profile__is_active=True,
+            )
         ).count()
         weekly_days = []
         weekly_day_present = []
@@ -424,7 +562,8 @@ def dashboard(request):
                     Attendance.objects.filter(
                         date=day,
                         status='Present',
-                        user__is_superuser=False
+                        user__is_superuser=False,
+                        user__profile__is_active=True,
                     )
                 ).values('user').distinct().count()
                 half = get_company_filtered(
@@ -432,7 +571,8 @@ def dashboard(request):
                     Attendance.objects.filter(
                         date=day,
                         status='Half-Day',
-                        user__is_superuser=False
+                        user__is_superuser=False,
+                        user__profile__is_active=True,
                     )
                 ).values('user').distinct().count()
                 on_leave = get_company_filtered(
@@ -441,10 +581,11 @@ def dashboard(request):
                         status='Approved',
                         start_date__lte=day,
                         end_date__gte=day,
-                        user__is_superuser=False
+                        user__is_superuser=False,
+                        user__profile__is_active=True,
                     )
                 ).values('user').distinct().count()
-                absent = total_employees - present - on_leave
+                absent = max(0, total_employees - present - on_leave)
             else:
                 present = 0
                 absent = 0
@@ -463,7 +604,10 @@ def dashboard(request):
     elif user.groups.filter(name='Manager').exists():
         try:
             profile = user.profile
-            team_members = EmployeeProfile.objects.filter(manager=profile).values_list('user_id', flat=True)
+            team_members = EmployeeProfile.objects.filter(
+                manager=profile,
+                is_active=True,
+            ).values_list('user_id', flat=True)
             team_count = team_members.count()
             manager_weekly_days = []
             manager_weekly_day_present = []
@@ -490,7 +634,7 @@ def dashboard(request):
                         end_date__gte=day,
                         user_id__in=team_members
                     ).values('user').distinct().count()
-                    absent = team_count - present - on_leave
+                    absent = max(0, team_count - present - on_leave)
                 else:
                     present = 0
                     absent = 0
@@ -508,7 +652,10 @@ def dashboard(request):
     if not user.is_superuser:
         total_employees = get_company_filtered(
             request,
-            User.objects.filter(is_superuser=False)
+            User.objects.filter(
+                is_superuser=False,
+                profile__is_active=True,
+            )
         ).count()
 
     # ---- Month navigation ----
@@ -529,33 +676,41 @@ def dashboard(request):
     admin_base_params = f"admin_month={admin_month}&admin_year={admin_year}"
 
     # ---------- Dashboard Stats ----------
-    # ✅ Company-filtered
     present_today = get_company_filtered(
         request,
         Attendance.objects.filter(
             date=today,
             status='Present',
-            user__is_superuser=False
+            user__is_superuser=False,
+            user__profile__is_active=True,
         )
     ).values('user').distinct().count()
 
-    absent_today = total_employees - present_today
-
-    # ✅ Company-filtered holiday
-    next_holiday = get_company_filtered(
-        request,
-        Holiday.objects.filter(date__gte=today)
-    ).order_by('date').first()
-
-    # ✅ Company-filtered on-leave count
     on_leave_today = get_company_filtered(
         request,
         LeaveRequest.objects.filter(
             status='Approved',
             start_date__lte=today,
-            end_date__gte=today
+            end_date__gte=today,
+            user__profile__is_active=True,
         )
     ).values('user').distinct().count()
+
+    # ✅ Absent = active − present − on leave (never negative)
+    absent_today = max(0, total_employees - present_today - on_leave_today)
+
+    # ✅ Attendance Rate (for HR Admin / Owner only)
+    attendance_rate = 0
+    if user.is_superuser or user.groups.filter(name='HR Admin').exists():
+        expected = max(0, total_employees - on_leave_today)
+        if expected > 0:
+            attendance_rate = round((present_today / expected) * 100)
+        attendance_rate = max(0, min(100, attendance_rate))
+
+    next_holiday = get_company_filtered(
+        request,
+        Holiday.objects.filter(date__gte=today)
+    ).order_by('date').first()
 
     today_total_seconds = 0
     if today_attendance and today_attendance.total_working_time:
@@ -566,13 +721,14 @@ def dashboard(request):
     employee_data = []
 
     if user.is_superuser or user.groups.filter(name='HR Admin').exists():
-        # ✅ Company-scoped employees
         employees = get_company_filtered(
             request,
-            User.objects.filter(is_superuser=False)
+            User.objects.filter(
+                is_superuser=False,
+                profile__is_active=True,
+            )
         ).order_by('username')
         
-        # ✅ Company-scoped attendances
         attendances = get_company_filtered(
             request,
             Attendance.objects.filter(
@@ -589,7 +745,6 @@ def dashboard(request):
             half_day = len([r for r in emp_records if r.status == 'Half-Day'])
             percentage = int((present / total_days) * 100) if total_days > 0 else 0
             
-            # Get shift info
             profile = getattr(emp, 'profile', None)
             shift_name = profile.shift.name if profile and profile.shift else '—'
             shift_timing = ''
@@ -598,7 +753,6 @@ def dashboard(request):
                 end = profile.shift.end_time.strftime('%I:%M %p')
                 shift_timing = f"{start} – {end}"
             
-            # Build records list for expandable rows
             records = []
             for att in emp_records:
                 records.append({
@@ -620,8 +774,7 @@ def dashboard(request):
                 'shift_timing': shift_timing,
             })
     else:
-        employee_data = []  # For non-admins, empty
-
+        employee_data = []
 
     context = {
         'user': user,
@@ -681,13 +834,15 @@ def dashboard(request):
         'team_present_today': team_present_today,
         'team_on_leave_today': team_on_leave_today,
         'team_pending_actions_count': team_pending_actions_count,
-        # -------- Manager chart data --------
+        'team_attendance_rate': team_attendance_rate,
         'manager_weekly_days': manager_weekly_days,
         'manager_weekly_day_present': manager_weekly_day_present,
         'manager_weekly_day_absent': manager_weekly_day_absent,
         'manager_weekly_day_half': manager_weekly_day_half,
         'manager_weekly_day_onleave': manager_weekly_day_onleave,
         'employee_data': employee_data,
+        'attendance_rate': attendance_rate,
+        'calendar_employees_json': calendar_employees_json,
     }
     return render(request, 'dashboard.html', context)
 
@@ -1143,7 +1298,7 @@ def employee_edit(request, user_id):
     ).order_by('full_name')
 
     context = {
-        'user': user,
+        'employee_user': user,
         'profile': profile,
         'action': 'Edit',
         'shifts': shifts,
@@ -1625,6 +1780,7 @@ def admin_leaves(request):
 
 
 
+
 @login_required
 @admin_or_hr_required
 @company_required
@@ -1650,6 +1806,14 @@ def leave_approve(request, leave_id):
         leave.status = 'Approved'
         leave.admin_comment = comment
         leave.save()
+
+        # ✅ Mark related action-notifications as read
+        Notification.objects.filter(
+            related_object_type='leaverequest',
+            related_object_id=leave.id,
+            is_read=False,
+        ).update(is_read=True)
+
         create_notification(
             leave.user,
             f"Your {leave.leave_type.name} leave request for {leave.start_date} to {leave.end_date} has been approved.",
@@ -1688,6 +1852,14 @@ def leave_reject(request, leave_id):
         leave.status = 'Rejected'
         leave.rejection_reason = reason
         leave.save()
+
+        # ✅ Mark related action-notifications as read
+        Notification.objects.filter(
+            related_object_type='leaverequest',
+            related_object_id=leave.id,
+            is_read=False,
+        ).update(is_read=True)
+
         create_notification(
             leave.user,
             f"Your {leave.leave_type.name} leave request for {leave.start_date} to {leave.end_date} has been rejected. Reason: {reason}",
@@ -1697,6 +1869,7 @@ def leave_reject(request, leave_id):
         messages.success(request, 'Leave rejected.')
         return redirect('admin_leaves')
     return render(request, 'leave_reject.html', {'leave': leave})
+    
 
 # ---------- Team Attendance (Admin only) ----------
 
@@ -3063,17 +3236,16 @@ def profile(request):
 
 
 # ---------- Attendance Overview Data ----------
-@login_required
 def attendance_overview_data(request):
     """Return JSON data for attendance overview chart."""
     from .utils import get_company_filtered
-    
+
     period = request.GET.get('period', 'week')
     today = date.today()
 
     if period == 'week':
-        start_date = today - timedelta(days=today.weekday())
-        end_date = today
+        start_date = today - timedelta(days=today.weekday())     # Monday
+        end_date = start_date + timedelta(days=6)                # Sunday (full week)
     elif period == 'month':
         start_date = date(today.year, today.month, 1)
         end_date = today
@@ -3084,11 +3256,16 @@ def attendance_overview_data(request):
     else:
         return JsonResponse({'error': 'Invalid period'}, status=400)
 
-    date_range = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
+    date_range = [start_date + timedelta(days=i)
+                  for i in range((end_date - start_date).days + 1)]
 
     # ✅ Company-filtered employee count (no redirect)
     total_employees = get_company_filtered(
-        request, User.objects.filter(is_superuser=False)
+        request,
+        User.objects.filter(
+            is_superuser=False,
+            profile__is_active=True,
+        )
     ).count()
 
     if total_employees == 0:
@@ -3100,23 +3277,41 @@ def attendance_overview_data(request):
     labels, present_pct, on_leave_pct, absent_pct = [], [], [], []
 
     for d in date_range:
+        # ── Future day (weekly view only) → null so line stops, label stays ──
+        if period == 'week' and d > today:
+            labels.append(d.strftime('%a'))
+            present_pct.append(None)
+            on_leave_pct.append(None)
+            absent_pct.append(None)
+            continue
+
         present = get_company_filtered(
             request,
-            Attendance.objects.filter(date=d, status='Present', user__is_superuser=False)
+            Attendance.objects.filter(
+                date=d,
+                status='Present',
+                user__is_superuser=False,
+                user__profile__is_active=True,
+            )
         ).values('user').distinct().count()
 
         on_leave = get_company_filtered(
             request,
             LeaveRequest.objects.filter(
-                status='Approved', start_date__lte=d, end_date__gte=d, user__is_superuser=False
+                status='Approved',
+                start_date__lte=d,
+                end_date__gte=d,
+                user__is_superuser=False,
+                user__profile__is_active=True,
             )
         ).values('user').distinct().count()
 
-        absent = total_employees - present - on_leave
+        # Denominator = employees expected to work (exclude those on leave)
+        expected = max(0, total_employees - on_leave)
 
-        present_pct_val = round((present / total_employees) * 100, 1) if total_employees else 0
+        present_pct_val = round((present / expected) * 100, 1) if expected else 0
         on_leave_pct_val = round((on_leave / total_employees) * 100, 1) if total_employees else 0
-        absent_pct_val = 100 - present_pct_val - on_leave_pct_val
+        absent_pct_val = max(0, 100 - present_pct_val - on_leave_pct_val)
 
         labels.append(d.strftime('%a' if period == 'week' else '%d %b'))
         present_pct.append(present_pct_val)

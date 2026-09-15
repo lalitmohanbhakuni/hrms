@@ -5,164 +5,138 @@
 {% block page_title %}Approve Leave Request{% endblock %}
 
 {% block content %}
-
-
-<style>
-  .avatar-circle {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #4f46e5, #6366f1);
-    color: #fff;
-    font-weight: 600;
-    font-size: 1.25rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 4px 12px rgba(79, 70, 229, .25);
-  }
-
-  .detail-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-  }
-
-  .detail-item i {
-    font-size: 1rem;
-    margin-top: 4px;
-    width: 20px;
-    text-align: center;
-  }
-
-  .detail-label {
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: #6b7280;
-    font-weight: 600;
-    margin-bottom: 2px;
-  }
-
-  .detail-value {
-    font-weight: 500;
-    color: #111827;
-  }
-
-  .card {
-    border-radius: 14px;
-  }
-</style>
-
 <div class="container py-4">
   <div class="row justify-content-center">
     <div class="col-lg-7 col-md-9">
 
-      <!-- Employee header -->
-      <div class="d-flex align-items-center mb-4">
-        <div class="avatar-circle me-3">
+      <!-- ═══════ Employee Header ═══════ -->
+      <div class="apr-hero">
+        <div class="apr-avatar">
           {{ leave.user.username|first|upper }}
         </div>
-        <div>
-          <h5 class="mb-0 fw-semibold">{{ leave.user.get_full_name|default:leave.user.username }}</h5>
-          <small class="text-muted">Requesting leave approval</small>
+        <div class="apr-hero-text">
+          <div class="apr-hero-name">
+            {{ leave.user.get_full_name|default:leave.user.username }}
+          </div>
+          <div class="apr-hero-sub">
+            <i class="fas fa-clock me-1"></i>
+            Leave request awaiting your approval
+          </div>
         </div>
+        <div class="apr-hero-badge">Pending</div>
       </div>
 
-      <!-- Leave details card -->
-      <div class="card border-0 shadow-sm mb-4">
-        <div class="card-body p-4">
+      <!-- ═══════ Leave Details Card ═══════ -->
+      <div class="apr-card mb-4">
+        <div class="apr-card-head">
+          <div class="apr-card-head-title">
+            <i class="las la-clipboard-list"></i>
+            <span>Request Details</span>
+          </div>
+          <span class="apr-type-pill">{{ leave.leave_type.name }}</span>
+        </div>
 
-          <div class="d-flex justify-content-between align-items-start mb-4">
-            <div>
-              <span class="badge bg-primary-subtle text-primary-emphasis rounded-pill px-3 py-2">
-                {{ leave.leave_type.name }}
-              </span>
+        <div class="apr-card-body">
+          <div class="apr-timeline">
+
+            <div class="apr-tl-row">
+              <div class="apr-tl-icon from">
+                <i class="fas fa-plane-departure"></i>
+              </div>
+              <div class="apr-tl-text">
+                <div class="apr-tl-label">From</div>
+                <div class="apr-tl-value">{{ leave.start_date|date:"D, d M Y" }}</div>
+              </div>
             </div>
-            <span class="badge bg-warning-subtle text-warning-emphasis rounded-pill px-3 py-2">
-              Pending Approval
-            </span>
+
+            <div class="apr-tl-line"></div>
+
+            <div class="apr-tl-row">
+              <div class="apr-tl-icon to">
+                <i class="fas fa-plane-arrival"></i>
+              </div>
+              <div class="apr-tl-text">
+                <div class="apr-tl-label">To</div>
+                <div class="apr-tl-value">{{ leave.end_date|date:"D, d M Y" }}</div>
+              </div>
+            </div>
+
           </div>
 
-          <div class="row g-3">
-            <div class="col-sm-6">
-              <div class="detail-item">
-                <i class="fas fa-calendar-day text-primary"></i>
-                <div>
-                  <div class="detail-label">From</div>
-                  <div class="detail-value">{{ leave.start_date|date:"D, d M Y" }}</div>
-                </div>
+          <div class="apr-meta-grid">
+            <div class="apr-meta-item">
+              <div class="apr-meta-label">Duration</div>
+              <div class="apr-meta-value">
+                {{ leave.get_duration }} day{{ leave.get_duration|pluralize }}
               </div>
             </div>
-
-            <div class="col-sm-6">
-              <div class="detail-item">
-                <i class="fas fa-calendar-check text-primary"></i>
-                <div>
-                  <div class="detail-label">To</div>
-                  <div class="detail-value">{{ leave.end_date|date:"D, d M Y" }}</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="col-sm-6">
-              <div class="detail-item">
-                <i class="fas fa-hourglass-half text-primary"></i>
-                <div>
-                  <div class="detail-label">Duration</div>
-                  <div class="detail-value">
-                    {{ leave.get_duration }} day{{ leave.get_duration|pluralize }}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="col-sm-6">
-              <div class="detail-item">
-                <i class="fas fa-user-tie text-primary"></i>
-                <div>
-                  <div class="detail-label">Requested By</div>
-                  <div class="detail-value">{{ leave.user.username }}</div>
-                </div>
-              </div>
+            <div class="apr-meta-item">
+              <div class="apr-meta-label">Applied On</div>
+              <div class="apr-meta-value">{{ leave.applied_on|date:"d M Y" }}</div>
             </div>
           </div>
 
           {% if leave.reason %}
-          <hr class="my-4">
-          <div class="detail-label mb-2">Reason</div>
-          <p class="mb-0 text-secondary fst-italic">"{{ leave.reason }}"</p>
+          <div class="apr-reason-block">
+            <div class="apr-reason-label">
+              <i class="las la-quote-left"></i> Employee's Reason
+            </div>
+            <p class="apr-reason-text">{{ leave.reason }}</p>
+          </div>
           {% endif %}
-
         </div>
       </div>
 
-      <!-- Action card -->
-      <div class="card border-0 shadow-sm">
-        <div class="card-body p-4">
+      <!-- ═══════ Approval Action Card ═══════ -->
+      <div class="apr-card">
+        <div class="apr-card-head success">
+          <div class="apr-card-head-title success">
+            <i class="las la-check-circle"></i>
+            <span>Approval Decision</span>
+          </div>
+        </div>
+
+        <div class="apr-card-body">
+          <p class="apr-note">
+            Add an optional comment for <strong>{{ leave.user.username }}</strong>.
+            This will appear alongside the approved leave record.
+          </p>
+
           <form method="post">
             {% csrf_token %}
 
-            <div class="mb-4">
-              <label for="admin_comment" class="form-label fw-semibold">
-                Comment <span class="text-muted fw-normal">(optional)</span>
+            <!-- Quick comment chips -->
+            <div class="apr-quick-wrap">
+              <div class="apr-quick-label">Quick notes</div>
+              <div class="apr-quick-chips">
+                <button type="button" class="apr-chip" data-comment="Approved. Enjoy your time off!">Enjoy your time off</button>
+                <button type="button" class="apr-chip" data-comment="Approved. Please ensure handover is completed.">Complete handover</button>
+                <button type="button" class="apr-chip" data-comment="Approved. Kindly update your status in the system.">Update status</button>
+                <button type="button" class="apr-chip" data-comment="Approved.">Simple approval</button>
+              </div>
+            </div>
+
+            <div class="apr-field">
+              <label for="admin_comment" class="apr-field-label">
+                Comment <span class="optional">(optional)</span>
               </label>
               <textarea name="admin_comment"
                         id="admin_comment"
-                        rows="3"
-                        class="form-control"
-                        placeholder="Add a note for the employee…"></textarea>
-              <div class="form-text">This will be visible to {{ leave.user.username }}.</div>
+                        rows="4"
+                        maxlength="500"
+                        class="apr-textarea"
+                        placeholder="Add a note for the employee (optional)…"></textarea>
+              <div class="apr-char-count">
+                <span id="aprCharCount">0</span> / 500 characters
+              </div>
             </div>
 
-            <div class="d-flex flex-wrap gap-2 justify-content-end">
-              <a href="{% url 'admin_leaves' %}"
-                 class="btn btn-light rounded-pill px-4">
-                Cancel
+            <div class="apr-actions">
+              <a href="{% url 'admin_leaves' %}" class="apr-btn apr-btn-ghost">
+                <i class="fas fa-arrow-left"></i> Cancel
               </a>
-              <button type="submit"
-                      class="btn btn-success rounded-pill px-4">
-                <i class="fas fa-check me-2"></i> Confirm Approval
+              <button type="submit" class="apr-btn apr-btn-success">
+                <i class="fas fa-check"></i> Confirm Approval
               </button>
             </div>
           </form>
@@ -173,4 +147,423 @@
   </div>
 </div>
 
+<style>
+/* ═══════════════════════════════════════════════════
+   Approve Leave — refined design
+   Prefix: .apr-
+   ═══════════════════════════════════════════════════ */
+
+.apr-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 22px;
+  background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
+  border: 1px solid #d1fae5;
+  border-radius: 16px;
+  margin-bottom: 18px;
+  position: relative;
+  overflow: hidden;
+}
+
+.apr-hero::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0;
+  width: 4px; height: 100%;
+  background: linear-gradient(180deg, #059669, #10b981);
+}
+
+.apr-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #059669, #10b981);
+  color: #fff;
+  font-weight: 700;
+  font-size: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 16px rgba(5, 150, 105, .3);
+  flex-shrink: 0;
+}
+
+.apr-hero-text { flex: 1; min-width: 0; }
+
+.apr-hero-name {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #0f172a;
+  letter-spacing: -.01em;
+  margin-bottom: 3px;
+}
+
+.apr-hero-sub {
+  font-size: 0.8rem;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+}
+
+.apr-hero-badge {
+  padding: 4px 12px;
+  background: #fff;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+/* ── Card ── */
+.apr-card {
+  background: #fff;
+  border: 1px solid #e8eaee;
+  border-radius: 16px;
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+}
+
+.apr-card:hover { border-color: #d5d9e0; }
+
+.apr-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 22px;
+  border-bottom: 1px solid #f1f3f5;
+  background: #fafbfc;
+}
+
+.apr-card-head.success { background: #ecfdf5; border-bottom-color: #d1fae5; }
+
+.apr-card-head-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #0f172a;
+  letter-spacing: 0.01em;
+}
+
+.apr-card-head-title i { color: #6366f1; font-size: 1rem; }
+
+.apr-card-head-title.success i { color: #059669; }
+
+.apr-type-pill {
+  padding: 4px 12px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: 999px;
+}
+
+.apr-card-body { padding: 24px 22px; }
+
+/* ── Timeline ── */
+.apr-timeline {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 20px;
+}
+
+.apr-tl-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.apr-tl-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.apr-tl-icon.from { background: #eff6ff; color: #2563eb; }
+.apr-tl-icon.to   { background: #f0fdf4; color: #16a34a; }
+
+.apr-tl-line {
+  width: 2px;
+  height: 14px;
+  background: #e5e7eb;
+  margin-left: 18px;
+  border-radius: 2px;
+}
+
+.apr-tl-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.apr-tl-value {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+/* ── Meta grid ── */
+.apr-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 16px;
+  background: #fafbfc;
+  border-radius: 12px;
+}
+
+.apr-meta-item { text-align: left; }
+
+.apr-meta-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+  font-weight: 600;
+  margin-bottom: 3px;
+}
+
+.apr-meta-value {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+/* ── Reason block ── */
+.apr-reason-block {
+  margin-top: 18px;
+  padding: 16px 18px;
+  background: #fffbeb;
+  border-left: 3px solid #f59e0b;
+  border-radius: 8px;
+}
+
+.apr-reason-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #92400e;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.apr-reason-text {
+  font-size: 0.88rem;
+  color: #451a03;
+  margin: 0;
+  line-height: 1.55;
+  font-style: italic;
+}
+
+/* ── Note ── */
+.apr-note {
+  font-size: 0.84rem;
+  color: #64748b;
+  line-height: 1.55;
+  margin: 0 0 20px;
+  padding-bottom: 18px;
+  border-bottom: 1px dashed #e5e7eb;
+}
+
+.apr-note strong { color: #0f172a; font-weight: 600; }
+
+/* ── Quick chips ── */
+.apr-quick-wrap { margin-bottom: 20px; }
+
+.apr-quick-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.apr-quick-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.apr-chip {
+  padding: 6px 14px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #4b5563;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1.3;
+}
+
+.apr-chip:hover {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #065f46;
+  transform: translateY(-1px);
+}
+
+.apr-chip:active { transform: translateY(0); }
+
+/* ── Field ── */
+.apr-field { margin-bottom: 20px; }
+
+.apr-field-label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin-bottom: 8px;
+}
+
+.apr-field-label .optional {
+  color: #94a3b8;
+  font-weight: 400;
+  font-size: 0.8rem;
+}
+
+.apr-textarea {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  color: #0f172a;
+  line-height: 1.55;
+  resize: vertical;
+  transition: all 0.15s ease;
+  font-family: inherit;
+  background: #fff;
+}
+
+.apr-textarea:focus {
+  outline: none;
+  border-color: #059669;
+  box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.08);
+}
+
+.apr-textarea::placeholder { color: #cbd5e1; }
+
+.apr-char-count {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  margin-top: 6px;
+  text-align: right;
+}
+
+.apr-char-count.warn { color: #dc2626; font-weight: 600; }
+
+/* ── Actions ── */
+.apr-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding-top: 20px;
+  border-top: 1px solid #f1f3f5;
+}
+
+.apr-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 24px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: 999px;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-decoration: none;
+  line-height: 1;
+}
+
+.apr-btn-ghost {
+  background: #fff;
+  color: #4b5563;
+  border-color: #e5e7eb;
+}
+
+.apr-btn-ghost:hover {
+  background: #f9fafb;
+  color: #0f172a;
+  border-color: #d1d5db;
+}
+
+.apr-btn-success {
+  background: #059669;
+  color: #fff;
+}
+
+.apr-btn-success:hover {
+  background: #047857;
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(5, 150, 105, 0.25);
+}
+
+.apr-btn-success:active { transform: translateY(0); }
+
+/* ── Mobile ── */
+@media (max-width: 576px) {
+  .apr-card-body { padding: 20px 18px; }
+  .apr-card-head { padding: 14px 18px; }
+  .apr-hero { padding: 16px 18px; }
+  .apr-hero-badge { display: none; }
+  .apr-actions { flex-direction: column-reverse; }
+  .apr-btn { width: 100%; justify-content: center; }
+  .apr-meta-grid { grid-template-columns: 1fr; gap: 8px; }
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // ── Character counter ──
+    const ta = document.getElementById('admin_comment');
+    const counter = document.getElementById('aprCharCount');
+    const counterBox = counter ? counter.parentElement : null;
+
+    if (ta && counter) {
+        const update = function () {
+            const n = ta.value.length;
+            counter.textContent = n;
+            if (counterBox) {
+                counterBox.classList.toggle('warn', n > 450);
+            }
+        };
+        ta.addEventListener('input', update);
+        update();
+    }
+
+    // ── Quick comment chips ──
+    document.querySelectorAll('.apr-chip').forEach(function (chip) {
+        chip.addEventListener('click', function () {
+            if (!ta) return;
+            const text = chip.dataset.comment || '';
+            const sep = ta.value.trim().length ? ' ' : '';
+            ta.value = (ta.value.trim() + sep + text).trim();
+            ta.focus();
+            ta.dispatchEvent(new Event('input'));
+        });
+    });
+});
+</script>
 {% endblock %}

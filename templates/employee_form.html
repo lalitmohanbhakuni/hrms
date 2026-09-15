@@ -479,7 +479,7 @@
                                             <i class="las la-user"></i> Username <span class="emf-req">*</span>
                                         </label>
                                         <input type="text" name="username" id="username" class="emf-input"
-                                               value="{{ user.username|default:'' }}" required>
+                                               value="{{ employee_user.username|default:'' }}" required>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
@@ -488,7 +488,7 @@
                                             <i class="las la-envelope"></i> Email Address
                                         </label>
                                         <input type="email" name="email" id="email" class="emf-input"
-                                               value="{{ user.email|default:'' }}"
+                                               value="{{ employee_user.email|default:'' }}"
                                                placeholder="optional@example.com">
                                         <div class="emf-hint">
                                             <i class="las la-info-circle"></i>

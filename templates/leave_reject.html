@@ -1,31 +1,568 @@
 {% extends 'base.html' %}
 
-{% block title %}Reject Leave - HRMS{% endblock %}
-{% block page_icon %}times{% endblock %}
+{% block title %}Reject Leave — HRMS{% endblock %}
+{% block page_icon %}times-circle{% endblock %}
 {% block page_title %}Reject Leave Request{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body p-4">
-                <h5 class="mb-3 text-danger">Reject Leave for {{ leave.user.username }}</h5>
-                <p><strong>Leave Type:</strong> {{ leave.leave_type.name }}</p>
-                <p><strong>Date:</strong> {{ leave.start_date|date:"d M Y" }} - {{ leave.end_date|date:"d M Y" }}</p>
-                <p><strong>Reason:</strong> {{ leave.reason }}</p>
-                <form method="post">
-                    {% csrf_token %}
-                    <div class="mb-3">
-                        <label for="rejection_reason" class="form-label fw-semibold">Rejection Reason <span class="text-danger">*</span></label>
-                        <textarea name="rejection_reason" id="rejection_reason" rows="3" class="form-control" required placeholder="Please explain why this request is rejected..."></textarea>
-                    </div>
-                    <button type="submit" class="btn btn-danger rounded-pill px-4">
-                        <i class="fas fa-times me-2"></i> Confirm Rejection
-                    </button>
-                    <a href="{% url 'admin_leaves' %}" class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
-                </form>
-            </div>
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-7 col-md-9">
+
+      <!-- ═══════ Employee Header ═══════ -->
+      <div class="rej-hero">
+        <div class="rej-avatar">
+          {{ leave.user.username|first|upper }}
         </div>
+        <div class="rej-hero-text">
+          <div class="rej-hero-name">
+            {{ leave.user.get_full_name|default:leave.user.username }}
+          </div>
+          <div class="rej-hero-sub">
+            <i class="fas fa-clock me-1"></i>
+            Leave request awaiting your decision
+          </div>
+        </div>
+        <div class="rej-hero-badge">Pending</div>
+      </div>
+
+      <!-- ═══════ Leave Details Card ═══════ -->
+      <div class="rej-card mb-4">
+        <div class="rej-card-head">
+          <div class="rej-card-head-title">
+            <i class="las la-clipboard-list"></i>
+            <span>Request Details</span>
+          </div>
+          <span class="rej-type-pill">{{ leave.leave_type.name }}</span>
+        </div>
+
+        <div class="rej-card-body">
+          <div class="rej-timeline">
+
+            <div class="rej-tl-row">
+              <div class="rej-tl-icon from">
+                <i class="fas fa-plane-departure"></i>
+              </div>
+              <div class="rej-tl-text">
+                <div class="rej-tl-label">From</div>
+                <div class="rej-tl-value">{{ leave.start_date|date:"D, d M Y" }}</div>
+              </div>
+            </div>
+
+            <div class="rej-tl-line"></div>
+
+            <div class="rej-tl-row">
+              <div class="rej-tl-icon to">
+                <i class="fas fa-plane-arrival"></i>
+              </div>
+              <div class="rej-tl-text">
+                <div class="rej-tl-label">To</div>
+                <div class="rej-tl-value">{{ leave.end_date|date:"D, d M Y" }}</div>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="rej-meta-grid">
+            <div class="rej-meta-item">
+              <div class="rej-meta-label">Duration</div>
+              <div class="rej-meta-value">
+                {{ leave.get_duration }} day{{ leave.get_duration|pluralize }}
+              </div>
+            </div>
+            <div class="rej-meta-item">
+              <div class="rej-meta-label">Applied On</div>
+              <div class="rej-meta-value">{{ leave.applied_on|date:"d M Y" }}</div>
+            </div>
+          </div>
+
+          {% if leave.reason %}
+          <div class="rej-reason-block">
+            <div class="rej-reason-label">
+              <i class="las la-quote-left"></i> Employee's Reason
+            </div>
+            <p class="rej-reason-text">{{ leave.reason }}</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- ═══════ Rejection Action Card ═══════ -->
+      <div class="rej-card">
+        <div class="rej-card-head danger">
+          <div class="rej-card-head-title danger">
+            <i class="las la-exclamation-triangle"></i>
+            <span>Rejection Decision</span>
+          </div>
+        </div>
+
+        <div class="rej-card-body">
+          <p class="rej-note">
+            Please provide a clear reason. This will be <strong>visible to {{ leave.user.username }}</strong>
+            and saved on the request record.
+          </p>
+
+          <form method="post">
+            {% csrf_token %}
+
+            <!-- Quick reason chips -->
+            <div class="rej-quick-wrap">
+              <div class="rej-quick-label">Quick reasons</div>
+              <div class="rej-quick-chips">
+                <button type="button" class="rej-chip" data-reason="Insufficient leave balance">Insufficient balance</button>
+                <button type="button" class="rej-chip" data-reason="Critical project deadline">Project deadline</button>
+                <button type="button" class="rej-chip" data-reason="Team coverage unavailable">No coverage</button>
+                <button type="button" class="rej-chip" data-reason="Overlaps with another approved leave">Overlapping leave</button>
+                <button type="button" class="rej-chip" data-reason="Requested dates fall in a blackout period">Blackout period</button>
+              </div>
+            </div>
+
+            <div class="rej-field">
+              <label for="rejection_reason" class="rej-field-label">
+                Rejection Reason <span class="req">*</span>
+              </label>
+              <textarea name="rejection_reason"
+                        id="rejection_reason"
+                        rows="4"
+                        maxlength="500"
+                        class="rej-textarea"
+                        required
+                        placeholder="Explain why this request is being rejected…"></textarea>
+              <div class="rej-char-count">
+                <span id="rejCharCount">0</span> / 500 characters
+              </div>
+            </div>
+
+            <div class="rej-actions">
+              <a href="{% url 'admin_leaves' %}" class="rej-btn rej-btn-ghost">
+                <i class="fas fa-arrow-left"></i> Cancel
+              </a>
+              <button type="submit" class="rej-btn rej-btn-danger">
+                <i class="fas fa-times"></i> Confirm Rejection
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
     </div>
+  </div>
 </div>
+
+<style>
+/* ═══════════════════════════════════════════════════
+   Reject Leave — refined design
+   Prefix: .rej-
+   ═══════════════════════════════════════════════════ */
+
+.rej-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 22px;
+  background: linear-gradient(135deg, #fef2f2 0%, #fff5f5 100%);
+  border: 1px solid #fee2e2;
+  border-radius: 16px;
+  margin-bottom: 18px;
+  position: relative;
+  overflow: hidden;
+}
+
+.rej-hero::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0;
+  width: 4px; height: 100%;
+  background: linear-gradient(180deg, #dc2626, #ef4444);
+}
+
+.rej-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #dc2626, #ef4444);
+  color: #fff;
+  font-weight: 700;
+  font-size: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 16px rgba(220, 38, 38, .3);
+  flex-shrink: 0;
+}
+
+.rej-hero-text { flex: 1; min-width: 0; }
+
+.rej-hero-name {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #0f172a;
+  letter-spacing: -.01em;
+  margin-bottom: 3px;
+}
+
+.rej-hero-sub {
+  font-size: 0.8rem;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+}
+
+.rej-hero-badge {
+  padding: 4px 12px;
+  background: #fff;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+/* ── Card ── */
+.rej-card {
+  background: #fff;
+  border: 1px solid #e8eaee;
+  border-radius: 16px;
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+}
+
+.rej-card:hover { border-color: #d5d9e0; }
+
+.rej-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 22px;
+  border-bottom: 1px solid #f1f3f5;
+  background: #fafbfc;
+}
+
+.rej-card-head.danger { background: #fef2f2; border-bottom-color: #fee2e2; }
+
+.rej-card-head-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #0f172a;
+  letter-spacing: 0.01em;
+}
+
+.rej-card-head-title i { color: #6366f1; font-size: 1rem; }
+
+.rej-card-head-title.danger i { color: #dc2626; }
+
+.rej-type-pill {
+  padding: 4px 12px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: 999px;
+}
+
+.rej-card-body { padding: 24px 22px; }
+
+/* ── Timeline ── */
+.rej-timeline {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 20px;
+}
+
+.rej-tl-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.rej-tl-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.rej-tl-icon.from { background: #eff6ff; color: #2563eb; }
+.rej-tl-icon.to   { background: #f0fdf4; color: #16a34a; }
+
+.rej-tl-line {
+  width: 2px;
+  height: 14px;
+  background: #e5e7eb;
+  margin-left: 18px;
+  border-radius: 2px;
+}
+
+.rej-tl-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.rej-tl-value {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+/* ── Meta grid ── */
+.rej-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 16px;
+  background: #fafbfc;
+  border-radius: 12px;
+}
+
+.rej-meta-item { text-align: left; }
+
+.rej-meta-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+  font-weight: 600;
+  margin-bottom: 3px;
+}
+
+.rej-meta-value {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+/* ── Reason block ── */
+.rej-reason-block {
+  margin-top: 18px;
+  padding: 16px 18px;
+  background: #fffbeb;
+  border-left: 3px solid #f59e0b;
+  border-radius: 8px;
+}
+
+.rej-reason-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #92400e;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rej-reason-text {
+  font-size: 0.88rem;
+  color: #451a03;
+  margin: 0;
+  line-height: 1.55;
+  font-style: italic;
+}
+
+/* ── Note ── */
+.rej-note {
+  font-size: 0.84rem;
+  color: #64748b;
+  line-height: 1.55;
+  margin: 0 0 20px;
+  padding-bottom: 18px;
+  border-bottom: 1px dashed #e5e7eb;
+}
+
+.rej-note strong { color: #0f172a; font-weight: 600; }
+
+/* ── Quick chips ── */
+.rej-quick-wrap { margin-bottom: 20px; }
+
+.rej-quick-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.rej-quick-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rej-chip {
+  padding: 6px 14px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #4b5563;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1.3;
+}
+
+.rej-chip:hover {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+  transform: translateY(-1px);
+}
+
+.rej-chip:active { transform: translateY(0); }
+
+/* ── Field ── */
+.rej-field { margin-bottom: 20px; }
+
+.rej-field-label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin-bottom: 8px;
+}
+
+.rej-field-label .req { color: #dc2626; }
+
+.rej-textarea {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  color: #0f172a;
+  line-height: 1.55;
+  resize: vertical;
+  transition: all 0.15s ease;
+  font-family: inherit;
+  background: #fff;
+}
+
+.rej-textarea:focus {
+  outline: none;
+  border-color: #dc2626;
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.08);
+}
+
+.rej-textarea::placeholder { color: #cbd5e1; }
+
+.rej-char-count {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  margin-top: 6px;
+  text-align: right;
+}
+
+.rej-char-count.warn { color: #dc2626; font-weight: 600; }
+
+/* ── Actions ── */
+.rej-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding-top: 20px;
+  border-top: 1px solid #f1f3f5;
+}
+
+.rej-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 24px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: 999px;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-decoration: none;
+  line-height: 1;
+}
+
+.rej-btn-ghost {
+  background: #fff;
+  color: #4b5563;
+  border-color: #e5e7eb;
+}
+
+.rej-btn-ghost:hover {
+  background: #f9fafb;
+  color: #0f172a;
+  border-color: #d1d5db;
+}
+
+.rej-btn-danger {
+  background: #dc2626;
+  color: #fff;
+}
+
+.rej-btn-danger:hover {
+  background: #b91c1c;
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(220, 38, 38, 0.25);
+}
+
+.rej-btn-danger:active { transform: translateY(0); }
+
+/* ── Mobile ── */
+@media (max-width: 576px) {
+  .rej-card-body { padding: 20px 18px; }
+  .rej-card-head { padding: 14px 18px; }
+  .rej-hero { padding: 16px 18px; }
+  .rej-hero-badge { display: none; }
+  .rej-actions { flex-direction: column-reverse; }
+  .rej-btn { width: 100%; justify-content: center; }
+  .rej-meta-grid { grid-template-columns: 1fr; gap: 8px; }
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // ── Character counter ──
+    const ta = document.getElementById('rejection_reason');
+    const counter = document.getElementById('rejCharCount');
+    const counterBox = counter ? counter.parentElement : null;
+
+    if (ta && counter) {
+        const update = function () {
+            const n = ta.value.length;
+            counter.textContent = n;
+            if (counterBox) {
+                counterBox.classList.toggle('warn', n > 450);
+            }
+        };
+        ta.addEventListener('input', update);
+        update();
+    }
+
+    // ── Quick reason chips ──
+    document.querySelectorAll('.rej-chip').forEach(function (chip) {
+        chip.addEventListener('click', function () {
+            if (!ta) return;
+            const reason = chip.dataset.reason || '';
+            // Append if there's already text, otherwise replace
+            const sep = ta.value.trim().length ? '. ' : '';
+            ta.value = (ta.value.trim() + sep + reason).trim();
+            ta.focus();
+            ta.dispatchEvent(new Event('input'));
+        });
+    });
+});
+</script>
 {% endblock %}

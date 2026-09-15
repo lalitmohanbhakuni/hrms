@@ -16,6 +16,129 @@
 
 <style>
     .db-card:hover,.db-stat:hover{border-color:var(--db-border-hover)}.db-btn-pill:hover,.db-stat:hover{transform:translateY(-1px)}.db-hero,.db-leave{position:relative;overflow:hidden}.db-cal,.db-hero,.db-leave,.db-leave-bar,.db-rate-bar{overflow:hidden}.db-cal-month,.db-empty,.db-mini{text-align:center}:root{--db-bg:#f6f7f9;--db-surface:#ffffff;--db-surface-2:#fafbfc;--db-border:#e8eaee;--db-border-hover:#d5d9e0;--db-text:#0f172a;--db-text-muted:#64748b;--db-text-faint:#94a3b8;--db-primary:#4f46e5;--db-primary-soft:#eef2ff;--db-success:#059669;--db-success-soft:#ecfdf5;--db-warning:#d97706;--db-warning-soft:#fffbeb;--db-danger:#dc2626;--db-danger-soft:#fef2f2;--db-info:#0284c7;--db-info-soft:#f0f9ff;--db-teal:#0d9488;--db-teal-soft:#f0fdfa;--db-r-sm:8px;--db-r-md:12px;--db-r-lg:16px;--db-r-pill:999px;--db-shadow-sm:0 1px 2px rgba(15, 23, 42, 0.04),0 1px 3px rgba(15, 23, 42, 0.03);--db-shadow-md:0 4px 16px rgba(15, 23, 42, 0.06),0 1px 3px rgba(15, 23, 42, 0.04);--db-shadow-lg:0 12px 32px rgba(15, 23, 42, 0.10),0 4px 8px rgba(15, 23, 42, 0.04);--db-ease:cubic-bezier(0.4, 0, 0.2, 1)}.db-card{background:var(--db-surface);border:1px solid var(--db-border);border-radius:var(--db-r-md);transition:border-color .2s var(--db-ease),box-shadow .2s var(--db-ease)}.db-card-hd{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 22px 4px}.db-card-title{font-size:.9375rem;font-weight:600;letter-spacing:-.01em;color:var(--db-text);margin:0;display:inline-flex;align-items:center;gap:8px}.db-chip,.db-stat{align-items:center}.db-card-title i{font-size:1rem;color:var(--db-text-faint)}.db-card-sub{font-size:.75rem;color:var(--db-text-muted);margin:4px 0 0 24px}.db-card-bd{padding:16px 22px 20px}.db-card-bd.flush{padding:8px 0 12px}.db-hero{border-radius:var(--db-r-lg);background:#0f1729;background-image:radial-gradient(circle at 88% 15%,rgba(99,102,241,.45),transparent 45%),radial-gradient(circle at 12% 110%,rgba(139,92,246,.28),transparent 55%);color:#fff;padding:28px 32px;margin-bottom:22px}.db-hero::after{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);background-size:32px 32px;pointer-events:none;mask-image:linear-gradient(to bottom,rgba(0,0,0,0.6),transparent 80%)}.db-hero-hi{font-size:1.375rem;font-weight:600;letter-spacing:-.015em;margin:0 0 6px}.db-hero-sub{color:rgba(255,255,255,.65);font-size:.875rem;margin:0}.db-hero-sub strong{color:rgba(255,255,255,.9);font-weight:500}.db-chip{display:inline-flex;gap:6px;padding:6px 13px;border-radius:var(--db-r-pill);background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.08);color:rgba(255,255,255,.85);font-size:.78rem;font-weight:400;backdrop-filter:blur(6px)}.db-chip i{font-size:.9rem;opacity:.7}.db-hero-art{font-size:5.5rem;color:rgba(255,255,255,.08);line-height:1}.db-stat{display:flex;gap:14px;background:var(--db-surface);border:1px solid var(--db-border);border-radius:var(--db-r-md);padding:18px 20px;height:100%;transition:border-color .2s var(--db-ease),transform .2s var(--db-ease)}.db-table tbody td,.db-table thead th{border-bottom:1px solid var(--db-border)}.db-stat-ico{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:1.15rem;flex-shrink:0}.db-mini,.db-shift{border:1px solid var(--db-border)}.db-stat-ico.primary{background:var(--db-primary-soft);color:var(--db-primary)}.db-badge-soft.success,.db-stat-ico.success{background:var(--db-success-soft);color:var(--db-success)}.db-badge-soft.warning,.db-stat-ico.warning{background:var(--db-warning-soft);color:var(--db-warning)}.db-badge-soft.danger,.db-stat-ico.danger{background:var(--db-danger-soft);color:var(--db-danger)}.db-stat-ico.info{background:var(--db-info-soft);color:var(--db-info)}.db-stat-ico.teal{background:var(--db-teal-soft);color:var(--db-teal)}.db-stat-label{font-size:.7rem;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--db-text-muted);margin-bottom:3px}.db-stat-value{font-size:1.5rem;font-weight:700;letter-spacing:-.02em;color:var(--db-text);line-height:1.1;font-variant-numeric:tabular-nums}.calendar-day .day-number,.db-timer{font-variant-numeric:tabular-nums;line-height:1}.db-stat-value small{font-size:.875rem;font-weight:400;color:var(--db-text-faint);letter-spacing:0}.db-shift strong,.db-time-value{font-weight:600}.db-shift{display:inline-flex;align-items:center;flex-wrap:wrap;gap:8px;padding:8px 14px;background:var(--db-surface-2);border-radius:var(--db-r-pill);font-size:.82rem;color:var(--db-text);margin-bottom:20px}.db-shift .muted{color:var(--db-text-muted);font-size:.78rem}.db-time-label{font-size:.72rem;color:var(--db-text-faint);letter-spacing:.04em;text-transform:uppercase;margin-bottom:2px}.db-time-value{font-size:1rem;color:var(--db-text);font-variant-numeric:tabular-nums}.db-time-value.empty{color:var(--db-text-faint);font-weight:400}.db-timer{font-size:1.85rem;font-weight:700;letter-spacing:.5px;color:var(--db-primary)}.db-btn-pill{border-radius:var(--db-r-pill);font-weight:500;letter-spacing:.005em;padding-left:1.25rem;padding-right:1.25rem;transition:all .15s var(--db-ease)}.db-icon-btn{width:32px;height:32px;border-radius:50%;border:none;background:0 0;display:inline-flex;align-items:center;justify-content:center;font-size:.85rem;transition:background .15s var(--db-ease),transform .15s var(--db-ease)}.db-mini,.db-table tbody tr:hover,.db-table thead th{background:var(--db-surface-2)}.db-mini-label,.db-table thead th{font-size:.68rem;color:var(--db-text-faint);text-transform:uppercase}.db-icon-btn:hover{transform:scale(1.08)}.db-icon-btn.success,.db-mini-value.success{color:var(--db-success)}.db-icon-btn.success:hover{background:var(--db-success-soft)}.db-icon-btn.danger{color:var(--db-danger)}.db-icon-btn.danger:hover{background:var(--db-danger-soft)}.db-table{width:100%;margin:0}.db-table thead th{font-weight:600;letter-spacing:.08em;padding:12px 16px;white-space:nowrap}.db-table tbody td{padding:14px 16px;vertical-align:middle;font-size:.875rem;color:var(--db-text)}.db-table tbody tr:last-child td{border-bottom:none}.db-table .num{font-variant-numeric:tabular-nums}.db-table .muted{color:var(--db-text-muted)}.db-mini{border-radius:var(--db-r-sm);padding:10px 14px}.db-mini-label{font-weight:500;letter-spacing:.06em}.db-mini-value{font-size:1.2rem;font-weight:700;letter-spacing:-.02em;color:var(--db-text);font-variant-numeric:tabular-nums;line-height:1.3}.db-leave-foot .pending,.db-mini-value.warning{color:var(--db-warning)}.db-mini-value.primary{color:var(--db-primary)}.db-leave{background:var(--db-surface);border:1px solid var(--db-border);border-radius:var(--db-r-md);padding:14px 16px;height:100%;transition:border-color .15s var(--db-ease),transform .15s var(--db-ease)}.db-leave-bar,.db-leave-count{border-radius:var(--db-r-pill)}.db-leave:hover{transform:translateY(-1px);border-color:var(--db-border-hover)}.db-leave::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--db-success)}.calendar-legend .dot.halfday,.db-leave-bar>div.warning,.db-leave.warning::before,.event-dot.halfday{background:var(--db-warning)}.db-leave-bar>div.danger,.db-leave.danger::before{background:var(--db-danger)}.db-leave-name{font-size:.82rem;font-weight:600;color:var(--db-text);letter-spacing:-.005em;margin:0}.db-leave-count{font-size:.68rem;font-weight:600;letter-spacing:.02em;background:var(--db-surface-2);color:var(--db-text-muted);padding:3px 10px;font-variant-numeric:tabular-nums}.db-leave-bar{height:4px;background:#eef0f3;margin:10px 0 8px}.db-leave-bar>div{height:100%;border-radius:inherit;background:var(--db-success);transition:width .4s var(--db-ease)}.db-leave-foot{display:flex;justify-content:space-between;align-items:center;font-size:.74rem;color:var(--db-text-muted)}.calendar-day.weekend .day-number,.calendar-weekdays{color:var(--db-text-faint)}.db-leave-foot strong{color:var(--db-text);font-weight:600}.db-cal{border:1px solid var(--db-border);border-radius:var(--db-r-md);background:var(--db-surface)}.calendar-grid{max-width:100%}.calendar-days,.calendar-weekdays{display:grid;grid-template-columns:repeat(7,1fr);text-align:center}.calendar-weekdays{font-size:.68rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:12px 0 10px;border-bottom:1px solid var(--db-border);background:var(--db-surface-2)}.calendar-days{gap:6px;padding:10px}.calendar-day{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:10px 0;border-radius:var(--db-r-sm);background:var(--db-surface);border:1px solid transparent;min-height:56px;transition:background .15s var(--db-ease),border-color .15s var(--db-ease);cursor:default}.calendar-day:hover,.db-period{background:var(--db-surface-2)}.calendar-day:hover{border-color:var(--db-border)}.calendar-day.empty{background:0 0!important;border-color:transparent!important}.calendar-day .day-number{font-size:.85rem;font-weight:500;color:var(--db-text)}.calendar-day.today{background:var(--db-primary-soft);border-color:rgba(79,70,229,.15)}.calendar-day.today .day-number{font-weight:700;color:var(--db-primary)}.day-events{height:6px;display:flex;align-items:center;justify-content:center}.calendar-legend .dot,.event-dot{display:inline-block;border-radius:50%}.event-dot{width:6px;height:6px}.db-avatar,.db-cal-nav{width:32px;height:32px}.calendar-legend .dot.present,.event-dot.present{background:var(--db-success)}.calendar-legend .dot.leave,.event-dot.leave{background:#ea580c}.calendar-legend .dot.weekend,.event-dot.weekend{background:#cbd5e1}.calendar-legend .dot.none,.event-dot.none{background:#e2e8f0}.calendar-legend{display:flex;flex-wrap:wrap;justify-content:center;gap:1.5rem;padding:16px 0 20px;font-size:.74rem;color:var(--db-text-muted);border-top:1px solid var(--db-border)}.calendar-legend>span,.db-cal-nav{align-items:center;display:inline-flex}.db-cal-month,.db-period button:hover{color:var(--db-text)}.calendar-legend>span{gap:6px}.calendar-legend .dot{width:8px;height:8px}.db-cal-nav{border-radius:50%;justify-content:center;padding:0}.db-cal-month{min-width:150px;font-size:.95rem;font-weight:600;letter-spacing:-.01em}.db-period{display:inline-flex;border:1px solid var(--db-border);border-radius:var(--db-r-sm);padding:3px;gap:2px}.db-period button{border:none;background:0 0;font-size:.75rem;font-weight:500;padding:5px 12px;border-radius:6px;color:var(--db-text-muted);transition:background .15s var(--db-ease),color .15s var(--db-ease)}.db-period button.active{background:var(--db-surface);color:var(--db-primary);box-shadow:var(--db-shadow-sm)}.db-avatar{border-radius:50%;background:linear-gradient(135deg,#6366f1 0,#8b5cf6 100%);color:#fff;font-weight:600;font-size:.75rem;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}.db-shift-tag{display:inline-flex;flex-direction:column;align-items:center;padding:5px 10px;background:var(--db-surface-2);border:1px solid var(--db-border);border-radius:var(--db-r-sm);font-size:.72rem;color:var(--db-text);line-height:1.3}.db-badge-soft,.db-rate{align-items:center;display:inline-flex}.db-badge-soft,.db-rate-bar{border-radius:var(--db-r-pill)}.db-shift-tag small{color:var(--db-text-faint);font-size:.65rem}.db-rate{gap:8px}.db-count-pill,.db-detail-tag{gap:4px;font-variant-numeric:tabular-nums}.db-rate-bar{width:64px;height:5px;background:#eef0f3}.db-rate-bar>div{height:100%;background:var(--db-success);border-radius:inherit}.db-rate-val{font-size:.72rem;font-weight:600;color:var(--db-text-muted);font-variant-numeric:tabular-nums;min-width:34px}.db-badge-soft{justify-content:center;min-width:26px;padding:3px 9px;font-size:.72rem;font-weight:600;font-variant-numeric:tabular-nums}.db-detail-row td{background:var(--db-surface-2);padding:16px 20px!important;border-bottom:1px solid var(--db-border)!important}.db-detail-tag{display:inline-flex;align-items:center;padding:5px 11px;background:var(--db-surface);border:1px solid var(--db-border);border-radius:var(--db-r-sm);font-size:.74rem;color:var(--db-text)}.db-count-pill,.db-empty-ico{display:inline-flex;background:var(--db-surface-2)}.db-detail-tag i{color:var(--db-success);font-size:.8rem}.db-empty{padding:40px 20px}.db-empty-ico{width:64px;height:64px;border-radius:50%;color:var(--db-text-faint);align-items:center;justify-content:center;font-size:1.75rem;margin-bottom:14px}.db-empty-title{font-size:.9rem;font-weight:600;color:var(--db-text);margin:0 0 4px}.db-empty-sub{font-size:.8rem;color:var(--db-text-muted);margin:0}.db-count-pill{align-items:center;padding:4px 11px;border-radius:var(--db-r-pill);border:1px solid var(--db-border);font-size:.72rem;font-weight:600;color:var(--db-text-muted)}.db-count-pill.warning{background:var(--db-warning-soft);border-color:transparent;color:var(--db-warning)}.db-count-pill.primary{background:var(--db-primary-soft);border-color:transparent;color:var(--db-primary)}@media (max-width:767.98px){.db-hero{padding:22px 20px}.db-hero-hi{font-size:1.15rem}.db-hero-art{font-size:3.5rem}.db-stat{padding:14px 16px;gap:12px}.db-stat-ico{width:36px;height:36px;font-size:1rem}.db-stat-value{font-size:1.25rem}.db-card-hd{padding:16px 18px 2px}.db-card-bd{padding:14px 18px 18px}.db-table tbody td,.db-table thead th{padding:11px 12px}.db-timer{font-size:1.5rem}.db-cal-month{min-width:110px;font-size:.875rem}.calendar-day{min-height:46px;padding:6px 0}.calendar-day .day-number{font-size:.78rem}.calendar-legend{gap:.9rem;font-size:.68rem}}
+/* Attendance Rate bar */
+.db-rate-bar {
+    width: 100%;
+    height: 8px;
+    background: #e5e7eb;
+    border-radius: 999px;
+    overflow: hidden;
+    margin: 10px 0 8px;
+}
+
+.db-rate-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #10b981, #34d399);
+    transition: width 0.6s ease;
+}
+
+.db-stat-hint {
+    font-size: 0.75rem;
+    color: #6b7280;
+}
+
+/* Calendar day cells */
+.calendar-day {
+    min-height: 90px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    background: #fff;
+    border: 1px solid #eef0f3;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    transition: background 0.15s ease;
+}
+
+.calendar-day:hover {
+    background: #f9fafb;
+}
+
+.calendar-day.today {
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.15);
+}
+
+.calendar-day.weekend {
+    background: #f9fafb;
+    opacity: 0.75;
+}
+
+.calendar-day.holiday {
+    background: #fff7ed;
+    border-color: #fed7aa;
+}
+
+.day-number {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #111827;
+}
+
+/* Holiday badge */
+.event-badge.holiday {
+    background: #fef3c7;
+    color: #92400e;
+    font-size: 0.68rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 500;
+    display: inline-block;
+    line-height: 1.2;
+}
+
+/* Weekend text */
+.event-text.weekend-text {
+    color: #9ca3af;
+    font-size: 0.7rem;
+    font-style: italic;
+}
+
+.event-text.none-text {
+    color: #d1d5db;
+    font-size: 0.7rem;
+}
+
+/* Team mode: count pills */
+.event-counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 2px;
+}
+
+.count-pill {
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    line-height: 1.4;
+}
+
+.count-pill.present  { background: #dcfce7; color: #166534; }
+.count-pill.absent   { background: #fee2e2; color: #991b1b; }
+.count-pill.leave    { background: #e0e7ff; color: #3730a3; }
+.count-pill.halfday  { background: #fef3c7; color: #92400e; }
+
+/* Self mode: badges */
+.event-badge {
+    font-size: 0.68rem;
+    font-weight: 500;
+    padding: 1px 6px;
+    border-radius: 4px;
+    display: inline-block;
+    line-height: 1.3;
+}
+
+.event-badge.present  { background: #dcfce7; color: #166534; }
+.event-badge.absent   { background: #fee2e2; color: #991b1b; }
+.event-badge.leave    { background: #e0e7ff; color: #3730a3; }
+.event-badge.halfday  { background: #fef3c7; color: #92400e; }
+
 </style>
 
 
@@ -59,8 +182,25 @@
             <div class="db-stat">
                 <div class="db-stat-ico success"><i class="las la-check-circle"></i></div>
                 <div>
-                    <div class="db-stat-label">Present Today</div>
-                    <div class="db-stat-value">{{ present_today }} <small>/ {{ absent_today }}</small></div>
+                    <!-- <div class="db-stat-label">Present Today</div> -->
+                    <!-- <div class="db-stat-value">{{ present_today }} <small>/ {{ absent_today }}</small></div> -->
+                     {# ── Attendance Rate Card ── #}
+                    <div class="db-stat-card">
+                        <div class="db-stat-label">Present Today</div>
+
+                        <div class="db-stat-value">
+                            {{ attendance_rate }}<small>%</small>
+                        </div>
+
+                        <div class="db-rate-bar">
+                            <div class="db-rate-fill" style="width: {{ attendance_rate }}%;"></div>
+                        </div>
+
+                        <div class="db-stat-hint">
+                            {{ present_today }} present
+                            {% if on_leave_today %} · {{ on_leave_today }} on leave{% endif %}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -98,8 +238,31 @@
             <div class="db-stat">
                 <div class="db-stat-ico success"><i class="las la-check-circle"></i></div>
                 <div>
-                    <div class="db-stat-label">Present Today</div>
-                    <div class="db-stat-value">{{ team_present_today }}</div>
+
+
+                    <div class="db-stat-card">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="db-stat-label">Team Attendance</div>
+                        </div>
+
+                        <div class="db-stat-value">
+                            {{ team_attendance_rate }}<small>%</small>
+                        </div>
+
+                        <div class="db-rate-bar">
+                            <div class="db-rate-fill" style="width: {{ team_attendance_rate }}%;"></div>
+                        </div>
+
+                        <div class="db-stat-hint">
+                            {{ team_present_today }} present
+                            {% if team_on_leave_today %} · {{ team_on_leave_today }} on leave{% endif %}
+                            {% if team_count %} · {{ team_count }} total{% endif %}
+                        </div>
+                    </div>
+
+
+                    <!-- <div class="db-stat-label">Present Today</div>
+                    <div class="db-stat-value">{{ team_present_today }}</div> -->
                 </div>
             </div>
         </div>
@@ -316,7 +479,8 @@
         </div>
     {% endif %}
 
-    {% if user|is_admin_or_hr and pending_leave_requests %}
+    {% if user|is_admin_or_hr%}
+
         <div class="col-lg-7">
             <div class="db-card h-100">
                 <div class="db-card-hd">
@@ -369,8 +533,11 @@
                 </div>
             </div>
         </div>
+        
     {% endif %}
 </div>
+
+{% if user.profile.role == 'employee' %}
 
 {# ─────────── LEAVE BALANCE ─────────── #}
 <div class="row g-3 mb-4">
@@ -447,6 +614,8 @@
     </div>
 </div>
 
+{% endif %} 
+
 {# ─────────── ATTENDANCE OVERVIEW (ADMIN) ─────────── #}
 {% if user|is_admin_or_hr %}
     <div class="db-card mb-4">
@@ -470,69 +639,203 @@
 {% endif %}
 
 {# ─────────── CALENDAR ─────────── #}
-<div class="db-cal mb-4">
+
+<div class="db-card mb-4" id="calendar">
+
     <div class="db-card-hd">
-        <button class="btn btn-sm btn-outline-secondary db-btn-pill"
-                onclick="window.location.href='?month={{ today.month }}&year={{ today.year }}'">
+        <button class="btn btn-sm btn-outline-secondary db-btn-pill js-cal-nav"
+                onclick="window.location.href='?month={{ today.month }}&year={{ today.year }}#calendar'">
             Today
         </button>
+
         <div class="d-flex align-items-center gap-2">
-            <a href="?month={{ month|add:'-1' }}&year={% if month == 1 %}{{ year|add:'-1' }}{% else %}{{ year }}{% endif %}"
-               class="btn btn-sm btn-outline-secondary db-cal-nav">
+            <a href="?month={{ prev_month }}&year={{ prev_year }}#calendar"
+               class="btn btn-sm btn-outline-secondary db-cal-nav js-cal-nav"
+               title="Previous Month">
                 <i class="fas fa-chevron-left"></i>
             </a>
+
             <span class="db-cal-month">{{ selected_month_name }}</span>
-            <a href="?month={{ month|add:'1' }}&year={% if month == 12 %}{{ year|add:'1' }}{% else %}{{ year }}{% endif %}"
-               class="btn btn-sm btn-outline-secondary db-cal-nav">
-                <i class="fas fa-chevron-right"></i>
-            </a>
+
+            {% if next_disabled %}
+                <span class="btn btn-sm btn-outline-secondary db-cal-nav disabled"
+                      style="opacity:.4; pointer-events:none;"
+                      title="Next month is in the future">
+                    <i class="fas fa-chevron-right"></i>
+                </span>
+            {% else %}
+                <a href="?month={{ next_month }}&year={{ next_year }}#calendar"
+                   class="btn btn-sm btn-outline-secondary db-cal-nav js-cal-nav"
+                   title="Next Month">
+                    <i class="fas fa-chevron-right"></i>
+                </a>
+            {% endif %}
         </div>
+
         <div style="width: 70px;"></div>
     </div>
 
-    <div class="calendar-grid">
-        <div class="calendar-weekdays">
-            <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
-        </div>
-        <div class="calendar-days">
-            {% for i in "x"|rjust:first_weekday %}
-                <div class="calendar-day empty"></div>
-            {% endfor %}
-            {% for item in calendar_data %}
-                <div class="calendar-day
-                    {% if item.is_weekend %}weekend{% endif %}
-                    {% if item.date == today %}today{% endif %}
-                    {% if item.status == 'Present' %}present{% endif %}
-                    {% if item.status == 'leave' %}leave{% endif %}
-                    {% if item.status == 'Half-Day' %}halfday{% endif %}
-                    {% if item.status == 'none' %}none{% endif %}">
-                    <span class="day-number">{{ item.day }}</span>
-                    <div class="day-events">
-                        {% if item.status == 'Present' %}
-                            <span class="event-dot present" title="Present"></span>
-                        {% elif item.status == 'leave' %}
-                            <span class="event-dot leave" title="On Leave"></span>
-                        {% elif item.status == 'Half-Day' %}
-                            <span class="event-dot halfday" title="Half-Day"></span>
-                        {% elif item.status == 'weekend' %}
-                            <span class="event-dot weekend" title="Weekend"></span>
-                        {% elif item.status == 'none' %}
-                            <span class="event-dot none" title="No Record"></span>
+    <div class="calendar-days">
+
+        {% for i in "x"|rjust:first_weekday %}
+            <div class="calendar-day empty"></div>
+        {% endfor %}
+
+        {% for item in calendar_data %}
+            <div class="calendar-day
+                {% if item.mode == 'team' and item.employees %}js-cal-day{% endif %}
+                {% if item.is_weekend %}weekend{% endif %}
+                {% if item.is_holiday %}holiday{% endif %}
+                {% if item.date == today %}today{% endif %}
+                {% if item.mode == 'self' and item.self_status == 'present' %}present{% endif %}
+                {% if item.mode == 'self' and item.self_status == 'leave' %}leave{% endif %}
+                {% if item.mode == 'self' and item.self_status == 'halfday' %}halfday{% endif %}
+                {% if item.mode == 'self' and item.self_status == 'absent' %}absent{% endif %}"
+                {% if item.mode == 'team' and item.employees %}
+                    data-day="{{ item.day }}"
+                    data-date="{{ item.date|date:'D, d M Y' }}"
+                {% endif %}>
+
+                <span class="day-number">{{ item.day }}</span>
+
+                <div class="day-events">
+                    {# ── Holiday badge ── #}
+                    {% if item.is_holiday %}
+                        <span class="event-badge holiday" title="{{ item.holiday_name }}">
+                            ★ {{ item.holiday_name|truncatechars:10 }}
+                        </span>
+
+                    {# ── Weekend ── #}
+                    {% elif item.is_weekend %}
+                        <span class="event-text weekend-text">Weekend</span>
+
+                    {# ── Team mode: show counts ── #}
+                    {% elif item.mode == 'team' %}
+                        <div class="event-counts">
+                            {% if item.counts.present %}
+                                <span class="count-pill present" title="Present">● {{ item.counts.present }} P</span>
+                            {% endif %}
+                            {% if item.counts.absent %}
+                                <span class="count-pill absent" title="Absent">● {{ item.counts.absent }} A</span>
+                            {% endif %}
+                            {% if item.counts.leave %}
+                                <span class="count-pill leave" title="On Leave">● {{ item.counts.leave }} L</span>
+                            {% endif %}
+                            {% if item.counts.half %}
+                                <span class="count-pill halfday" title="Half-Day">● {{ item.counts.half }} H</span>
+                            {% endif %}
+                            {% if not item.counts.present and not item.counts.absent and not item.counts.leave and not item.counts.half and item.date <= today %}
+                                <span class="event-text none-text">No Record</span>
+                            {% endif %}
+                        </div>
+
+                    {# ── Self mode: personal status ── #}
+                    {% else %}
+                        {% if item.self_status == 'present' %}
+                            <span class="event-badge present">● Present</span>
+                        {% elif item.self_status == 'leave' %}
+                            <span class="event-badge leave">● On Leave</span>
+                        {% elif item.self_status == 'halfday' %}
+                            <span class="event-badge halfday">● Half-Day</span>
+                        {% elif item.self_status == 'absent' %}
+                            <span class="event-badge absent">● Absent</span>
+                        {% elif item.self_status == 'none' %}
+                            <span class="event-text none-text">No Record</span>
                         {% endif %}
-                    </div>
+                    {% endif %}
                 </div>
-            {% endfor %}
-        </div>
+            </div>
+        {% endfor %}
     </div>
 
-    <div class="calendar-legend">
-        <span><span class="dot present"></span> Present</span>
-        <span><span class="dot leave"></span> On Leave</span>
-        <span><span class="dot halfday"></span> Half-Day</span>
-        <span><span class="dot weekend"></span> Weekend</span>
-        <span><span class="dot none"></span> No Record</span>
-    </div>
 </div>
+
+{# ── Calendar scroll preservation ── #}
+<style>
+    .att-modal{border:none;border-radius:18px;overflow:hidden;box-shadow:0 24px 70px rgba(15,23,42,.18)}.att-modal-header{display:flex;align-items:center;justify-content:space-between;padding:20px 24px 16px;border-bottom:1px solid #f1f3f5;background:#fff}.att-modal-head-left{display:flex;align-items:center;gap:14px}.att-modal-icon{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#4f46e5,#6366f1);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.05rem;box-shadow:0 6px 14px rgba(79,70,229,.25)}.att-modal-title{font-size:1.05rem;font-weight:600;color:#111827;margin:0;line-height:1.3}.att-modal-sub{font-size:.8rem;color:#6b7280;margin-top:2px}.att-modal-close{width:34px;height:34px;border-radius:50%;border:none;background:#f3f4f6;color:#4b5563;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:.15s;font-size:.85rem}.att-modal-summary,.att-table tbody tr:hover{background:#fafbfc}.att-modal-close:hover{background:#e5e7eb;color:#111827;transform:rotate(90deg)}.att-modal-summary{display:flex;flex-wrap:wrap;gap:8px;padding:14px 24px;border-bottom:1px solid #f1f3f5}.att-modal-summary:empty{display:none}.att-summary-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;font-size:.78rem;font-weight:600;border:1px solid transparent}.att-summary-pill .dot{width:7px;height:7px;border-radius:50%}.att-summary-pill.present{background:#ecfdf5;color:#065f46;border-color:#d1fae5}.att-summary-pill.present .dot{background:#10b981}.att-summary-pill.absent{background:#fef2f2;color:#991b1b;border-color:#fee2e2}.att-summary-pill.absent .dot{background:#ef4444}.att-summary-pill.leave{background:#eef2ff;color:#3730a3;border-color:#e0e7ff}.att-summary-pill.leave .dot{background:#6366f1}.att-summary-pill.halfday{background:#fffbeb;color:#92400e;border-color:#fef3c7}.att-summary-pill.halfday .dot{background:#f59e0b}.att-modal-body{max-height:60vh;overflow-y:auto;padding:0}.att-modal-body::-webkit-scrollbar{width:6px}.att-modal-body::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:999px}.att-table{width:100%;border-collapse:separate;border-spacing:0;margin:0}.att-table thead th{position:sticky;top:0;background:#fff;padding:12px 20px;font-size:.72rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#6b7280;border-bottom:1px solid #f1f3f5;z-index:1}.att-table tbody td{padding:14px 20px;border-bottom:1px solid #f8fafc;vertical-align:middle}.att-table tbody tr:last-child td{border-bottom:none}.att-table tbody tr{transition:background .15s}.att-emp-cell{display:flex;align-items:center;gap:12px;min-width:0}.att-emp-avatar{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#818cf8);color:#fff;font-weight:600;font-size:.85rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 10px rgba(79,70,229,.18)}.att-emp-text{min-width:0;line-height:1.35}.att-emp-name{font-weight:600;color:#111827;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.att-emp-id{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:.72rem;color:#6b7280;margin-top:2px;display:inline-block}.att-designation{font-size:.82rem;color:#4b5563}.att-emp-status{font-size:.72rem;font-weight:600;padding:3px 10px;border-radius:999px;white-space:nowrap;display:inline-block}.att-emp-status.present{background:#ecfdf5;color:#065f46}.att-emp-status.absent{background:#fef2f2;color:#991b1b}.att-emp-status.halfday{background:#fffbeb;color:#92400e}.att-emp-status.leave{background:#eef2ff;color:#3730a3}.att-emp-status.future{background:#f3f4f6;color:#6b7280}.att-time{font-size:.78rem;color:#6b7280;font-variant-numeric:tabular-nums;white-space:nowrap}.att-time.muted{color:#d1d5db}.att-empty-row td{text-align:center;padding:40px 20px;color:#9ca3af;font-size:.85rem}@media (max-width:576px){.att-modal-header{padding:16px 18px 12px}.att-modal-summary{padding:12px 18px}.att-table thead th{padding:10px 12px;font-size:.68rem}.att-table tbody td{padding:12px}.att-designation{display:none}.att-modal-body{max-height:70vh}}
+
+   .emp-avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#6366f1);color:#fff;font-weight:600;font-size:.8rem;display:flex;align-items:center;justify-content:center;flex-shrink:0}.event-badge.present{background:#dcfce7;color:#166534}.event-badge.absent{background:#fee2e2;color:#991b1b}.event-badge.leave{background:#e0e7ff;color:#3730a3}.event-badge.halfday{background:#fef3c7;color:#92400e}.event-badge.future{background:#f3f4f6;color:#6b7280}#calendar{scroll-margin-top:90px}
+</style>
+
+
+<script>
+(function () {
+    const KEY = 'hrms_dashboard_scroll_y';
+
+    document.querySelectorAll('.js-cal-nav').forEach(function (el) {
+        el.addEventListener('click', function () {
+            try { sessionStorage.setItem(KEY, window.scrollY); } catch (e) {}
+        });
+    });
+
+    const params = new URLSearchParams(window.location.search);
+    const isCalNav = params.has('month') || params.has('year');
+    if (isCalNav) {
+        try {
+            const y = sessionStorage.getItem(KEY);
+            if (y !== null) {
+                window.scrollTo({ top: parseInt(y, 10), behavior: 'instant' });
+            }
+        } catch (e) {}
+    }
+})();
+</script>
+
+{# ── Employee list data (JSON) ── #}
+{{ calendar_employees_json|json_script:"calendar-employees-data" }}
+
+{# ── Employee List Modal ── #}
+<div class="modal fade" id="dayEmployeesModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+    <div class="modal-content att-modal">
+
+      {# ── Header ── #}
+      <div class="att-modal-header">
+        <div class="att-modal-head-left">
+          <div class="att-modal-icon">
+            <i class="fas fa-calendar-check"></i>
+          </div>
+          <div>
+            <h5 class="att-modal-title" id="dayModalTitle">Attendance Details</h5>
+            <div class="att-modal-sub" id="dayModalSubtitle">Loading…</div>
+          </div>
+        </div>
+        <button type="button" class="att-modal-close" data-bs-dismiss="modal" aria-label="Close">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      {# ── Summary pills ── #}
+      <div class="att-modal-summary" id="dayModalSummary"></div>
+
+      {# ── Table body ── #}
+      <div class="att-modal-body">
+        <table class="att-table">
+          <thead>
+            <tr>
+              <th>Employee</th>
+              <th>Designation</th>
+              <th>Status</th>
+              <th class="text-end">In / Out</th>
+            </tr>
+          </thead>
+          <tbody id="dayModalBody">
+            <!-- Filled by JS -->
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+
+
+{# ── Calendar scroll preservation ── #}
+
+
+
 
 {# ─────────── ALL EMPLOYEES (ADMIN) ─────────── #}
 {% if user.is_superuser or user|has_group:"HR Admin" %}
@@ -785,7 +1088,6 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <script>
-    console.log(JSON.parse(document.getElementById('weeklyDayPresent').textContent));
 document.addEventListener('DOMContentLoaded', function() {
     const ctx = document.getElementById('attendanceOverviewChart').getContext('2d');
     let chart = null;
@@ -822,7 +1124,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                 pointBorderWidth: 1,
                                 pointRadius: 4,
                                 fill: true,
-                                tension: 0.3
+                                tension: 0.3,
+                                spanGaps: false
                             },
                             {
                                 label: 'On Leave %',
@@ -835,7 +1138,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                 pointBorderWidth: 1,
                                 pointRadius: 4,
                                 fill: true,
-                                tension: 0.3
+                                tension: 0.3,
+                                spanGaps: false
                             },
                             {
                                 label: 'Absent %',
@@ -848,7 +1152,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                 pointBorderWidth: 1,
                                 pointRadius: 4,
                                 fill: true,
-                                tension: 0.3
+                                tension: 0.3,
+                                spanGaps: false
                             }
                         ]
                     },
@@ -863,8 +1168,14 @@ document.addEventListener('DOMContentLoaded', function() {
                             tooltip: {
                                 callbacks: {
                                     label: function(context) {
+                                        if (context.raw === null || context.raw === undefined) {
+                                            return null;
+                                        }
                                         return `${context.dataset.label}: ${context.raw}%`;
                                     }
+                                },
+                                filter: function(item) {
+                                    return item.raw !== null && item.raw !== undefined;
                                 }
                             }
                         },
@@ -893,6 +1204,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
+
 
 <script>
 function getLocationAndClockIn() {
@@ -1048,6 +1360,127 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.db-rate-fill').forEach(function(bar) {
+        const width = parseFloat(bar.style.width) || 0;
+        let color;
+        if (width >= 90)      color = 'linear-gradient(90deg, #059669, #10b981)';
+        else if (width >= 75) color = 'linear-gradient(90deg, #10b981, #34d399)';
+        else if (width >= 60) color = 'linear-gradient(90deg, #f59e0b, #fbbf24)';
+        else if (width >= 40) color = 'linear-gradient(90deg, #f97316, #fb923c)';
+        else                  color = 'linear-gradient(90deg, #dc2626, #ef4444)';
+        bar.style.background = color;
+    });
+});
+</script>
+
+
+{# ── Modal logic ── #}
+
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const dataEl = document.getElementById('calendar-employees-data');
+    if (!dataEl) return;
+
+    let calendarData = {};
+    try {
+        calendarData = JSON.parse(dataEl.textContent || '{}');
+    } catch (e) {
+        console.warn('Calendar employee data parse failed', e);
+        return;
+    }
+
+    const modalEl   = document.getElementById('dayEmployeesModal');
+    const titleEl   = document.getElementById('dayModalTitle');
+    const subEl     = document.getElementById('dayModalSubtitle');
+    const summaryEl = document.getElementById('dayModalSummary');
+    const bodyEl    = document.getElementById('dayModalBody');
+
+    if (!modalEl || !window.bootstrap) {
+        console.warn('Modal or Bootstrap missing');
+        return;
+    }
+
+    const modal = new bootstrap.Modal(modalEl);
+
+    function escapeHtml(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    console.log('Attaching click handlers to', document.querySelectorAll('.js-cal-day').length, 'cells');
+
+    document.querySelectorAll('.js-cal-day').forEach(function (cell) {
+        cell.addEventListener('click', function () {
+            const day       = cell.dataset.day;
+            const dateStr   = cell.dataset.date;
+            const employees = calendarData[day] || [];
+            if (!employees.length) return;
+
+            // ── Header ──
+            titleEl.textContent = 'Attendance — ' + dateStr;
+            subEl.textContent   = employees.length + ' employee' + (employees.length > 1 ? 's' : '');
+
+            // ── Summary pills ──
+            const counts = { 'Present': 0, 'Absent': 0, 'Half-Day': 0, 'Leave': 0 };
+            employees.forEach(function (e) {
+                if (counts[e.status] !== undefined) counts[e.status]++;
+            });
+
+            summaryEl.innerHTML = ''
+                + (counts.Present     ? '<span class="att-summary-pill present"><span class="dot"></span>' + counts.Present + ' Present</span>' : '')
+                + (counts.Absent      ? '<span class="att-summary-pill absent"><span class="dot"></span>'  + counts.Absent  + ' Absent</span>'  : '')
+                + (counts['Half-Day'] ? '<span class="att-summary-pill halfday"><span class="dot"></span>' + counts['Half-Day'] + ' Half-Day</span>' : '')
+                + (counts.Leave       ? '<span class="att-summary-pill leave"><span class="dot"></span>'   + counts.Leave   + ' On Leave</span>'  : '');
+
+            // ── Table rows ──
+            bodyEl.innerHTML = employees.map(function (e) {
+                const initial = (e.name || '?').charAt(0).toUpperCase();
+
+                const statusCls = {
+                    'Present':  'present',
+                    'Absent':   'absent',
+                    'Half-Day': 'halfday',
+                    'Leave':    'leave',
+                    'Future':   'future',
+                }[e.status] || 'future';
+
+                let timeText = '—';
+                let timeMuted = ' muted';
+                if (e.status === 'Present' || e.status === 'Half-Day') {
+                    timeText  = escapeHtml(e.check_in) + ' – ' + escapeHtml(e.check_out);
+                    timeMuted = '';
+                } else if (e.status === 'Leave') {
+                    timeText = 'On leave';
+                }
+
+                return ''
+                    + '<tr>'
+                    +   '<td>'
+                    +     '<div class="att-emp-cell">'
+                    +       '<div class="att-emp-avatar">' + initial + '</div>'
+                    +       '<div class="att-emp-text">'
+                    +         '<div class="att-emp-name">' + escapeHtml(e.name) + '</div>'
+                    +         '<span class="att-emp-id">' + escapeHtml(e.employee_id) + '</span>'
+                    +       '</div>'
+                    +     '</div>'
+                    +   '</td>'
+                    +   '<td><span class="att-designation">' + escapeHtml(e.designation) + '</span></td>'
+                    +   '<td><span class="att-emp-status ' + statusCls + '">' + escapeHtml(e.status) + '</span></td>'
+                    +   '<td class="text-end"><span class="att-time' + timeMuted + '">' + timeText + '</span></td>'
+                    + '</tr>';
+            }).join('');
+
+            modal.show();
+        });
+    });
+});
+</script>
+
 
 
 {% endblock %}
