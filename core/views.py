@@ -80,45 +80,54 @@ def notify_admins(message, notification_type='info', related_object=None):
         create_notification(admin, message, notification_type, related_object)
 
 
-
-@ratelimit(key='ip', rate='5/m', method='POST')
+@ratelimit(key='ip', rate='5/m', method='POST', block=False)
 def login_view(request):
     if request.method == 'POST':
-        if request.limited:
+        if getattr(request, 'limited', False):
             messages.error(request, 'Too many login attempts. Please try again after 1 minute.')
             return render(request, 'login.html')
 
         login_input = request.POST.get('username', '').strip()
-        password = request.POST.get('password', '')
+        password    = request.POST.get('password', '')
 
-        # 1) Try username first
+        if not login_input or not password:
+            messages.error(request, 'Please enter both username and password.')
+            return render(request, 'login.html')
+
+        user = None
+
+        # 1) Username
         user = authenticate(request, username=login_input, password=password)
 
-        # 2) If that fails, try to find by employee_id
+        # 2) Employee ID (case-insensitive, unique)
         if user is None:
             from .models import EmployeeProfile
-            try:
-                profile = EmployeeProfile.objects.get(employee_id__iexact=login_input)
-                user = authenticate(request, username=profile.user.username, password=password)
-            except EmployeeProfile.DoesNotExist:
-                user = None
-            except EmployeeProfile.MultipleObjectsReturned:
-                user = None
+            matches = EmployeeProfile.objects.filter(employee_id__iexact=login_input)
+            if matches.count() == 1:
+                profile = matches.first()
+                if profile.user.is_active:
+                    user = authenticate(
+                        request,
+                        username=profile.user.username,
+                        password=password,
+                    )
 
-        # 3) If that fails, try to find by email
+        # 3) Email (unique)
         if user is None:
-            try:
-                from django.contrib.auth.models import User
-                u = User.objects.get(email__iexact=login_input)
+            from django.contrib.auth.models import User
+            matches = User.objects.filter(email__iexact=login_input, is_active=True)
+            if matches.count() == 1:
+                u = matches.first()
                 user = authenticate(request, username=u.username, password=password)
-            except Exception:
-                user = None
 
         if user is not None:
+            if not user.is_active:
+                messages.error(request, 'Your account is inactive. Contact your HR admin.')
+                return render(request, 'login.html')
             login(request, user)
             return redirect('dashboard')
         else:
-            messages.error(request, 'Invalid credentials. Try your username, employee ID, or email.')
+            messages.error(request, 'Invalid credentials. Please try again.')
 
     return render(request, 'login.html')
 
@@ -4931,12 +4940,22 @@ def _get_hr_scoped_request(user, request_id):
 # ─────────────────────────────────────────
 # 1. Employee — Submit request
 # ─────────────────────────────────────────
+@ratelimit(key='ip', rate='5/h', method='POST', block=False)
 @require_http_methods(['GET', 'POST'])
 def forgot_password(request):
     """
     Always shows the same message regardless of whether the identifier exists.
     Prevents user enumeration.
     """
+
+    # ✅ Rate limit guard
+    if request.method == 'POST' and getattr(request, 'limited', False):
+        messages.error(request, 'Too many requests. Please try again later.')
+        return render(request, 'core/forgot_password.html', {
+            'form': ForgotPasswordForm(),
+            'submitted': False,
+        })
+
     if request.user.is_authenticated:
         return redirect('dashboard')
 
@@ -4979,16 +4998,13 @@ def forgot_password(request):
 
                     # ── Route the notification by applicant's role ──
                     is_owner       = getattr(employee, 'is_company_owner', False)
-                    applicant_role = employee.role   # 'employee' | 'manager' | 'hr_admin'
+                    applicant_role = employee.role
 
                     if is_owner:
-                        # Company Owner's reset → Superuser(s)
                         recipients = list(
                             User.objects.filter(is_superuser=True, is_active=True)
                         )
-
                     elif applicant_role == 'hr_admin':
-                        # HR Admin's reset → Company Owner(s), excluding self
                         recipients = [
                             p.user for p in EmployeeProfile.objects.filter(
                                 company=employee.company,
@@ -4996,14 +5012,12 @@ def forgot_password(request):
                                 user__is_active=True,
                             ).exclude(id=employee.id)
                         ]
-
                     else:
-                        # Employee / Manager → regular HR Admins (NOT the owner)
                         recipients = [
                             p.user for p in EmployeeProfile.objects.filter(
                                 company=employee.company,
                                 role='hr_admin',
-                                is_company_owner=False,      # ← KEY FIX
+                                is_company_owner=False,
                                 user__is_active=True,
                             ).exclude(id=employee.id)
                         ]
@@ -5022,7 +5036,6 @@ def forgot_password(request):
                             related_object_type='passwordresetrequest',
                         )
 
-        # Always show the same response — do not reveal existence
         submitted = True
 
     return render(request, 'core/forgot_password.html', {
@@ -5030,6 +5043,7 @@ def forgot_password(request):
         'submitted': submitted,
     })
     
+
 
 
 # ─────────────────────────────────────────
