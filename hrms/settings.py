@@ -63,17 +63,40 @@ if IS_PRODUCTION and SECRET_KEY.startswith('django-insecure'):
 #  ALLOWED HOSTS & CSRF
 # ═══════════════════════════════════════════════════════════
 
+# Base hosts — from env var or safe local defaults
 ALLOWED_HOSTS = env_list(
     'ALLOWED_HOSTS',
-    '127.0.0.1,localhost'          # Local defaults
+    '127.0.0.1,localhost'
 )
 if DEBUG:
     ALLOWED_HOSTS += ['0.0.0.0', '[::1]', '.localhost']
 
+# ✅ Auto-detect Render hostname (Render sets this automatically)
+render_hostname = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
+if render_hostname and render_hostname not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(render_hostname)
+
+# ✅ Always allow the production Render URL (safety net)
+RENDER_PRODUCTION_HOST = 'hrms-1udd.onrender.com'
+if RENDER_PRODUCTION_HOST not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(RENDER_PRODUCTION_HOST)
+
+# CSRF Trusted Origins — from env var or empty
 CSRF_TRUSTED_ORIGINS = env_list(
     'CSRF_TRUSTED_ORIGINS',
-    ''                              # Empty locally — dev uses http://
+    ''
 )
+
+# ✅ Auto-add Render origin for CSRF (from env var or fallback)
+if render_hostname:
+    render_origin = f'https://{render_hostname}'
+    if render_origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(render_origin)
+
+RENDER_PRODUCTION_ORIGIN = f'https://{RENDER_PRODUCTION_HOST}'
+if RENDER_PRODUCTION_ORIGIN not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append(RENDER_PRODUCTION_ORIGIN)
+    
 
 
 # ═══════════════════════════════════════════════════════════
