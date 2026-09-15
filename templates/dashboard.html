@@ -111,7 +111,7 @@
 .count-pill {
     font-size: 0.68rem;
     font-weight: 600;
-    padding: 1px 6px;
+    padding: 1px 4px;
     border-radius: 999px;
     display: inline-flex;
     align-items: center;
@@ -295,7 +295,7 @@
                         </div>
 
                         <div class="db-stat-value">
-                            {{ team_attendance_rate }}<small>%</small>
+                            {{ team_attendance_rate }}<small>%</small> &nbsp; <span class="text-success" style="font-size: 14px; font-weight: 400;">● {{ team_present_today }} present</span>
                         </div>
 
                         <div class="db-rate-bar">
@@ -303,9 +303,13 @@
                         </div>
 
                         <div class="db-stat-hint">
-                            {{ team_present_today }} present
-                            {% if team_on_leave_today %} · {{ team_on_leave_today }} on leave{% endif %}
-                            {% if team_count %} · {{ team_count }} total{% endif %}
+                            <!-- <span class="text-success">● {{ team_present_today }} present</span> -->
+                            {% if team_absent_today %}
+                            <span class="text-danger ms-2">● {{ team_absent_today }} absent</span>
+                            {% endif %}
+                            {% if team_on_leave_today %}
+                            <span class="text-primary ms-2">● {{ team_on_leave_today }} leave</span>
+                            {% endif %}
                         </div>
                     </div>
 

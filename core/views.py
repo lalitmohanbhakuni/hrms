@@ -240,7 +240,7 @@ def dashboard(request):
         date__month=month,
         user_id__in=scope_user_ids,
     ).values('date', 'user_id', 'status')
-
+    
     attendance_by_day = {}   # day -> {'Present': n, 'Absent': n, 'Half-Day': n}
     for row in month_attendance:
         d = row['date'].day
@@ -282,6 +282,23 @@ def dashboard(request):
         counts = attendance_by_day.get(day, {})
         on_leave = leave_by_day.get(day, 0)
 
+        present_count = counts.get('Present', 0)
+        half_count    = counts.get('Half-Day', 0)
+
+        # ── Compute absent dynamically (team mode only) ──
+                # ── Compute absent dynamically (team mode only) ──
+        absent_count = 0
+        if calendar_mode == 'team' and current_date <= today and not is_weekend and not holiday_name:
+            # Only count employees who had already joined by this date
+            employees_joined_by_date = EmployeeProfile.objects.filter(
+                user_id__in=scope_user_ids,
+                is_active=True,
+                date_of_joining__lte=current_date,
+            ).count()
+
+            expected = max(0, employees_joined_by_date - on_leave)
+            absent_count = max(0, expected - present_count - half_count)
+
         row = {
             'day': day,
             'date': current_date,
@@ -290,9 +307,9 @@ def dashboard(request):
             'holiday_name': holiday_name,
             'mode': calendar_mode,
             'counts': {
-                'present': counts.get('Present', 0),
-                'absent':  counts.get('Absent', 0),
-                'half':    counts.get('Half-Day', 0),
+                'present': present_count,
+                'absent':  absent_count,           # ✅ computed for team
+                'half':    half_count,
                 'leave':   on_leave,
             },
             'employees': [],
@@ -472,6 +489,7 @@ def dashboard(request):
     team_present_today = 0
     team_on_leave_today = 0
     team_pending_actions_count = 0
+    team_absent_today = 0
     team_attendance_rate = 0
 
     if user.groups.filter(name='Manager').exists():
@@ -508,6 +526,9 @@ def dashboard(request):
             else:
                 team_attendance_rate = 0
             team_attendance_rate = max(0, min(100, team_attendance_rate))
+
+            # ✅ Absent = expected − present (never negative)
+            team_absent_today = max(0, team_expected - team_present_today)
 
         except EmployeeProfile.DoesNotExist:
             pass
@@ -844,6 +865,7 @@ def dashboard(request):
         'team_on_leave_today': team_on_leave_today,
         'team_pending_actions_count': team_pending_actions_count,
         'team_attendance_rate': team_attendance_rate,
+        'team_absent_today': team_absent_today,
         'manager_weekly_days': manager_weekly_days,
         'manager_weekly_day_present': manager_weekly_day_present,
         'manager_weekly_day_absent': manager_weekly_day_absent,
