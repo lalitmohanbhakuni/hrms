@@ -1116,7 +1116,7 @@ def employee_create(request):
                                 max_num = num
                         except ValueError:
                             continue
-                    profile.employee_id = f"{prefix}{max_num + 1:03d}"
+                    profile.employee_id = f"{prefix}{max_num + 1:04d}"
                 else:
                     profile.employee_id = f"EMP{EmployeeProfile.objects.count() + 1:04d}"
 
