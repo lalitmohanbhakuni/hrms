@@ -187,6 +187,10 @@
     margin: 0;
     font-size: 0.85rem;
 }
+.day-number {
+    color: #fff !important;
+}
+
 
 </style>
 
@@ -300,7 +304,7 @@
                         </div>
 
                         <div class="db-stat-value">
-                            {{ team_attendance_rate }}<small>%</small> &nbsp; <span class="text-success" style="font-size: 14px; font-weight: 400;">● {{ team_present_today }} present</span>
+                            {{ team_attendance_rate }}<small>%</small> 
                         </div>
 
                         <div class="db-rate-bar">
@@ -308,7 +312,7 @@
                         </div>
 
                         <div class="db-stat-hint">
-                            <!-- <span class="text-success">● {{ team_present_today }} present</span> -->
+                            <span class="text-success">● {{ team_present_today }} present</span>
                             {% if team_absent_today %}
                             <span class="text-danger ms-2">● {{ team_absent_today }} absent</span>
                             {% endif %}
@@ -1282,6 +1286,9 @@ function getLocationAndClockIn() {
         function(position) {
             var lat = position.coords.latitude;
             var lng = position.coords.longitude;
+            var acc = position.coords.accuracy;
+
+            console.log('GPS:', lat, lng, '±' + acc + 'm');
 
             var form = document.createElement('form');
             form.method = 'POST';
@@ -1305,6 +1312,13 @@ function getLocationAndClockIn() {
             lngInput.value = lng;
             form.appendChild(lngInput);
 
+            // ✅ NEW — Send GPS accuracy
+            var accInput = document.createElement('input');
+            accInput.type = 'hidden';
+            accInput.name = 'accuracy';
+            accInput.value = acc;
+            form.appendChild(accInput);
+
             document.body.appendChild(form);
             form.submit();
         },
@@ -1326,7 +1340,7 @@ function getLocationAndClockIn() {
             alert(msg);
             resetButton(btn);
         },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 30000, maximumAge: 60000 }
     );
 }
 
@@ -1335,6 +1349,7 @@ function resetButton(btn) {
     btn.innerHTML = '<i class="las la-sign-in-alt me-2"></i> Clock In';
 }
 </script>
+
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {

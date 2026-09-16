@@ -883,6 +883,7 @@ def dashboard(request):
 @login_required
 def clock_in(request):
     from .utils import get_user_company
+    from datetime import timedelta
     
     if request.method == 'POST':
         user = request.user
@@ -901,9 +902,7 @@ def clock_in(request):
             messages.error(request, 'Employee profile not found.')
             return redirect('dashboard')
         
-        # ✅ Auto-assign company from the employee's profile
         company = profile.company
-        
         attendance_type = profile.attendance_type
         check_in_lat = None
         check_in_lng = None
@@ -918,6 +917,7 @@ def clock_in(request):
             
             lat = request.POST.get('latitude')
             lng = request.POST.get('longitude')
+            accuracy = request.POST.get('accuracy')
             
             if lat is None or lng is None:
                 messages.error(request, 'Location data missing. Please enable GPS and try again.')
@@ -926,23 +926,36 @@ def clock_in(request):
             try:
                 lat = float(lat)
                 lng = float(lng)
+                accuracy = float(accuracy) if accuracy else 0
             except ValueError:
                 messages.error(request, 'Invalid location data.')
                 return redirect('dashboard')
             
-            # Calculate distance using haversine
+            # ✅ NEW: Reject weak GPS (laptops, IP-based location)
+            if accuracy > 500:
+                messages.error(
+                    request,
+                    f'GPS signal too weak (±{accuracy:.0f}m). '
+                    'Please use a mobile phone with location enabled.'
+                )
+                return redirect('dashboard')
+            
+            # Calculate distance
             distance = haversine(lat, lng, float(office.latitude), float(office.longitude))
             
             if distance > office.allowed_radius:
-                messages.error(request, f'You are not in the office location. (Distance: {distance:.0f}m, Allowed: {office.allowed_radius}m)')
+                messages.error(
+                    request,
+                    f'You are not in the office location. '
+                    f'(Distance: {distance:.0f}m, Allowed: {office.allowed_radius}m)'
+                )
                 return redirect('dashboard')
             
-            # Location is valid – save the data
             check_in_lat = lat
             check_in_lng = lng
             check_in_dist = int(distance)
         else:
-            # Remote or Flexible – no location validation, but capture location if provided
+            # Remote or Flexible – capture location if provided
             lat = request.POST.get('latitude')
             lng = request.POST.get('longitude')
             if lat and lng:
@@ -952,21 +965,23 @@ def clock_in(request):
                 except ValueError:
                     pass
         
-        # Existing logic with location fields
+        # Handle existing record
         if attendance and attendance.state == 'checked_out':
-            # Re-check-in after being checked out
+            # ✅ Re-check-in after check-out — reset checkout state
             attendance.check_in_time = timezone.now()
+            attendance.check_out_time = None                     # ✅ RESET
+            attendance.total_working_time = timedelta(0)          # ✅ RESET
             attendance.state = 'checked_in'
-            attendance.company = company                # ✅ ensure company is set
+            attendance.company = company
             attendance.check_in_latitude = check_in_lat
             attendance.check_in_longitude = check_in_lng
             attendance.check_in_distance = check_in_dist
             attendance.save()
         else:
-            # New check-in – ✅ assign company
+            # New check-in
             attendance = Attendance.objects.create(
-                user=request.user,
-                company=company,                        # ✅ auto-assign
+                user=user,
+                company=company,
                 check_in_time=timezone.now(),
                 state='checked_in',
                 total_working_time=timedelta(0),
@@ -979,48 +994,52 @@ def clock_in(request):
         messages.success(request, f'Clocked in at {local_time.strftime("%I:%M:%S %p")}')
         return redirect('dashboard')
     
-    # GET request – just redirect
     return redirect('dashboard')
 
-        
 
 @login_required
 def clock_out(request):
+    from datetime import timedelta
+    
     today = date.today()
-    attendance = Attendance.objects.filter(user=request.user, date=today, state='checked_in').first()
+    attendance = Attendance.objects.filter(
+        user=request.user, date=today, state='checked_in'
+    ).first()
 
     if not attendance:
         messages.warning(request, 'You are not checked in.')
+        return redirect('dashboard')
+    
+    interval = timezone.now() - attendance.check_in_time
+    if attendance.total_working_time:
+        attendance.total_working_time += interval
     else:
-        interval = timezone.now() - attendance.check_in_time
-        if attendance.total_working_time:
-            attendance.total_working_time += interval
-        else:
-            attendance.total_working_time = interval
-        attendance.check_out_time = timezone.now()
-        attendance.state = 'checked_out'
-        
-        # Capture check-out location (optional)
-        if request.method == 'POST':
-            lat = request.POST.get('check_out_latitude')
-            lng = request.POST.get('check_out_longitude')
-            if lat and lng:
-                try:
-                    attendance.check_out_latitude = float(lat)
-                    attendance.check_out_longitude = float(lng)
-                except ValueError:
-                    pass
-        
-        attendance.save()
-        
-        # ----- FIX: Show local time in AM/PM -----
-        local_out = timezone.localtime(attendance.check_out_time)
-        messages.success(
-            request, 
-            f'Clocked out at {local_out.strftime("%I:%M:%S %p")}. Total worked today: {attendance.total_working_time}'
-        )
-
+        attendance.total_working_time = interval
+    
+    attendance.check_out_time = timezone.now()
+    attendance.state = 'checked_out'
+    
+    # ✅ FIX: Read the same field names as frontend sends
+    if request.method == 'POST':
+        lat = request.POST.get('latitude')
+        lng = request.POST.get('longitude')
+        if lat and lng:
+            try:
+                attendance.check_out_latitude = float(lat)
+                attendance.check_out_longitude = float(lng)
+            except ValueError:
+                pass
+    
+    attendance.save()
+    
+    local_out = timezone.localtime(attendance.check_out_time)
+    messages.success(
+        request,
+        f'Clocked out at {local_out.strftime("%I:%M:%S %p")}. '
+        f'Total worked today: {attendance.total_working_time}'
+    )
     return redirect('dashboard')
+    
 
 
 # ---------- Helper ----------
