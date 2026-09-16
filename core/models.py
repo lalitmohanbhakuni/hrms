@@ -35,6 +35,7 @@ class Attendance(models.Model):
         ('checked_out',      'Checked Out'),
         ('auto_checked_out', 'Auto Checked Out'),
     ]
+    
 
     user    = models.ForeignKey(User, on_delete=models.CASCADE)
     company = models.ForeignKey(

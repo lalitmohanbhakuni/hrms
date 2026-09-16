@@ -879,6 +879,7 @@ def dashboard(request):
 
 
 # ---------- Attendance ----------
+
 @login_required
 def clock_in(request):
     from datetime import timedelta
@@ -889,10 +890,13 @@ def clock_in(request):
     user = request.user
     today = date.today()
 
-    # Already checked in?
+    # ✅ ONE check-in per day — reject if any record exists today
     attendance = Attendance.objects.filter(user=user, date=today).first()
-    if attendance and attendance.state == 'checked_in':
-        messages.warning(request, 'You are already checked in.')
+    if attendance:
+        messages.warning(
+            request,
+            'You have already checked in today. Contact HR if you need a correction.'
+        )
         return redirect('dashboard')
 
     profile = getattr(user, 'profile', None)
@@ -906,29 +910,19 @@ def clock_in(request):
     check_in_lng = None
     check_in_dist = None
 
+    # ─── Location validation (Office only) ───
     if attendance_type == 'office':
         office = profile.office_location
         if not office:
             messages.error(request, 'No office location assigned. Please contact HR.')
             return redirect('dashboard')
 
-        # Get real client IP (works behind proxies/Render)
         xff = request.META.get('HTTP_X_FORWARDED_FOR')
         client_ip = xff.split(',')[0].strip() if xff else request.META.get('REMOTE_ADDR')
 
-        # ─────────────────────────────────────────────
-        # Path 1: Office WiFi IP match (from OfficeLocation)
-        # ─────────────────────────────────────────────
         ip_allowed = office.matches_ip(client_ip)
 
-        # DEBUG
-        print(f'[CLOCK-IN] client_ip={client_ip!r}')
-        print(f'[CLOCK-IN] office.allowed_ip_prefix={office.allowed_ip_prefix!r}')
-        print(f'[CLOCK-IN] ip_allowed={ip_allowed}')
-        
-
         if ip_allowed:
-            # ✅ On office WiFi — allow check-in without GPS
             lat = request.POST.get('latitude')
             lng = request.POST.get('longitude')
             if lat and lng:
@@ -942,9 +936,6 @@ def clock_in(request):
                 except (ValueError, TypeError):
                     pass
         else:
-            # ─────────────────────────────────────────
-            # Path 2: GPS fallback
-            # ─────────────────────────────────────────
             lat = request.POST.get('latitude')
             lng = request.POST.get('longitude')
             accuracy = request.POST.get('accuracy')
@@ -995,34 +986,24 @@ def clock_in(request):
             except ValueError:
                 pass
 
-    # ─────────────────────────────────────────────
-    # Save attendance
-    # ─────────────────────────────────────────────
-    if attendance and attendance.state == 'checked_out':
-        attendance.check_in_time = timezone.now()
-        attendance.check_out_time = None
-        attendance.total_working_time = timedelta(0)
-        attendance.state = 'checked_in'
-        attendance.company = company
-        attendance.check_in_latitude = check_in_lat
-        attendance.check_in_longitude = check_in_lng
-        attendance.check_in_distance = check_in_dist
-        attendance.save()
-    else:
-        attendance = Attendance.objects.create(
-            user=user,
-            company=company,
-            check_in_time=timezone.now(),
-            state='checked_in',
-            total_working_time=timedelta(0),
-            check_in_latitude=check_in_lat,
-            check_in_longitude=check_in_lng,
-            check_in_distance=check_in_dist,
-        )
+    # ─── Create the ONE attendance record for today ───
+    now = timezone.now()
+    attendance = Attendance.objects.create(
+        user=user,
+        company=company,
+        date=today,
+        check_in_time=now,
+        state='checked_in',
+        total_working_time=timedelta(0),
+        check_in_latitude=check_in_lat,
+        check_in_longitude=check_in_lng,
+        check_in_distance=check_in_dist,
+    )
 
-    local_time = timezone.localtime(attendance.check_in_time)
+    local_time = timezone.localtime(now)
     messages.success(request, f'Clocked in at {local_time.strftime("%I:%M:%S %p")}')
     return redirect('dashboard')
+
 
 @login_required
 def clock_out(request):
@@ -1047,18 +1028,16 @@ def clock_out(request):
     check_out_lat = None
     check_out_lng = None
 
-    # ─── Location validation for Office employees ───
+    # ─── Location validation (Office only) ───
     if attendance_type == 'office':
         office = profile.office_location
         if not office:
             messages.error(request, 'No office location assigned. Contact HR.')
             return redirect('dashboard')
 
-        # Get client IP
         xff = request.META.get('HTTP_X_FORWARDED_FOR')
         client_ip = xff.split(',')[0].strip() if xff else request.META.get('REMOTE_ADDR')
 
-        # Path 1: Office WiFi (from OfficeLocation)
         ip_allowed = office.matches_ip(client_ip)
 
         if ip_allowed:
@@ -1071,7 +1050,6 @@ def clock_out(request):
                 except (ValueError, TypeError):
                     pass
         else:
-            # Path 2: GPS fallback
             lat = request.POST.get('latitude')
             lng = request.POST.get('longitude')
             accuracy = request.POST.get('accuracy')
@@ -1121,20 +1099,18 @@ def clock_out(request):
             except ValueError:
                 pass
 
-    # ─── Save check-out ───
-    interval = timezone.now() - attendance.check_in_time
-    if attendance.total_working_time:
-        attendance.total_working_time += interval
-    else:
-        attendance.total_working_time = interval
+    # ─── Close the day ───
+    now = timezone.now()
+    interval = now - attendance.check_in_time
 
-    attendance.check_out_time = timezone.now()
+    attendance.check_out_time = now
     attendance.state = 'checked_out'
+    attendance.total_working_time = interval
     attendance.check_out_latitude = check_out_lat
     attendance.check_out_longitude = check_out_lng
     attendance.save()
 
-    local_out = timezone.localtime(attendance.check_out_time)
+    local_out = timezone.localtime(now)
     messages.success(
         request,
         f'Clocked out at {local_out.strftime("%I:%M:%S %p")}. '
@@ -1142,6 +1118,7 @@ def clock_out(request):
     )
     return redirect('dashboard')
 
+    
 
 
 # ---------- Helper ----------
@@ -1151,20 +1128,36 @@ def is_admin(user):
 
 # ---------- Employee Management ----------
 
+
 @login_required
 @hr_admin_required
 @company_required
 def employee_list(request):
-    employees = get_company_filtered(
+    base = get_company_filtered(
         request,
         User.objects.filter(
             is_superuser=False,
-            profile__is_active=True,          # ← ADD THIS
+            profile__is_active=True,
         )
-    ).order_by('username')
-    return render(request, 'employee_list.html', {'employees': employees})
+    )
 
+    employees = base.order_by('username')
 
+    # ✅ Counts for the stat cards
+    admin_count = base.filter(
+        profile__role__in=['hr_admin', 'manager']
+    ).count()
+
+    staff_count = base.filter(
+        profile__role='employee'
+    ).count()
+
+    return render(request, 'employee_list.html', {
+        'employees': employees,
+        'admin_count': admin_count,
+        'staff_count': staff_count,
+    })
+    
 
 
 
@@ -3097,48 +3090,75 @@ def regularize_request(request):
     })
 
 
-
 @login_required
 def regularize_request_list(request):
     from .utils import get_company_filtered
     from django.db.models import Q
     from core.models import EmployeeProfile
 
-    profile = getattr(request.user, 'profile', None)
+    user = request.user
+    profile = getattr(user, 'profile', None)
     role = profile.role if profile else None
 
-    if request.user.is_superuser:
-        # Superuser: all companies
+    # ─── Superuser: all companies ───
+    if user.is_superuser:
         requests = RegularizationRequest.objects.all().order_by('-requested_at')
 
-    elif role == 'HR Admin' or request.user.groups.filter(name='HR Admin').exists():
-        # HR Admin: whole company
+    # ─── HR Admin / Company Owner: all company requests ───
+    elif (
+        role in ('hr_admin', 'HR Admin')
+        or user.groups.filter(name='HR Admin').exists()
+    ):
         requests = get_company_filtered(
             request, RegularizationRequest.objects.all()
         ).order_by('-requested_at')
 
-    elif role == 'Manager':
-        # Manager: own + their team's requests
-        team_user_ids = EmployeeProfile.objects.filter(
-            manager=profile
-        ).values_list('user_id', flat=True)
+    # ─── Manager: own + team ───
+    elif (
+        role in ('manager', 'Manager')
+        or user.groups.filter(name='Manager').exists()
+    ):
+        if profile:
+            team_user_ids = EmployeeProfile.objects.filter(
+                manager=profile,
+                is_active=True,
+            ).values_list('user_id', flat=True)
 
-        requests = get_company_filtered(
-            request, RegularizationRequest.objects.all()
-        ).filter(
-            Q(user=request.user) | Q(user_id__in=team_user_ids)
-        ).order_by('-requested_at')
+            requests = get_company_filtered(
+                request, RegularizationRequest.objects.all()
+            ).filter(
+                Q(user=user) | Q(user_id__in=team_user_ids)
+            ).order_by('-requested_at')
+        else:
+            requests = RegularizationRequest.objects.filter(user=user).order_by('-requested_at')
 
+    # ─── Employee: only their own ───
     else:
-        # Employee: only their own
         requests = RegularizationRequest.objects.filter(
-            user=request.user
+            user=user
         ).order_by('-requested_at')
+
+    # ─── Split into two lists for the two-panel template ───
+    my_requests = RegularizationRequest.objects.filter(
+        user=user
+    ).order_by('-requested_at')
+
+    # Everything the current role can review (from `requests`), excluding own
+    team_requests = requests.exclude(user=user)
+    is_reviewer = (
+        user.is_superuser
+        or (role in ('hr_admin', 'HR Admin') or user.groups.filter(name='HR Admin').exists())
+        or (role in ('manager', 'Manager') or user.groups.filter(name='Manager').exists())
+    )
 
     return render(
         request,
         'attendance/regularize_request_list.html',
-        {'requests': requests}
+        {
+            'my_requests': my_requests,
+            'team_requests': team_requests,
+            'is_reviewer': is_reviewer,
+        }
     )
 
 

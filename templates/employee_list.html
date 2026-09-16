@@ -430,7 +430,7 @@
                 <div>
                     <div class="emp-stat-label">Admins</div>
                     <div class="emp-stat-value">
-                        {% for emp in employees %}{% if emp.is_superuser %}{{ forloop.counter }}{% endif %}{% endfor %}
+                        {{ admin_count }}
                     </div>
                 </div>
             </div>
@@ -441,7 +441,7 @@
                 <div>
                     <div class="emp-stat-label">Staff</div>
                     <div class="emp-stat-value">
-                        {% for emp in employees %}{% if emp.is_staff and not emp.is_superuser %}{{ forloop.counter }}{% endif %}{% endfor %}
+                        {{ staff_count }}
                     </div>
                 </div>
             </div>

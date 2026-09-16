@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 import dj_database_url
 from django.core.exceptions import ImproperlyConfigured
+import sys
 
 # ═══════════════════════════════════════════════════════════
 #  BASE PATHS
@@ -70,6 +71,10 @@ ALLOWED_HOSTS = env_list(
 )
 if DEBUG:
     ALLOWED_HOSTS += ['0.0.0.0', '[::1]', '.localhost']
+
+# ✅ Allow test client
+if 'test' in sys.argv:
+    ALLOWED_HOSTS.append('testserver')
 
 # ✅ Auto-detect Render hostname (Render sets this automatically)
 render_hostname = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
