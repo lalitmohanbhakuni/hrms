@@ -233,8 +233,7 @@
                 <div>
                     <!-- <div class="db-stat-label">Present Today</div> -->
                     <!-- <div class="db-stat-value">{{ present_today }} <small>/ {{ absent_today }}</small></div> -->
-                     {# ── Attendance Rate Card ── #}
-                    <div class="db-stat-card">
+                     <div class="db-stat-card">
                         <div class="db-stat-label">Present Today</div>
 
                         <div class="db-stat-value">
@@ -246,10 +245,16 @@
                         </div>
 
                         <div class="db-stat-hint">
-                            {{ present_today }} present
-                            {% if on_leave_today %} · {{ on_leave_today }} on leave{% endif %}
+                            <span class="text-success">● {{ present_today }} present</span>
+                            <span class="text-danger ms-2">● {{ absent_today }} absent</span>
+                            {% if on_leave_today %}
+                            <span class="text-primary ms-2">● {{ on_leave_today }} on leave</span>
+                            {% endif %}
                         </div>
                     </div>
+
+                    
+
                 </div>
             </div>
         </div>
