@@ -408,7 +408,7 @@
                 </div>
 
                 <div class="row g-3 align-items-end">
-                    <div class="col-md-3">
+                    <div class="col-6 col-md-3 ">
                         <div class="db-time-label">Check‑in</div>
                         <div class="db-time-value {% if not today_attendance or not today_attendance.check_in_time %}empty{% endif %}">
                             {% if today_attendance and today_attendance.check_in_time %}
@@ -418,7 +418,7 @@
                             {% endif %}
                         </div>
                     </div>
-                    <div class="col-md-4 text-center">
+                    <div class="col-6 col-md-4 text-center">
                         <div class="db-time-label">Check‑out</div>
                         <div class="db-time-value {% if not today_attendance or not today_attendance.check_out_time %}empty{% endif %}">
                             {% if today_attendance and today_attendance.check_out_time %}
@@ -456,7 +456,7 @@
                             {% endif %}
                         </span>
                     {% elif today_attendance and today_attendance.state == 'checked_in' %}
-                        <a href="{% url 'clock_out' %}" class="btn btn-danger btn-lg db-btn-pill px-5">
+                        <a  id="clock-out-btn" onclick="getLocationAndClockOut()" class="btn btn-danger btn-lg db-btn-pill px-5">
                             <i class="las la-sign-out-alt me-2"></i> Clock Out
                         </a>
                         {% if late_minutes > 0 %}
@@ -1349,6 +1349,55 @@ function resetButton(btn) {
     btn.innerHTML = '<i class="las la-sign-in-alt me-2"></i> Clock In';
 }
 </script>
+
+<script>
+function getLocationAndClockOut() {
+    var btn = document.getElementById('clock-out-btn');
+    if (!btn) return;
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Getting location...';
+
+    // Try GPS, but don't block check-out if it fails (IP might work)
+    navigator.geolocation.getCurrentPosition(
+        function(position) {
+            submitCheckOut(position.coords.latitude, position.coords.longitude, position.coords.accuracy);
+        },
+        function(error) {
+            // GPS failed — submit without location (backend will check IP)
+            console.log('GPS failed:', error.message);
+            submitCheckOut(null, null, null);
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+    );
+}
+
+function submitCheckOut(lat, lng, acc) {
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = "{% url 'clock_out' %}";
+
+    var csrf = document.createElement('input');
+    csrf.type = 'hidden';
+    csrf.name = 'csrfmiddlewaretoken';
+    csrf.value = '{{ csrf_token }}';
+    form.appendChild(csrf);
+
+    if (lat !== null) {
+        ['latitude', 'longitude', 'accuracy'].forEach(function (name, i) {
+            var input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = name;
+            input.value = [lat, lng, acc][i];
+            form.appendChild(input);
+        });
+    }
+
+    document.body.appendChild(form);
+    form.submit();
+}
+</script>
+
 
 
 <script>

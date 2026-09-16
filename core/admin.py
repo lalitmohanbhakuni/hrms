@@ -89,4 +89,3 @@ class EmployeeProfileAdmin(admin.ModelAdmin):
     list_filter = ('company', 'department', 'role')
     search_fields = ('full_name', 'employee_id', 'user__username', 'user__email')
     # readonly_fields = ('user',)
-    
