@@ -456,9 +456,16 @@
                             {% endif %}
                         </span>
                     {% elif today_attendance and today_attendance.state == 'checked_in' %}
-                        <a  id="clock-out-btn" onclick="getLocationAndClockOut()" class="btn btn-danger btn-lg db-btn-pill px-5">
+                    <button type="button"
+                            id="clock-out-btn"
+                            onclick="getLocationAndClockOut()"
+                            class="btn btn-danger btn-lg db-btn-pill px-5">
+                        <i class="las la-sign-out-alt me-2"></i> Clock Out
+                    </button>
+
+                        <!-- <a  id="clock-out-btn" onclick="getLocationAndClockOut()" class="btn btn-danger btn-lg db-btn-pill px-5">
                             <i class="las la-sign-out-alt me-2"></i> Clock Out
-                        </a>
+                        </a> -->
                         {% if late_minutes > 0 %}
                             <span class="badge bg-warning text-dark px-3 py-2 rounded-pill">
                                 <i class="fas fa-exclamation-triangle me-1"></i> Late: {{ late_minutes }} min
@@ -1151,7 +1158,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const ctx = document.getElementById('attendanceOverviewChart').getContext('2d');
+    const canvas = document.getElementById('attendanceOverviewChart');
+    if (!canvas) return;   // ✅ exit early if canvas missing
+    const ctx = canvas.getContext('2d');
     let chart = null;
 
     function fetchAttendanceOverview(period) {
@@ -1267,81 +1276,100 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-
 <script>
 function getLocationAndClockIn() {
     var btn = document.getElementById('clock-in-btn');
     if (!btn) return;
 
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Getting location...';
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Checking in...';
 
-    if (!navigator.geolocation) {
-        alert('Geolocation is not supported by your browser. Please use a modern browser or contact HR.');
-        resetButton(btn);
-        return;
+    // ═══════════════════════════════════════════════════
+    //  ATTEMPT 1 — Submit instantly (backend checks IP)
+    //  If office IP matches → done in <1 second.
+    //  If not → backend rejects → fall back to GPS.
+    // ═══════════════════════════════════════════════════
+    submitCheckIn(null, null, null, function (responseText) {
+        if (responseText.indexOf('Clocked in') !== -1) {
+            // ✅ Success via IP — go to dashboard
+            window.location.href = '/dashboard/';
+            return;
+        }
+
+        // ❌ IP didn't match — now try GPS
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Getting GPS...';
+        tryGPS();
+    });
+
+    // ═══════════════════════════════════════════════════
+    //  ATTEMPT 2 — GPS with 5 second timeout
+    // ═══════════════════════════════════════════════════
+    function tryGPS() {
+        if (!navigator.geolocation) {
+            alert('Geolocation not supported. Please connect to office WiFi.');
+            resetButton(btn);
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            function (position) {
+                console.log('GPS:', position.coords.latitude, position.coords.longitude, '±' + position.coords.accuracy + 'm');
+                submitCheckIn(
+                    position.coords.latitude,
+                    position.coords.longitude,
+                    position.coords.accuracy,
+                    function () { window.location.href = '/dashboard/'; }
+                );
+            },
+            function (error) {
+                var msg = '';
+                switch (error.code) {
+                    case error.PERMISSION_DENIED:
+                        msg = 'Location access denied. Please connect to office WiFi.';
+                        break;
+                    case error.POSITION_UNAVAILABLE:
+                        msg = 'Location unavailable. Please connect to office WiFi.';
+                        break;
+                    case error.TIMEOUT:
+                        msg = 'GPS took too long. Please connect to office WiFi.';
+                        break;
+                    default:
+                        msg = 'Location error. Please connect to office WiFi.';
+                }
+                alert(msg);
+                resetButton(btn);
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 5000,       // ← 5 seconds, not 30
+                maximumAge: 60000,   // ← accept recent cache
+            }
+        );
     }
 
-    navigator.geolocation.getCurrentPosition(
-        function(position) {
-            var lat = position.coords.latitude;
-            var lng = position.coords.longitude;
-            var acc = position.coords.accuracy;
+    // ═══════════════════════════════════════════════════
+    //  Submit to /clock-in/
+    // ═══════════════════════════════════════════════════
+    function submitCheckIn(lat, lng, acc, onDone) {
+        var formData = new FormData();
+        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+        if (lat !== null) formData.append('latitude', lat);
+        if (lng !== null) formData.append('longitude', lng);
+        if (acc !== null) formData.append('accuracy', acc);
 
-            console.log('GPS:', lat, lng, '±' + acc + 'm');
-
-            var form = document.createElement('form');
-            form.method = 'POST';
-            form.action = "{% url 'clock_in' %}";
-
-            var csrf = document.createElement('input');
-            csrf.type = 'hidden';
-            csrf.name = 'csrfmiddlewaretoken';
-            csrf.value = '{{ csrf_token }}';
-            form.appendChild(csrf);
-
-            var latInput = document.createElement('input');
-            latInput.type = 'hidden';
-            latInput.name = 'latitude';
-            latInput.value = lat;
-            form.appendChild(latInput);
-
-            var lngInput = document.createElement('input');
-            lngInput.type = 'hidden';
-            lngInput.name = 'longitude';
-            lngInput.value = lng;
-            form.appendChild(lngInput);
-
-            // ✅ NEW — Send GPS accuracy
-            var accInput = document.createElement('input');
-            accInput.type = 'hidden';
-            accInput.name = 'accuracy';
-            accInput.value = acc;
-            form.appendChild(accInput);
-
-            document.body.appendChild(form);
-            form.submit();
-        },
-        function(error) {
-            var msg = '';
-            switch(error.code) {
-                case error.PERMISSION_DENIED:
-                    msg = 'Please enable location access to check in.';
-                    break;
-                case error.POSITION_UNAVAILABLE:
-                    msg = 'Unable to get your location. Please try again.';
-                    break;
-                case error.TIMEOUT:
-                    msg = 'Location request timed out. Please try again.';
-                    break;
-                default:
-                    msg = 'An unknown error occurred. Please try again.';
-            }
-            alert(msg);
+        fetch("{% url 'clock_in' %}", {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        })
+        .then(function (r) { return r.text(); })
+        .then(onDone)
+        .catch(function (err) {
+            console.error('Check-in error:', err);
+            alert('Something went wrong. Please try again.');
             resetButton(btn);
-        },
-        { enableHighAccuracy: true, timeout: 30000, maximumAge: 60000 }
-    );
+        });
+    }
 }
 
 function resetButton(btn) {
@@ -1350,54 +1378,88 @@ function resetButton(btn) {
 }
 </script>
 
+
 <script>
 function getLocationAndClockOut() {
     var btn = document.getElementById('clock-out-btn');
     if (!btn) return;
 
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Getting location...';
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Checking out...';
 
-    // Try GPS, but don't block check-out if it fails (IP might work)
-    navigator.geolocation.getCurrentPosition(
-        function(position) {
-            submitCheckOut(position.coords.latitude, position.coords.longitude, position.coords.accuracy);
-        },
-        function(error) {
-            // GPS failed — submit without location (backend will check IP)
-            console.log('GPS failed:', error.message);
-            submitCheckOut(null, null, null);
-        },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
-    );
+    // ─── Attempt 1: submit with no GPS (backend checks IP) ───
+    submitClockOut(null, null, null, function (data) {
+        if (data.success) {
+            window.location.href = '/dashboard/';
+            return;
+        }
+        // IP failed → try GPS
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Getting GPS...';
+        tryGPSOut();
+    });
+
+    function tryGPSOut() {
+        if (!navigator.geolocation) {
+            alert('Location not supported. Please connect to office WiFi.');
+            resetOutButton(btn);
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            function (position) {
+                submitClockOut(
+                    position.coords.latitude,
+                    position.coords.longitude,
+                    position.coords.accuracy,
+                    function (data) {
+                        if (data.success) {
+                            window.location.href = '/dashboard/';
+                        } else {
+                            alert(data.error || 'Check-out failed.');
+                            resetOutButton(btn);
+                        }
+                    }
+                );
+            },
+            function (error) {
+                var msg = 'GPS failed. Please connect to office WiFi.';
+                if (error.code === error.TIMEOUT) msg = 'GPS took too long. Please connect to office WiFi.';
+                if (error.code === error.PERMISSION_DENIED) msg = 'Location denied. Please connect to office WiFi.';
+                alert(msg);
+                resetOutButton(btn);
+            },
+            { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
+        );
+    }
 }
 
-function submitCheckOut(lat, lng, acc) {
-    var form = document.createElement('form');
-    form.method = 'POST';
-    form.action = "{% url 'clock_out' %}";
+function submitClockOut(lat, lng, acc, onData) {
+    var formData = new FormData();
+    formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+    if (lat !== null) formData.append('latitude', lat);
+    if (lng !== null) formData.append('longitude', lng);
+    if (acc !== null) formData.append('accuracy', acc);
 
-    var csrf = document.createElement('input');
-    csrf.type = 'hidden';
-    csrf.name = 'csrfmiddlewaretoken';
-    csrf.value = '{{ csrf_token }}';
-    form.appendChild(csrf);
+    fetch("{% url 'clock_out' %}", {
+        method: 'POST',
+        body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
+    .then(function (r) { return r.json(); })
+    .then(onData)
+    .catch(function (err) {
+        console.error('Clock-out error:', err);
+        var btn = document.getElementById('clock-out-btn');
+        alert('Network error. Please try again.');
+        if (btn) resetOutButton(btn);
+    });
+}
 
-    if (lat !== null) {
-        ['latitude', 'longitude', 'accuracy'].forEach(function (name, i) {
-            var input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = name;
-            input.value = [lat, lng, acc][i];
-            form.appendChild(input);
-        });
-    }
-
-    document.body.appendChild(form);
-    form.submit();
+function resetOutButton(btn) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="las la-sign-out-alt me-2"></i> Clock Out';
 }
 </script>
-
 
 
 <script>

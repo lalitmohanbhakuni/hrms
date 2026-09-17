@@ -207,6 +207,7 @@ class Shift(models.Model):
 
 # ---------- Office Location Model ----------
 # ---------- Office Location Model ----------
+
 class OfficeLocation(models.Model):
     company = models.ForeignKey(Company, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
@@ -215,11 +216,11 @@ class OfficeLocation(models.Model):
     allowed_radius = models.IntegerField(default=200, help_text="Radius in meters")
     is_active = models.BooleanField(default=True)
 
-    # ✅ Office WiFi IP range (first 3 octets)
+    # ✅ Multi-prefix — comma-separated
     allowed_ip_prefix = models.CharField(
-        max_length=20,
+        max_length=500,
         blank=True,
-        help_text="First 3 octets of office WiFi IP (e.g. 49.36.180). "
+        help_text="Comma-separated IP prefixes (e.g. '127.0,103.159.42,49.36.180'). "
                   "Leave blank to require GPS only."
     )
 
@@ -227,28 +228,40 @@ class OfficeLocation(models.Model):
         return f'{self.name} — {self.company.name if self.company else "No company"}'
 
     def matches_ip(self, client_ip):
+        """Check if client IP starts with ANY of the allowed prefixes."""
         if not self.allowed_ip_prefix or not client_ip:
             return False
-        return client_ip.startswith(self.allowed_ip_prefix + '.')
+        for prefix in self.allowed_ip_prefix.split(','):
+            prefix = prefix.strip()
+            if prefix and client_ip.startswith(prefix + '.'):
+                return True
+        return False
 
     def clean(self):
         from django.core.exceptions import ValidationError
         if self.allowed_ip_prefix:
-            parts = self.allowed_ip_prefix.split('.')
-            if len(parts) not in (2, 3):
-                raise ValidationError({
-                    'allowed_ip_prefix': 'Enter 2 or 3 octets (e.g. "49.36" or "49.36.180").'
-                })
-            for p in parts:
-                if not p.isdigit() or not 0 <= int(p) <= 255:
+            for prefix in self.allowed_ip_prefix.split(','):
+                prefix = prefix.strip()
+                if not prefix:
+                    continue
+                parts = prefix.split('.')
+                if len(parts) not in (2, 3):
                     raise ValidationError({
-                        'allowed_ip_prefix': f'Invalid octet "{p}". Each must be 0-255.'
+                        'allowed_ip_prefix':
+                            f'"{prefix}" must be 2 or 3 octets (e.g. "49.36" or "49.36.180").'
                     })
+                for p in parts:
+                    if not p.isdigit() or not 0 <= int(p) <= 255:
+                        raise ValidationError({
+                            'allowed_ip_prefix':
+                                f'Invalid octet "{p}" in "{prefix}". Each must be 0-255.'
+                        })
 
     def save(self, *args, **kwargs):
         if self.allowed_ip_prefix:
             self.allowed_ip_prefix = self.allowed_ip_prefix.strip()
         super().save(*args, **kwargs)
+        
 
             
         

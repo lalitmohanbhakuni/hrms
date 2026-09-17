@@ -879,30 +879,42 @@ def dashboard(request):
 
 
 # ---------- Attendance ----------
-
 @login_required
 def clock_in(request):
     from datetime import timedelta
+    from django.http import JsonResponse
 
     if request.method != 'POST':
+        return redirect('dashboard')
+
+    # ─── Detect AJAX request ───
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+    def err(msg, status=400):
+        """Return error — JSON for AJAX, redirect for normal form."""
+        if is_ajax:
+            return JsonResponse({'success': False, 'error': msg}, status=status)
+        messages.error(request, msg)
+        return redirect('dashboard')
+
+    def ok(msg):
+        """Return success — JSON for AJAX, redirect for normal form."""
+        if is_ajax:
+            return JsonResponse({'success': True, 'message': msg})
+        messages.success(request, msg)
         return redirect('dashboard')
 
     user = request.user
     today = date.today()
 
-    # ✅ ONE check-in per day — reject if any record exists today
+    # ─── ONE check-in per day ───
     attendance = Attendance.objects.filter(user=user, date=today).first()
     if attendance:
-        messages.warning(
-            request,
-            'You have already checked in today. Contact HR if you need a correction.'
-        )
-        return redirect('dashboard')
+        return err('You have already checked in today. Contact HR if you need a correction.')
 
     profile = getattr(user, 'profile', None)
     if not profile:
-        messages.error(request, 'Employee profile not found.')
-        return redirect('dashboard')
+        return err('Employee profile not found.')
 
     company = profile.company
     attendance_type = profile.attendance_type
@@ -914,8 +926,7 @@ def clock_in(request):
     if attendance_type == 'office':
         office = profile.office_location
         if not office:
-            messages.error(request, 'No office location assigned. Please contact HR.')
-            return redirect('dashboard')
+            return err('No office location assigned. Please contact HR.')
 
         xff = request.META.get('HTTP_X_FORWARDED_FOR')
         client_ip = xff.split(',')[0].strip() if xff else request.META.get('REMOTE_ADDR')
@@ -923,6 +934,7 @@ def clock_in(request):
         ip_allowed = office.matches_ip(client_ip)
 
         if ip_allowed:
+            # ✅ On office network — GPS optional
             lat = request.POST.get('latitude')
             lng = request.POST.get('longitude')
             if lat and lng:
@@ -936,41 +948,33 @@ def clock_in(request):
                 except (ValueError, TypeError):
                     pass
         else:
+            # ❌ Not on office network — GPS required
             lat = request.POST.get('latitude')
             lng = request.POST.get('longitude')
             accuracy = request.POST.get('accuracy')
 
             if not lat or not lng:
-                messages.error(
-                    request,
-                    'Please connect to office WiFi, or enable GPS on your mobile device.'
-                )
-                return redirect('dashboard')
+                return err('Please connect to office WiFi, or enable GPS on your mobile device.')
 
             try:
                 lat = float(lat)
                 lng = float(lng)
                 accuracy = float(accuracy) if accuracy else 0
             except ValueError:
-                messages.error(request, 'Invalid location data.')
-                return redirect('dashboard')
+                return err('Invalid location data.')
 
             if accuracy > 500:
-                messages.error(
-                    request,
+                return err(
                     f'GPS signal too weak (±{accuracy:.0f}m). '
                     'Please connect to office WiFi or use a mobile phone.'
                 )
-                return redirect('dashboard')
 
             distance = haversine(lat, lng, float(office.latitude), float(office.longitude))
             if distance > office.allowed_radius:
-                messages.error(
-                    request,
+                return err(
                     f'You are not in the office location. '
                     f'(Distance: {distance:.0f}m, Allowed: {office.allowed_radius}m)'
                 )
-                return redirect('dashboard')
 
             check_in_lat = lat
             check_in_lng = lng
@@ -986,7 +990,7 @@ def clock_in(request):
             except ValueError:
                 pass
 
-    # ─── Create the ONE attendance record for today ───
+    # ─── Create the ONE attendance record ───
     now = timezone.now()
     attendance = Attendance.objects.create(
         user=user,
@@ -1001,13 +1005,34 @@ def clock_in(request):
     )
 
     local_time = timezone.localtime(now)
-    messages.success(request, f'Clocked in at {local_time.strftime("%I:%M:%S %p")}')
-    return redirect('dashboard')
+    return ok(f'Clocked in at {local_time.strftime("%I:%M:%S %p")}')
+
 
 
 @login_required
 def clock_out(request):
     from datetime import timedelta
+    from django.http import JsonResponse
+
+    if request.method != 'POST':
+        return redirect('dashboard')
+
+    # ─── Detect AJAX request ───
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+    def err(msg, status=400):
+        """Return error — JSON for AJAX, redirect for normal form."""
+        if is_ajax:
+            return JsonResponse({'success': False, 'error': msg}, status=status)
+        messages.error(request, msg)
+        return redirect('dashboard')
+
+    def ok(msg):
+        """Return success — JSON for AJAX, redirect for normal form."""
+        if is_ajax:
+            return JsonResponse({'success': True, 'message': msg})
+        messages.success(request, msg)
+        return redirect('dashboard')
 
     today = date.today()
     attendance = Attendance.objects.filter(
@@ -1015,13 +1040,11 @@ def clock_out(request):
     ).first()
 
     if not attendance:
-        messages.warning(request, 'You are not checked in.')
-        return redirect('dashboard')
+        return err('You are not checked in.')
 
     profile = getattr(request.user, 'profile', None)
     if not profile:
-        messages.error(request, 'Employee profile not found.')
-        return redirect('dashboard')
+        return err('Employee profile not found.')
 
     company = profile.company
     attendance_type = profile.attendance_type
@@ -1032,8 +1055,7 @@ def clock_out(request):
     if attendance_type == 'office':
         office = profile.office_location
         if not office:
-            messages.error(request, 'No office location assigned. Contact HR.')
-            return redirect('dashboard')
+            return err('No office location assigned. Contact HR.')
 
         xff = request.META.get('HTTP_X_FORWARDED_FOR')
         client_ip = xff.split(',')[0].strip() if xff else request.META.get('REMOTE_ADDR')
@@ -1041,6 +1063,7 @@ def clock_out(request):
         ip_allowed = office.matches_ip(client_ip)
 
         if ip_allowed:
+            # ✅ On office network — GPS optional
             lat = request.POST.get('latitude')
             lng = request.POST.get('longitude')
             if lat and lng:
@@ -1050,46 +1073,38 @@ def clock_out(request):
                 except (ValueError, TypeError):
                     pass
         else:
+            # ❌ Not on office network — GPS required
             lat = request.POST.get('latitude')
             lng = request.POST.get('longitude')
             accuracy = request.POST.get('accuracy')
 
             if not lat or not lng:
-                messages.error(
-                    request,
-                    'Please connect to office WiFi, or enable GPS to check out.'
-                )
-                return redirect('dashboard')
+                return err('Please connect to office WiFi, or enable GPS to check out.')
 
             try:
                 lat = float(lat)
                 lng = float(lng)
                 accuracy = float(accuracy) if accuracy else 0
             except ValueError:
-                messages.error(request, 'Invalid location data.')
-                return redirect('dashboard')
+                return err('Invalid location data.')
 
             if accuracy > 500:
-                messages.error(
-                    request,
+                return err(
                     f'GPS signal too weak (±{accuracy:.0f}m). '
                     'Please connect to office WiFi or use a mobile phone.'
                 )
-                return redirect('dashboard')
 
             distance = haversine(lat, lng, float(office.latitude), float(office.longitude))
             if distance > office.allowed_radius:
-                messages.error(
-                    request,
+                return err(
                     f'You are not in the office location. '
                     f'(Distance: {distance:.0f}m, Allowed: {office.allowed_radius}m)'
                 )
-                return redirect('dashboard')
 
             check_out_lat = lat
             check_out_lng = lng
     else:
-        # Remote / Flexible
+        # Remote / Flexible — capture location if provided
         lat = request.POST.get('latitude')
         lng = request.POST.get('longitude')
         if lat and lng:
@@ -1111,14 +1126,10 @@ def clock_out(request):
     attendance.save()
 
     local_out = timezone.localtime(now)
-    messages.success(
-        request,
+    return ok(
         f'Clocked out at {local_out.strftime("%I:%M:%S %p")}. '
         f'Total worked today: {attendance.total_working_time}'
     )
-    return redirect('dashboard')
-
-    
 
 
 # ---------- Helper ----------
