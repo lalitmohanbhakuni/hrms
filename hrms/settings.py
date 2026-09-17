@@ -86,6 +86,16 @@ RENDER_PRODUCTION_HOST = 'hrms-1udd.onrender.com'
 if RENDER_PRODUCTION_HOST not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append(RENDER_PRODUCTION_HOST)
 
+# ✅ Custom domain — nitohr.com
+NITOHR_HOSTS = [
+    'app.nitohr.com',
+    'nitohr.com',
+    'www.nitohr.com',
+]
+for _host in NITOHR_HOSTS:
+    if _host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(_host)
+
 # CSRF Trusted Origins — from env var or empty
 CSRF_TRUSTED_ORIGINS = env_list(
     'CSRF_TRUSTED_ORIGINS',
@@ -101,7 +111,16 @@ if render_hostname:
 RENDER_PRODUCTION_ORIGIN = f'https://{RENDER_PRODUCTION_HOST}'
 if RENDER_PRODUCTION_ORIGIN not in CSRF_TRUSTED_ORIGINS:
     CSRF_TRUSTED_ORIGINS.append(RENDER_PRODUCTION_ORIGIN)
-    
+
+# ✅ Custom domain origins for CSRF
+NITOHR_ORIGINS = [
+    'https://app.nitohr.com',
+    'https://nitohr.com',
+    'https://www.nitohr.com',
+]
+for _origin in NITOHR_ORIGINS:
+    if _origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(_origin)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -321,6 +340,7 @@ ADMIN_ROLES = [
     'Operations',
 ]
 
+
 # ═══════════════════════════════════════════════════════════
 #  MEDIA FILES (user uploads: profile pics, attachments)
 # ═══════════════════════════════════════════════════════════
@@ -330,6 +350,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 # Ensure directory exists
 MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
+
 
 # ═══════════════════════════════════════════════════════════
 #  FILE UPLOAD LIMITS (DoS prevention)
@@ -351,4 +372,3 @@ MAX_IMAGE_SIZE_MB = 2
 # Allowed attachment extensions
 ALLOWED_ATTACHMENT_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx']
 MAX_ATTACHMENT_SIZE_MB = 5
-
