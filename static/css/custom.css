@@ -278,20 +278,13 @@ color: #374151 !important;
     position: relative;
 }
 
-.calendar-day .day-number {
-    font-size: 0.9rem;
-    font-weight: 400;
-    color: #202124;
-    line-height: 1.4;
-}
-
 .calendar-day.weekend .day-number {
     color: #9aa0a6;
 }
 
 .calendar-day.today .day-number {
     background: #1a73e8;
-    color: #fff;
+    /* color: #fff; */
     width: 28px;
     height: 28px;
     border-radius: 50%;
@@ -300,6 +293,7 @@ color: #374151 !important;
     justify-content: center;
     font-weight: 500;
 }
+
 
 .calendar-day .day-events {
     display: flex;

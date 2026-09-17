@@ -2875,9 +2875,17 @@ def employee_attendance_detail(request, user_id):
 def minutes_to_time(minutes):
     if minutes == 0 or minutes is None:
         return "--:--"
-    hours = int(minutes // 60)
-    mins = int(minutes % 60)
-    return f"{hours:02d}:{mins:02d}"
+
+    total = int(round(minutes))
+    hours = (total // 60) % 24
+    mins  = total % 60
+
+    period = 'AM' if hours < 12 else 'PM'
+    hours_12 = hours % 12
+    if hours_12 == 0:
+        hours_12 = 12
+
+    return f"{hours_12:02d}:{mins:02d} {period}"
 
 
 
@@ -2929,8 +2937,10 @@ def attendance_view(request):
             if check_in and check_out:
                 complete_count += 1
                 total_working_hours += work_seconds / 3600
-                total_in_minutes += check_in.hour * 60 + check_in.minute
-                total_out_minutes += check_out.hour * 60 + check_out.minute
+                check_in_local = timezone.localtime(check_in)
+                check_out_local = timezone.localtime(check_out)
+                total_in_minutes += check_in_local.hour * 60 + check_in_local.minute
+                total_out_minutes += check_out_local.hour * 60 + check_out_local.minute
         else:
             status, check_in, check_out, work_seconds, overtime_seconds = 'Absent', None, None, 0, 0
 
@@ -2977,6 +2987,7 @@ def attendance_view(request):
 
 # ---------- Regularization ----------
 
+
 @login_required
 def regularize_request(request):
     if request.method == 'POST':
@@ -3005,11 +3016,6 @@ def regularize_request(request):
             return redirect('regularize_request_list')
 
         # ─── Check the existing attendance record ───
-        # Regularization is ALLOWED when:
-        #   • No attendance exists at all
-        #   • OR attendance exists with status 'Missing Checkout' / 'Under Review'
-        # Regularization is BLOCKED when:
-        #   • A finalized record already exists (Present, Absent, On Leave, etc.)
         existing_att = Attendance.objects.filter(
             user=request.user,
             date=date_str,
@@ -3047,8 +3053,6 @@ def regularize_request(request):
         mark_under_review(request.user, date_str)
 
         # ─── Notify approver ───
-        
-        # ─── Notify approver ───
         from .approval_utils import notify_approvers
         profile = getattr(request.user, 'profile', None)
         full_name = (profile.full_name if profile else '') or request.user.username
@@ -3067,23 +3071,66 @@ def regularize_request(request):
             related_type='regularizationrequest',
         )
 
+        # ═══════════════════════════════════════════════════════════
+        #  ✅ Owner self-approval → create full attendance record
+        # ═══════════════════════════════════════════════════════════
         if self_approved:
-            # Owner's own regularization auto-approves → close the day
-            from .attendance_utils import mark_under_review
-            Attendance.objects.filter(
+            from datetime import datetime as _dt
+            from django.utils.dateparse import parse_time as _pt, parse_date
+
+            def _to_time(val):
+                if val is None or val == '':
+                    return None
+                if hasattr(val, 'hour'):
+                    return val
+                return _pt(str(val))
+
+            # ✅ FIX: parse date_str → real date (reg_req.date may still be a string)
+            reg_date = parse_date(date_str) or reg_req.date
+
+            ci_t = _to_time(reg_req.check_in_time)
+            co_t = _to_time(reg_req.check_out_time)
+
+            ci_dt = timezone.make_aware(_dt.combine(reg_date, ci_t)) if ci_t else None
+            co_dt = timezone.make_aware(_dt.combine(reg_date, co_t)) if co_t else None
+
+            # Determine final status
+            if ci_dt and co_dt and co_dt > ci_dt:
+                work = co_dt - ci_dt
+                hours = work.total_seconds() / 3600
+                final_status = 'Half-Day' if hours < 4 else 'Present'
+                final_state = 'checked_out'
+            elif ci_dt:
+                work = None
+                final_status = 'Half-Day'
+                final_state = 'checked_in'
+            else:
+                work = None
+                final_status = 'Absent'
+                final_state = 'checked_out'
+
+            # ✅ Use reg_date (not reg_req.date) for consistency
+            Attendance.objects.update_or_create(
                 user=request.user,
-                date=date_str,
-            ).update(status='Present')
+                date=reg_date,
+                defaults={
+                    'company':            reg_req.company,
+                    'check_in_time':      ci_dt,
+                    'check_out_time':     co_dt,
+                    'status':             final_status,
+                    'state':              final_state,
+                    'total_working_time': work,
+                },
+            )
 
             messages.success(
                 request,
-                "Regularization auto-approved as Company Owner."
+                f"Regularization auto-approved as Company Owner — {final_status}."
             )
         else:
             messages.success(request, 'Regularization request submitted successfully.')
 
         return redirect('regularize_request_list')
-
 
     # ─── GET: pre-fill form from ?date= query param ───
     prefilled_date = request.GET.get('date', '')
@@ -3099,6 +3146,8 @@ def regularize_request(request):
         'prefilled_date': prefilled_date,
         'attendance':     attendance,
     })
+    
+
 
 
 @login_required

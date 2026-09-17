@@ -411,6 +411,127 @@
     }
 </style>
 
+<style>
+    /* ── Search clear button ── */
+.emp-search-clear {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 4px 8px;
+    display: none;
+    transition: color 0.15s ease;
+}
+.emp-search-clear:hover { color: #dc2626; }
+.emp-search-clear.visible { display: block; }
+
+/* ── Suggestions dropdown ── */
+.emp-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 6px;
+    background: #fff;
+    border: 1px solid #e8eaee;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+    max-height: 320px;
+    overflow-y: auto;
+    z-index: 100;
+    padding: 4px;
+}
+
+.emp-suggestions::-webkit-scrollbar { width: 6px; }
+.emp-suggestions::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 999px;
+}
+
+.emp-suggestion {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.1s ease;
+}
+
+.emp-suggestion:hover,
+.emp-suggestion.active {
+    background: #eef2ff;
+}
+
+.emp-suggestion-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #4f46e5, #6366f1);
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.emp-suggestion-text {
+    flex: 1;
+    min-width: 0;
+    line-height: 1.3;
+}
+
+.emp-suggestion-name {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #0f172a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.emp-suggestion-meta {
+    font-size: 0.72rem;
+    color: #6b7280;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.emp-suggestion-badge {
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #f1f5f9;
+    color: #475569;
+    flex-shrink: 0;
+}
+
+/* Highlight matched text */
+.emp-table mark {
+    background: #fef08a;
+    color: #0f172a;
+    padding: 0 2px;
+    border-radius: 2px;
+}
+
+/* Row count */
+.emp-search-count {
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin-left: 10px;
+}
+
+</style>
+
 <div class="emp-wrap">
 
     <!-- ═══════════ Stats row ═══════════ -->
@@ -467,12 +588,22 @@
                 <span class="emp-count-pill">{{ employees|length }}</span>
             </h5>
             <div class="emp-tools">
-                <div class="emp-search">
+                
+                <div class="emp-search" style="position: relative;">
                     <div class="emp-search-input">
                         <i class="fas fa-search"></i>
-                        <input type="text" id="employeeSearch" placeholder="Search employees...">
+                        <input type="text"
+                            id="employeeSearch"
+                            placeholder="Search by name, ID, email, department..."
+                            autocomplete="off">
+                        <button type="button" id="empSearchClear" class="emp-search-clear" title="Clear">
+                            <i class="fas fa-times"></i>
+                        </button>
                     </div>
+                    <!-- Suggestions dropdown -->
+                    <div id="empSuggestions" class="emp-suggestions" style="display: none;"></div>
                 </div>
+
                 <a href="{% url 'employee_create' %}" class="emp-btn emp-btn-primary">
                     <i class="las la-user-plus"></i> Add Employee
                 </a>
@@ -548,7 +679,21 @@
                                 </div>
                             </td>
                         </tr>
+                        
                     {% endfor %}
+
+                    <tr id="empNoResults" style="display: none;">
+                        <td colspan="8">
+                            <div style="text-align: center; padding: 40px 20px; color: #94a3b8;">
+                                <i class="fas fa-search" style="font-size: 2rem; opacity: 0.5; display: block; margin-bottom: 10px;"></i>
+                                <p style="margin: 0; font-weight: 600;">No matching employees</p>
+                                <p style="margin: 4px 0 0; font-size: 0.85rem;">Try a different search term.</p>
+                            </div>
+                        </td>
+                    </tr>
+
+
+                    
                 </tbody>
             </table>
         </div>
@@ -571,4 +716,162 @@
         });
     });
 </script>
+
+
+<script>
+(function () {
+    const input = document.getElementById('employeeSearch');
+    const table = document.getElementById('employeeTable');
+    const clearBtn = document.getElementById('empSearchClear');
+    const suggestions = document.getElementById('empSuggestions');
+    const noResults = document.getElementById('empNoResults');
+
+    if (!input || !table) {
+        console.warn('Search: input or table not found');
+        return;
+    }
+
+    const tbody = table.querySelector('tbody');
+    if (!tbody) {
+        console.warn('Search: tbody not found');
+        return;
+    }
+
+    // Get all rows except the "no results" row
+    const allRows = Array.from(tbody.querySelectorAll('tr'))
+        .filter(r => r.id !== 'empNoResults');
+
+    console.log('Search: found', allRows.length, 'rows');
+
+    // Build a searchable text for each row (once)
+    const rowIndex = allRows.map(row => {
+        const text = (row.textContent || '').toLowerCase().replace(/\s+/g, ' ').trim();
+        return { row, text };
+    });
+
+    // ─── Main filter function ───
+    function filterTable(query) {
+        const q = (query || '').toLowerCase().trim();
+        let visible = 0;
+
+        rowIndex.forEach(({ row, text }) => {
+            const match = !q || text.indexOf(q) !== -1;
+            row.style.display = match ? '' : 'none';
+            if (match) visible++;
+        });
+
+        if (noResults) {
+            noResults.style.display = (visible === 0) ? '' : 'none';
+        }
+    }
+
+    // ─── Suggestions dropdown ───
+    function showSuggestions(query) {
+        if (!suggestions) return;
+
+        const q = (query || '').toLowerCase().trim();
+        if (!q) {
+            suggestions.style.display = 'none';
+            return;
+        }
+
+        const matches = [];
+        rowIndex.forEach(({ row, text }) => {
+            if (text.indexOf(q) !== -1 && matches.length < 8) {
+                const nameEl = row.querySelector('.emp-name');
+                const idEl   = row.querySelector('.emp-id');
+                const name   = (nameEl?.textContent || '').trim();
+                const empId  = (idEl?.textContent || '').trim();
+                if (name) {
+                    matches.push({ name, empId });
+                }
+            }
+        });
+
+        if (!matches.length) {
+            suggestions.style.display = 'none';
+            return;
+        }
+
+        suggestions.innerHTML = matches.map(m => `
+            <div class="emp-suggestion" data-name="${escapeAttr(m.name)}">
+                <div class="emp-suggestion-avatar">
+                    ${escapeHtml((m.name || '?').charAt(0).toUpperCase())}
+                </div>
+                <div class="emp-suggestion-text">
+                    <div class="emp-suggestion-name">${escapeHtml(m.name)}</div>
+                    <div class="emp-suggestion-meta">${escapeHtml(m.empId)}</div>
+                </div>
+            </div>
+        `).join('');
+
+        suggestions.style.display = 'block';
+
+        suggestions.querySelectorAll('.emp-suggestion').forEach(el => {
+            el.addEventListener('click', function () {
+                input.value = el.dataset.name;
+                suggestions.style.display = 'none';
+                filterTable(el.dataset.name);
+                if (clearBtn) clearBtn.classList.add('visible');
+            });
+        });
+    }
+
+    function escapeHtml(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+        }[c]));
+    }
+
+    function escapeAttr(s) {
+        return escapeHtml(s).replace(/`/g, '&#96;');
+    }
+
+    // ─── Events ───
+    let debounceTimer;
+
+    input.addEventListener('input', function () {
+        const q = input.value;
+        if (clearBtn) clearBtn.classList.toggle('visible', q.length > 0);
+
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+            filterTable(q);
+            showSuggestions(q);
+        }, 100);
+    });
+
+    input.addEventListener('focus', function () {
+        if (input.value.trim()) showSuggestions(input.value);
+    });
+
+    input.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            suggestions.style.display = 'none';
+            input.blur();
+        }
+    });
+
+    // Close suggestions on outside click
+    document.addEventListener('click', function (e) {
+        if (!e.target.closest('.emp-search')) {
+            if (suggestions) suggestions.style.display = 'none';
+        }
+    });
+
+    // Clear button
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function () {
+            input.value = '';
+            clearBtn.classList.remove('visible');
+            if (suggestions) suggestions.style.display = 'none';
+            filterTable('');
+            input.focus();
+        });
+    }
+})();
+</script>
+
+
+
 {% endblock %}

@@ -757,18 +757,25 @@
     <!-- ═══════════ DOWNLOAD ═══════════ -->
     <div class="ar-divider">Download Report</div>
 
-    <div class="ar-card mb-4">
+    <div class="ar-card mb-4" style="overflow: visible;">
         <div class="ar-card-bd">
             <form method="get" id="reportForm">
                 <div class="row g-3 align-items-end">
                     <div class="col-md-3">
                         <label class="ar-label" for="download_month">Month</label>
                         <select name="month" id="download_month" class="ar-select">
-                            {% for m in months %}
-                                <option value="{{ m.value }}" {% if m.selected %}selected{% endif %}>
-                                    {{ m.label }}
-                                </option>
-                            {% endfor %}
+                            <option value="1"  {% if month == 1  %}selected{% endif %}>January</option>
+                            <option value="2"  {% if month == 2  %}selected{% endif %}>February</option>
+                            <option value="3"  {% if month == 3  %}selected{% endif %}>March</option>
+                            <option value="4"  {% if month == 4  %}selected{% endif %}>April</option>
+                            <option value="5"  {% if month == 5  %}selected{% endif %}>May</option>
+                            <option value="6"  {% if month == 6  %}selected{% endif %}>June</option>
+                            <option value="7"  {% if month == 7  %}selected{% endif %}>July</option>
+                            <option value="8"  {% if month == 8  %}selected{% endif %}>August</option>
+                            <option value="9"  {% if month == 9  %}selected{% endif %}>September</option>
+                            <option value="10" {% if month == 10 %}selected{% endif %}>October</option>
+                            <option value="11" {% if month == 11 %}selected{% endif %}>November</option>
+                            <option value="12" {% if month == 12 %}selected{% endif %}>December</option>
                         </select>
                     </div>
 
@@ -780,11 +787,13 @@
                         </select>
                     </div>
 
-                    <div class="col-md-3" id="employeeSearchWrapper" style="display: none; position: relative;">
+                    <div class="col-md-3" id="employeeSearchWrapper" style="display: none;">
                         <label class="ar-label" for="employeeSearch">Employee</label>
-                        <input type="text" id="employeeSearch" class="ar-input" placeholder="Search by name or ID...">
-                        <input type="hidden" name="employee_id" id="employeeId">
-                        <div id="employeeSuggestions" class="ar-suggest"></div>
+                        <input type="text"
+                            id="employeeSearch"
+                            class="ar-input"
+                            placeholder="Filter by name or ID..."
+                            autocomplete="off">
                     </div>
 
                     <div class="col-md-3 d-flex align-items-end gap-2 flex-wrap">
@@ -977,72 +986,93 @@
     });
 </script>
 
+
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     const downloadType = document.getElementById('downloadType');
     const employeeWrapper = document.getElementById('employeeSearchWrapper');
     const employeeSearch = document.getElementById('employeeSearch');
-    const employeeId = document.getElementById('employeeId');
-    const suggestions = document.getElementById('employeeSuggestions');
+    const tableBody = document.querySelector('#reportTable tbody');
 
-    downloadType.addEventListener('change', function() {
+    if (!downloadType || !employeeWrapper || !tableBody) return;
+
+    // ─── Show/hide search box on download type change ───
+    downloadType.addEventListener('change', function () {
         if (this.value === 'single') {
             employeeWrapper.style.display = 'block';
         } else {
             employeeWrapper.style.display = 'none';
             employeeSearch.value = '';
-            employeeId.value = '';
-            suggestions.style.display = 'none';
+            filterTable('');
         }
     });
 
-    let timeout = null;
-    employeeSearch.addEventListener('input', function() {
-        clearTimeout(timeout);
-        const query = this.value.trim();
-        if (query.length < 2) {
-            suggestions.style.display = 'none';
-            return;
+    // ─── Live filter the report table rows ───
+    function filterTable(query) {
+        const q = (query || '').toLowerCase().trim();
+        const rows = tableBody.querySelectorAll('tr.report-row');
+        let visible = 0;
+
+        rows.forEach(row => {
+            const nameEl = row.querySelector('.ar-emp-name');
+            const idEl = row.querySelector('.emp-id');
+
+            const text = (
+                (nameEl?.textContent || '') + ' ' +
+                (idEl?.textContent || '')
+            ).toLowerCase();
+
+            const match = !q || text.indexOf(q) !== -1;
+            row.style.display = match ? '' : 'none';
+
+            // Hide the paired detail row too
+            const toggle = row.querySelector('.toggle-details');
+            if (toggle) {
+                const detailRow = document.getElementById(toggle.dataset.target);
+                if (detailRow) detailRow.style.display = 'none';
+            }
+
+            if (match) visible++;
+        });
+
+        // ─── "No results" message ───
+        let emptyRow = tableBody.querySelector('.search-empty-row');
+
+        if (visible === 0 && q) {
+            if (!emptyRow) {
+                emptyRow = document.createElement('tr');
+                emptyRow.className = 'search-empty-row';
+                emptyRow.innerHTML =
+                    '<td colspan="10" style="text-align:center;padding:40px 20px;color:#94a3b8;">' +
+                    '<i class="fas fa-search" style="font-size:2rem;opacity:0.5;display:block;margin-bottom:10px;"></i>' +
+                    '<p style="margin:0;font-weight:600;">No matching employees</p>' +
+                    '<p style="margin:4px 0 0;font-size:0.85rem;">Try a different search term.</p>' +
+                    '</td>';
+                tableBody.appendChild(emptyRow);
+            }
+            emptyRow.style.display = '';
+        } else if (emptyRow) {
+            emptyRow.style.display = 'none';
         }
-        timeout = setTimeout(() => {
-            fetch(`/api/employee-search/?q=${encodeURIComponent(query)}`)
-                .then(response => response.json())
-                .then(data => {
-                    suggestions.innerHTML = '';
-                    if (data.length === 0) {
-                        suggestions.innerHTML = '<div class="list-group-item text-muted">No employees found</div>';
-                        suggestions.style.display = 'block';
-                        return;
-                    }
-                    data.forEach(emp => {
-                        const item = document.createElement('button');
-                        item.type = 'button';
-                        item.className = 'list-group-item list-group-item-action';
-                        item.textContent = `${emp.full_name} (${emp.employee_id})`;
-                        item.dataset.id = emp.id;
-                        item.addEventListener('click', function() {
-                            employeeSearch.value = this.textContent;
-                            employeeId.value = this.dataset.id;
-                            suggestions.style.display = 'none';
-                        });
-                        suggestions.appendChild(item);
-                    });
-                    suggestions.style.display = 'block';
-                })
-                .catch(() => {
-                    suggestions.innerHTML = '<div class="list-group-item text-danger">Error loading employees</div>';
-                    suggestions.style.display = 'block';
-                });
-        }, 300);
+    }
+
+    // ─── Debounced input listener ───
+    let timer = null;
+    employeeSearch.addEventListener('input', function () {
+        clearTimeout(timer);
+        const val = this.value;
+        timer = setTimeout(() => filterTable(val), 100);
     });
 
-    // Hide suggestions on click outside
-    document.addEventListener('click', function(e) {
-        if (!employeeSearch.contains(e.target) && !suggestions.contains(e.target)) {
-            suggestions.style.display = 'none';
+    // ─── Esc clears the filter ───
+    employeeSearch.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            this.value = '';
+            filterTable('');
         }
     });
 });
 </script>
+
 
 {% endblock %}
