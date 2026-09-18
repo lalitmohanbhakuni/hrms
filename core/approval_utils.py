@@ -45,49 +45,50 @@ def get_approvers(requester, company):
     """
     Return a list of users who should approve `requester`'s request.
 
-    Returns [] for the company owner (self-approval case).
+    Rules:
+      Company Owner       → [] (self-approve)
+      HR Admin            → Company Owner (or peers if no owner)
+      Manager             → ALL HR Admins
+      Employee with mgr   → their manager
+      Employee w/o mgr    → ALL HR Admins
     """
     requester_id = requester.id
     profile = getattr(requester, 'profile', None)
+    role = profile.role if profile else None
     owner = get_company_owner(company)
+
+    def hr_admins_excluding_self():
+        """All active HR Admins in company except the requester."""
+        return list(
+            User.objects.filter(
+                profile__role='hr_admin',
+                profile__company=company,
+                profile__is_active=True,
+                is_active=True,
+            ).exclude(id=requester_id).distinct()
+        )
 
     # ─── 1. Company Owner → self-approve ───
     if profile and profile.is_company_owner:
         return []
 
-    # ─── 2. Regular HR Admin → Company Owner ───
-    if requester.groups.filter(name='HR Admin').exists():
+    # ─── 2. HR Admin → Company Owner ───
+    if role == 'hr_admin' or requester.groups.filter(name='HR Admin').exists():
         if owner and owner.user_id != requester_id:
             return [owner.user]
+        # No owner → peers (other HR Admins)
+        return hr_admins_excluding_self()
 
-        # No owner yet → peers (or nobody)
-        peers = list(
-            User.objects.filter(
-                groups__name='HR Admin',
-                profile__company=company,
-                is_active=True,
-            )
-            .exclude(id=requester_id)
-            .distinct()
-        )
-        return peers
+    # ─── 3. Manager → ALL HR Admins ───
+    if role == 'manager' or requester.groups.filter(name='Manager').exists():
+        return hr_admins_excluding_self()
 
-    # ─── 3. Has a manager → that manager ───
-    if profile and profile.manager:
+    # ─── 4. Employee with manager → that manager ───
+    if profile and profile.manager and profile.manager.user.is_active:
         return [profile.manager.user]
 
-    # ─── 4. No manager → Company Owner ───
-    if owner:
-        return [owner.user]
-
-    # ─── 5. Fallback → all HR Admins ───
-    return list(
-        User.objects.filter(
-            groups__name='HR Admin',
-            profile__company=company,
-            is_active=True,
-        ).distinct()
-    )
+    # ─── 5. Employee without manager → ALL HR Admins ───
+    return hr_admins_excluding_self()
 
 
 def notify_approvers(request, company, msg, obj, related_type=None):

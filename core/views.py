@@ -359,26 +359,26 @@ def dashboard(request):
                     'check_out':    att.check_out_time.strftime('%I:%M %p') if att and att.check_out_time else '--:--',
                 })
 
-        # Self mode → own status
-        if calendar_mode == 'self':
-            if holiday_name:
-                row['self_status'] = 'holiday'
-            elif is_weekend:
-                row['self_status'] = 'weekend'
-            elif on_leave:
-                row['self_status'] = 'leave'
-            elif counts.get('Present'):
-                row['self_status'] = 'present'
-            elif counts.get('Half-Day'):
-                row['self_status'] = 'halfday'
-            elif counts.get('Absent'):
-                row['self_status'] = 'absent'
-            elif current_date > today:
-                row['self_status'] = 'future'
+            # Self mode → own status
+            if calendar_mode == 'self':
+                if current_date > today:
+                    row['self_status'] = 'future'
+                elif counts.get('Present'):
+                    row['self_status'] = 'present'          # ✅ work beats weekend/holiday
+                elif counts.get('Half-Day'):
+                    row['self_status'] = 'halfday'          # ✅ half-day beats too
+                elif holiday_name:
+                    row['self_status'] = 'holiday'
+                elif is_weekend:
+                    row['self_status'] = 'weekend'
+                elif on_leave:
+                    row['self_status'] = 'leave'
+                elif counts.get('Absent'):
+                    row['self_status'] = 'absent'
+                else:
+                    row['self_status'] = 'none'
             else:
-                row['self_status'] = 'none'
-        else:
-            row['self_status'] = None
+                row['self_status'] = None
 
         calendar_data.append(row)
 
@@ -3286,14 +3286,15 @@ def regularize_reject(request, req_id):
 
     return render(request, 'attendance/regularize_reject.html', {'reg_req': reg_req})
 
+
 @login_required
-@admin_or_hr_required            # ← existing, already allows managers ✅
+@admin_or_hr_required
 @company_required
 def regularize_approve(request, req_id):
     from datetime import datetime
     from django.utils.dateparse import parse_time
     from datetime import timedelta
-    from django.core.exceptions import PermissionDenied   # ← CHANGED (added)
+    from django.core.exceptions import PermissionDenied
 
     if request.user.is_superuser:
         reg_req = get_object_or_404(RegularizationRequest, id=req_id)
@@ -3303,12 +3304,23 @@ def regularize_approve(request, req_id):
             company=get_user_company(request)
         )
 
-    # ─── Manager scope: only own team ───                 # ← CHANGED (added block)
+    # ─── Manager scope: only own team (FIXED: lowercase role + group fallback) ───
     if not request.user.is_superuser:
         profile = getattr(request.user, 'profile', None)
-        if profile and profile.role == 'Manager':
+        is_manager = (
+            profile and (
+                profile.role in ('manager', 'Manager')
+                or request.user.groups.filter(name='Manager').exists()
+            )
+        )
+        if is_manager:
             if reg_req.user.profile.manager_id != profile.id:
                 raise PermissionDenied
+
+    # ─── ✅ FIX: only PENDING requests can be approved ───
+    if reg_req.status != 'Pending':
+        messages.error(request, 'This request has already been processed.')
+        return redirect('regularize_request_list')
 
     if request.method == 'POST':
         comment = request.POST.get('admin_comment', '')
@@ -3397,6 +3409,7 @@ def regularize_approve(request, req_id):
         return redirect('regularize_request_list')
 
     return render(request, 'attendance/regularize_approve.html', {'reg_req': reg_req})
+        
 
 # ---------- Notification List ----------
 @login_required

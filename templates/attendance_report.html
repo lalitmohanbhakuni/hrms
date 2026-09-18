@@ -836,7 +836,7 @@
                                     <div class="ar-avatar">{{ item.employee.username|slice:":1"|upper }}</div>
                                     <div>
                                         <a href="{% url 'employee_attendance_detail' item.employee.id %}" class="ar-emp-name">
-                                            {{ item.employee.username }}
+                                            {{ item.employee.profile.full_name|default:item.employee.username }}    
                                         </a><br>
                                         <span class="emp-id">{{ item.employee.profile.employee_id }}</span>
                                     </div>

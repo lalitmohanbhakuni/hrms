@@ -287,8 +287,8 @@
                             {% for req in my_requests %}
                                 <tr>
                                     <td class="num">{{ req.date|date:"d M Y" }}</td>
-                                    <td class="num">{{ req.check_in_time|time:"H:i"|default:"--:--" }}</td>
-                                    <td class="num">{{ req.check_out_time|time:"H:i"|default:"--:--" }}</td>
+                                    <td class="num">{{ req.check_in_time|time:"h:i A"|default:"--:--" }}</td>
+                                    <td class="num">{{ req.check_out_time|time:"h:i A"|default:"--:--" }}</td>
                                     <td>
                                         <div class="rgz-reason" title="{{ req.reason }}">
                                             {{ req.reason|truncatechars:30 }}
@@ -355,7 +355,17 @@
                             <tbody>
                                 {% for req in team_requests %}
                                     <tr>
-                                        <td class="name">{{ req.user.username }}</td>
+                                        
+                                        <td class="name">
+                                            <div class="d-flex align-items-center gap-2" title="{{ req.user.profile.full_name|default:req.user.username }} ({{ req.user.profile.employee_id }})">
+                                                <div>
+                                                    <span class="fw-semibold">{{ req.user.profile.full_name|default:req.user.username }}</span><br>
+                                                    <small class="emp-id" style="font-weight: normal; color: #94a3b8;">{{ req.user.profile.employee_id|default:"—" }}</small>
+                                                </div>
+                                                
+                                            </div>
+                                        </td>
+
                                         <td class="num">{{ req.date|date:"d M Y" }}</td>
                                         <td>
                                             <div class="rgz-reason" title="{{ req.reason }}">

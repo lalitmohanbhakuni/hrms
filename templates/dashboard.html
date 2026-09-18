@@ -118,6 +118,10 @@
     gap: 2px;
     line-height: 1.4;
 }
+.emp-id {
+    color: #999;
+}
+
 
 .count-pill.present  { background: #dcfce7; color: #166534; }
 .count-pill.absent   { background: #fee2e2; color: #991b1b; }
@@ -768,18 +772,12 @@
                 <span class="day-number">{{ item.day }}</span>
 
                 <div class="day-events">
-                    {# ── Holiday badge ── #}
-                    {% if item.is_holiday %}
-                        <span class="event-badge holiday" title="{{ item.holiday_name }}">
-                            ★ {{ item.holiday_name|truncatechars:10 }}
-                        </span>
 
-                    {# ── Weekend ── #}
-                    {% elif item.is_weekend %}
-                        <span class="event-text weekend-text">Weekend</span>
+                {# ── TEAM MODE: show counts first ── #}
+                {% if item.mode == 'team' %}
 
-                    {# ── Team mode: show counts ── #}
-                    {% elif item.mode == 'team' %}
+                    {# If anyone has any status, show counts (overrides weekend/holiday) ── #}
+                    {% if item.counts.present or item.counts.absent or item.counts.leave or item.counts.half %}
                         <div class="event-counts">
                             {% if item.counts.present %}
                                 <span class="count-pill present" title="Present">● {{ item.counts.present }} P</span>
@@ -793,26 +791,41 @@
                             {% if item.counts.half %}
                                 <span class="count-pill halfday" title="Half-Day">● {{ item.counts.half }} H</span>
                             {% endif %}
-                            {% if not item.counts.present and not item.counts.absent and not item.counts.leave and not item.counts.half and item.date <= today %}
-                                <span class="event-text none-text">No Record</span>
-                            {% endif %}
                         </div>
 
-                    {# ── Self mode: personal status ── #}
-                    {% else %}
-                        {% if item.self_status == 'present' %}
-                            <span class="event-badge present">● Present</span>
-                        {% elif item.self_status == 'leave' %}
-                            <span class="event-badge leave">● On Leave</span>
-                        {% elif item.self_status == 'halfday' %}
-                            <span class="event-badge halfday">● Half-Day</span>
-                        {% elif item.self_status == 'absent' %}
-                            <span class="event-badge absent">● Absent</span>
-                        {% elif item.self_status == 'none' %}
-                            <span class="event-text none-text">No Record</span>
-                        {% endif %}
+                    {# No counts — fall back to holiday/weekend labels ── #}
+                    {% elif item.is_holiday %}
+                        <span class="event-badge holiday" title="{{ item.holiday_name }}">
+                            ★ {{ item.holiday_name|truncatechars:10 }}
+                        </span>
+
+                    {% elif item.is_weekend %}
+                        <span class="event-text weekend-text">Weekend</span>
+
+                    {% elif item.date <= today %}
+                        <span class="event-text none-text">No Record</span>
                     {% endif %}
-                </div>
+
+                {# ── SELF MODE: personal status ── #}
+                {% else %}
+                    {% if item.self_status == 'present' %}
+                        <span class="event-badge present">● Present</span>
+                    {% elif item.self_status == 'leave' %}
+                        <span class="event-badge leave">● On Leave</span>
+                    {% elif item.self_status == 'halfday' %}
+                        <span class="event-badge halfday">● Half-Day</span>
+                    {% elif item.self_status == 'absent' %}
+                        <span class="event-badge absent">● Absent</span>
+                    {% elif item.self_status == 'holiday' %}
+                        <span class="event-badge holiday">★ {{ item.holiday_name|truncatechars:10 }}</span>
+                    {% elif item.self_status == 'weekend' %}
+                        <span class="event-text weekend-text">Weekend</span>
+                    {% elif item.self_status == 'none' %}
+                        <span class="event-text none-text">No Record</span>
+                    {% endif %}
+                {% endif %}
+
+            </div>
             </div>
         {% endfor %}
     </div>
@@ -959,7 +972,11 @@
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
                                         <div class="db-avatar">{{ item.employee.username|slice:":1"|upper }}</div>
-                                        <span class="fw-semibold">{{ item.employee.username }}</span>
+                                        <div>
+                                            <span class="fw-semibold">{{ item.employee.profile.full_name|default:item.employee.username }}</span><br>
+                                            <small class="emp-id">{{ item.employee.profile.employee_id }}</small>
+                                        </div>
+                                        
                                     </div>
                                 </td>
                                 <td class="text-center">

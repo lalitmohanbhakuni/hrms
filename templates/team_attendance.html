@@ -528,12 +528,23 @@
                     {% for item in employee_data %}
                         <tr class="team-row">
                             <td class="idx">{{ forloop.counter }}</td>
+
                             <td>
+                                <div class="mta-emp">
+                                    <div class="mta-avatar">{{ item.employee.get_full_name|default:item.employee.username|slice:":1"|upper }}</div>
+                                    <div class="mta-emp-meta">
+                                        <span class="mta-emp-name"> {{ item.employee.profile.full_name|default:item.employee.username }}</span><br>
+                                        <small class="mta-emp-id" style="color: #999;"> {{ item.employee.profile.employee_id|default:"—" }} </small>
+                                    </div>
+                                </div>
+                            </td>
+
+                            <!-- <td>
                                 <div class="mta-emp">
                                     <div class="mta-avatar">{{ item.employee.username|slice:":1"|upper }}</div>
                                     <span class="mta-emp-name">{{ item.employee.username }}</span>
                                 </div>
-                            </td>
+                            </td> -->
                             <td class="text-center">
                                 {% if item.shift_name != '—' %}
                                     <span class="mta-shift">
