@@ -26,7 +26,6 @@ urlpatterns = [
     path('leave-types/create/', views.leave_type_create, name='leave_type_create'),
     path('leave-types/edit/<int:pk>/', views.leave_type_edit, name='leave_type_edit'),
     path('leave-types/delete/<int:pk>/', views.leave_type_delete, name='leave_type_delete'),
-    path('leave-cancel/<int:leave_id>/', views.leave_cancel, name='leave_cancel'),
     
     # Holidays (Admin)
     path('holidays/', views.holiday_list, name='holiday_list'),

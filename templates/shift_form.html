@@ -521,12 +521,19 @@
                                             <i class="las la-business-time"></i> Min Working Hours
                                             <span class="shf-optional">(minutes)</span>
                                         </label>
-                                        <input type="number" name="min_working_hours" id="min_working_hours" class="shf-input"
+
+                                        <div class="shf-input-group">
+                                            <input type="number" name="min_working_hours" id="min_working_hours" class="shf-input"
+                                                   value="{{ shift.min_working_hours|default:480 }}" min="0" step="1">
+                                            <span class="shf-preview-label shf-label" id="min_hours_display">= 8h 00m</span>
+                                        </div>
+
+                                        <!-- <input type="number" name="min_working_hours" id="min_working_hours" class="shf-input"
                                                value="{{ shift.min_working_hours|default:480 }}" min="0" step="1">
                                         <div class="shf-hint">
                                             <i class="las la-info-circle"></i>
                                             <span>Default: 480 minutes = 8 hours.</span>
-                                        </div>
+                                        </div> -->
                                     </div>
                                 </div>
                             </div>
@@ -707,6 +714,34 @@
         });
         updateWorkingDaysPreview();
     });
+</script>
+
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const input   = document.getElementById('min_working_hours');
+    const display = document.getElementById('min_hours_display');
+
+    if (!input || !display) return;
+
+    function updateHours() {
+        const mins = parseInt(input.value) || 0;
+
+        if (mins <= 0) {
+            display.textContent = '= 0h 00m';
+            display.style.color = '#dc2626';
+            return;
+        }
+
+        display.style.color = '';
+        const h = Math.floor(mins / 60);
+        const m = mins % 60;
+        display.textContent = `= ${h}h ${String(m).padStart(2, '0')}m`;
+    }
+
+    input.addEventListener('input', updateHours);
+    updateHours();
+});
 </script>
 
 {% endblock %}

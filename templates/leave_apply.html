@@ -328,84 +328,75 @@
 
                     <form method="post" enctype="multipart/form-data">
                         {% csrf_token %}
-
                         <div class="lva-grid">
 
-                            <!-- Leave Type -->
-                            <div class="lva-field">
-                                <label for="leave_type" class="lva-label">
-                                    <i class="las la-tag"></i> Leave Type <span class="lva-req">*</span>
-                                </label>
-                                <select name="leave_type" id="leave_type" class="lva-select" required>
-                                    <option value="">Select...</option>
-                                    {% for lt in leave_types %}
-                                        <option value="{{ lt.id }}">{{ lt.name }} ({{ lt.days_allowed }} days)</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
+                        <!-- Leave Type -->
+                        <div class="lva-field full">
+                            <label for="leave_type" class="lva-label">
+                                <i class="las la-tag"></i> Leave Type <span class="lva-req">*</span>
+                            </label>
+                            <select name="leave_type" id="leave_type" class="lva-select" required>
+                                <option value="">Select...</option>
+                                {% for lt in leave_types %}
+                                    <option value="{{ lt.id }}">{{ lt.name }} ({{ lt.days_allowed }} days)</option>
+                                {% endfor %}
+                            </select>
+                        </div>
 
-                            <!-- Duration: Half day toggle -->
-                            <div class="lva-field">
-                                <label class="lva-label">
-                                    <i class="las la-hourglass-half"></i> Duration
-                                </label>
-                                <label for="is_half_day" class="lva-toggle">
-                                    <input class="form-check-input" type="checkbox" name="is_half_day" id="is_half_day">
-                                    <span class="form-check-label">Half Day</span>
-                                    <span class="lva-toggle-hint">Optional</span>
-                                </label>
-                                <div id="half_day_session_div" style="display:none; margin-top:10px;">
-                                    <select name="half_day_session" class="lva-select">
-                                        <option value="First">First Half</option>
-                                        <option value="Second">Second Half</option>
-                                    </select>
-                                </div>
-                            </div>
+                        <!-- From Date + Session -->
+                        <div class="lva-field">
+                            <label for="start_date" class="lva-label">
+                                <i class="las la-calendar-day"></i> From Date <span class="lva-req">*</span>
+                            </label>
+                            <input type="date" name="start_date" id="start_date" class="lva-input" required>
+                            <select name="start_session" id="start_session" class="lva-select" style="margin-top:8px;">
+                                <option value="full">Full Day</option>
+                                <option value="first_half">First Half (Morning)</option>
+                                <option value="second_half">Second Half (Afternoon)</option>
+                            </select>
+                        </div>
 
-                            <!-- From Date -->
-                            <div class="lva-field">
-                                <label for="start_date" class="lva-label">
-                                    <i class="las la-calendar-day"></i> From Date <span class="lva-req">*</span>
-                                </label>
-                                <input type="date" name="start_date" id="start_date" class="lva-input" required>
-                            </div>
+                        <!-- To Date + Session -->
+                        <div class="lva-field">
+                            <label for="end_date" class="lva-label">
+                                <i class="las la-calendar-check"></i> To Date <span class="lva-req">*</span>
+                            </label>
+                            <input type="date" name="end_date" id="end_date" class="lva-input" required>
+                            <select name="end_session" id="end_session" class="lva-select" style="margin-top:8px;">
+                                <option value="full">Full Day</option>
+                                <option value="first_half">First Half (Morning)</option>
+                                <option value="second_half">Second Half (Afternoon)</option>
+                            </select>
+                        </div>
 
-                            <!-- To Date -->
-                            <div class="lva-field" id="end_date_div">
-                                <label for="end_date" class="lva-label">
-                                    <i class="las la-calendar-check"></i> To Date <span class="lva-req">*</span>
-                                </label>
-                                <input type="date" name="end_date" id="end_date" class="lva-input" required>
-                            </div>
-
-                            <!-- Reason -->
-                            <div class="lva-field full">
-                                <label for="reason" class="lva-label">
-                                    <i class="las la-comment-alt"></i> Reason <span class="lva-req">*</span>
-                                </label>
-                                <textarea name="reason" id="reason" rows="3" class="lva-textarea" required
-                                          placeholder="Describe your reason..."></textarea>
-                            </div>
-
-                            <!-- Attachment -->
-                            <!-- <div class="lva-field full">
-                                <label for="attachment" class="lva-label">
-                                    <i class="las la-paperclip"></i> Attachment
-                                    <span class="lva-optional">(optional)</span>
-                                </label>
-                                <input type="file" name="attachment" id="attachment" class="lva-input">
-                            </div> -->
-
-                            <!-- Actions -->
-                            <div class="lva-foot">
-                                <button type="submit" class="lva-btn lva-btn-primary">
-                                    <i class="fas fa-paper-plane"></i> Submit Leave Request
-                                </button>
-                                <a href="{% url 'employee_leaves' %}" class="lva-btn lva-btn-ghost">
-                                    <i class="fas fa-times"></i> Cancel
-                                </a>
+                        <!-- Live Duration Preview -->
+                        <div class="lva-field full">
+                            <div class="lva-duration-preview" id="duration_preview">
+                                <i class="las la-stopwatch"></i>
+                                <span id="duration_text">Pick dates to see duration</span>
                             </div>
                         </div>
+
+                        <!-- Reason -->
+                        <div class="lva-field full">
+                            <label for="reason" class="lva-label">
+                                <i class="las la-comment-alt"></i> Reason <span class="lva-req">*</span>
+                            </label>
+                            <textarea name="reason" id="reason" rows="3" class="lva-textarea" required
+                                    placeholder="Describe your reason..."></textarea>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="lva-foot">
+                            <button type="submit" class="lva-btn lva-btn-primary">
+                                <i class="fas fa-paper-plane"></i> Submit Leave Request
+                            </button>
+                            <a href="{% url 'employee_leaves' %}" class="lva-btn lva-btn-ghost">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                        </div>
+                    </div>
+
                     </form>
 
                 </div>
@@ -414,19 +405,84 @@
     </div>
 </div>
 
+
 <script>
-    document.getElementById('is_half_day').addEventListener('change', function() {
-        const halfDayDiv = document.getElementById('half_day_session_div');
-        const endDateDiv = document.getElementById('end_date_div');
-        if (this.checked) {
-            halfDayDiv.style.display = 'block';
-            endDateDiv.style.display = 'none';
-            document.getElementById('end_date').removeAttribute('required');
-        } else {
-            halfDayDiv.style.display = 'none';
-            endDateDiv.style.display = 'block';
-            document.getElementById('end_date').setAttribute('required', 'required');
+document.addEventListener('DOMContentLoaded', function () {
+    const startDate    = document.getElementById('start_date');
+    const endDate      = document.getElementById('end_date');
+    const startSession = document.getElementById('start_session');
+    const endSession   = document.getElementById('end_session');
+    const durationText = document.getElementById('duration_text');
+
+    // Guard: skip if elements don't exist
+    if (!startDate || !endDate || !startSession || !endSession || !durationText) {
+        return;
+    }
+
+    // ─── Auto-fill end date from start date ───
+    startDate.addEventListener('change', function () {
+        if (this.value && !endDate.value) {
+            endDate.value = this.value;
         }
+        endDate.min = this.value;   // prevent earlier dates
+        calcDuration();
     });
+
+    endDate.addEventListener('change', calcDuration);
+    startSession.addEventListener('change', calcDuration);
+    endSession.addEventListener('change', calcDuration);
+
+    // ─── Live duration calculator ───
+    function calcDuration() {
+        const sd = startDate.value;
+        const ed = endDate.value;
+
+        if (!sd || !ed) {
+            durationText.textContent = 'Pick dates to see duration';
+            durationText.style.color = '';
+            return;
+        }
+
+        const d1 = new Date(sd);
+        const d2 = new Date(ed);
+
+        if (d2 < d1) {
+            durationText.textContent = '⚠ End date is before start date';
+            durationText.style.color = '#dc2626';
+            return;
+        }
+        durationText.style.color = '';
+
+        const ss = startSession.value;
+        const es = endSession.value;
+
+        let total = 0;
+
+        // Same-day
+        if (sd === ed) {
+            if (ss === 'full' || es === 'full') {
+                total = 1.0;
+            } else if (ss === es) {
+                total = 0.5;         // same half twice
+            } else {
+                total = 1.0;         // 1st + 2nd = full
+            }
+        } else {
+            // Start day
+            total += (ss === 'full') ? 1.0 : 0.5;
+
+            // Middle days (all full)
+            const middleDays = Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) - 1;
+            if (middleDays > 0) total += middleDays;
+
+            // End day
+            total += (es === 'full') ? 1.0 : 0.5;
+        }
+
+        const label = total === 1 ? 'day' : 'days';
+        durationText.textContent = `Duration: ${total.toFixed(1)} ${label}`;
+    }
+});
 </script>
+
 {% endblock %}

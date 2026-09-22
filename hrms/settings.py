@@ -351,6 +351,13 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Ensure directory exists
 MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
 
+# ═══════════════════════════════════════════════════════════
+#  RATE LIMITING — client IP behind Render's proxy
+# ═══════════════════════════════════════════════════════════
+
+RATELIMIT_IP_META_KEY = 'HTTP_X_FORWARDED_FOR'
+
+
 
 # ═══════════════════════════════════════════════════════════
 #  FILE UPLOAD LIMITS (DoS prevention)

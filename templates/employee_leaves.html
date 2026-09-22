@@ -699,6 +699,14 @@
                                         <button type="button" class="mlv-icon-btn" data-bs-toggle="modal" data-bs-target="#requestModal{{ req.id }}" title="View details">
                                             <i class="las la-eye"></i>
                                         </button>
+                                        {% if req.status == 'Pending' %}
+                                            <a href="{% url 'leave_cancel' req.id %}"
+                                            class="mlv-icon-btn"
+                                            style="color: #dc2626;"
+                                            title="Ca   ncel this request">
+                                                <i class="las la-times-circle"></i>
+                                            </a>
+                                        {% endif %}
                                     </td>
                                 </tr>
 

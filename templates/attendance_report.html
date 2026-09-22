@@ -619,7 +619,7 @@
             <div class="ar-kpi">
                 <span class="ar-kpi-ico primary"><i class="las la-calendar-alt"></i></span>
                 <div>
-                    <div class="ar-kpi-label">Working Days</div>
+                    <div class="ar-kpi-label">Scheduled Workdays</div>
                     <div class="ar-kpi-value primary">{{ total_working_days }}</div>
                 </div>
             </div>
@@ -682,14 +682,31 @@
 
             <form method="get" class="row g-3 align-items-end">
                 <div class="col-6 col-md-2">
-                    <label class="ar-label" for="filter_month">Month</label>
+
+                    <label class="ar-label" for="download_month">Month</label>
+                        <select name="month" id="download_month" class="ar-select">
+                            <option value="1"  {% if month == 1  %}selected{% endif %}>January</option>
+                            <option value="2"  {% if month == 2  %}selected{% endif %}>February</option>
+                            <option value="3"  {% if month == 3  %}selected{% endif %}>March</option>
+                            <option value="4"  {% if month == 4  %}selected{% endif %}>April</option>
+                            <option value="5"  {% if month == 5  %}selected{% endif %}>May</option>
+                            <option value="6"  {% if month == 6  %}selected{% endif %}>June</option>
+                            <option value="7"  {% if month == 7  %}selected{% endif %}>July</option>
+                            <option value="8"  {% if month == 8  %}selected{% endif %}>August</option>
+                            <option value="9"  {% if month == 9  %}selected{% endif %}>September</option>
+                            <option value="10" {% if month == 10 %}selected{% endif %}>October</option>
+                            <option value="11" {% if month == 11 %}selected{% endif %}>November</option>
+                            <option value="12" {% if month == 12 %}selected{% endif %}>December</option>
+                        </select>
+                    <!-- <label class="ar-label" for="filter_month">Month</label>
                     <select name="month" id="filter_month" class="ar-select">
-                        {% for m in "123456789101112"|make_list %}
-                            <option value="{{ m }}" {% if month == m|add:0 %}selected{% endif %}>
+                        {% for m in months %}
+                            <option value="{{ m }}" {% if month == m %}selected{% endif %}>
                                 {{ m|month_name }}
                             </option>
                         {% endfor %}
-                    </select>
+
+                    </select> -->
                 </div>
 
                 <div class="col-6 col-md-2">
@@ -724,9 +741,10 @@
                         <option value="">All</option>
                         <option value="Present" {% if status_filter == 'Present' %}selected{% endif %}>Present</option>
                         <option value="Absent" {% if status_filter == 'Absent' %}selected{% endif %}>Absent</option>
+                        <option value="Missing Checkout" {% if status_filter == 'Missing Checkout' %}selected{% endif %}>Missing Checkout</option>
+                        <option value="Under Review" {% if status_filter == 'Under Review' %}selected{% endif %}>Under Review</option>
+                        <option value="Half Day" {% if status_filter == 'Half Day' %}selected{% endif %}>Half Day</option>
                         <option value="On Leave" {% if status_filter == 'On Leave' %}selected{% endif %}>On Leave</option>
-                        <option value="Late" {% if status_filter == 'Late' %}selected{% endif %}>Late</option>
-                        <option value="Early Out" {% if status_filter == 'Early Out' %}selected{% endif %}>Early Out</option>
                     </select>
                 </div>
 
@@ -757,7 +775,7 @@
     <!-- ═══════════ DOWNLOAD ═══════════ -->
     <div class="ar-divider">Download Report</div>
 
-    <div class="ar-card mb-4" style="overflow: visible;">
+    <div class="ar-card mb-3" style="overflow: visible;">
         <div class="ar-card-bd">
             <form method="get" id="reportForm">
                 <div class="row g-3 align-items-end">
@@ -779,7 +797,7 @@
                         </select>
                     </div>
 
-                    <div class="col-md-3">
+                    <div class="col-md-3" style="display: none;">
                         <label class="ar-label" for="downloadType">Download</label>
                         <select name="download_type" id="downloadType" class="ar-select">
                             <option value="all">All Employees</option>
@@ -787,7 +805,7 @@
                         </select>
                     </div>
 
-                    <div class="col-md-3" id="employeeSearchWrapper" style="display: none;">
+                    <div class="col-md-3" id="employeeSearchWrapper">
                         <label class="ar-label" for="employeeSearch">Employee</label>
                         <input type="text"
                             id="employeeSearch"
@@ -796,18 +814,44 @@
                             autocomplete="off">
                     </div>
 
-                    <div class="col-md-3 d-flex align-items-end gap-2 flex-wrap">
+                    <!-- <div class="col-md-3 d-flex align-items-end gap-2 flex-wrap">
                         <button type="submit" name="download" value="csv" class="ar-btn ar-btn-success">
                             <i class="fas fa-file-csv"></i> CSV
                         </button>
                         <button type="submit" name="download" value="pdf" class="ar-btn ar-btn-danger">
                             <i class="fas fa-file-pdf"></i> PDF
                         </button>
-                    </div>
+                    </div> -->
                 </div>
             </form>
+
+             <div class="d-flex flex-wrap align-items-center gap-3">
+            <span style="font-size:.85rem;font-weight:500;color:#64748b;">
+                <i class="fas fa-check-square"></i>
+                Tick employees in the table → Download selected
+            </span>
+            <span id="selectedCount" style="font-size:.82rem;font-weight:600;color:#4f46e5;">
+                0 selected
+            </span>
+            <div class="ms-auto d-flex gap-2 flex-wrap">
+                <button type="button" onclick="clearSelection()" class="ar-btn ar-btn-ghost">
+                    <i class="fas fa-times"></i> Clear
+                </button>
+                <button type="button" onclick="downloadSelected('csv')" class="ar-btn ar-btn-success">
+                    <i class="fas fa-file-csv"></i> Selected CSV
+                </button>
+                <button type="button" onclick="downloadSelected('pdf')" class="ar-btn ar-btn-danger">
+                    <i class="fas fa-file-pdf"></i> Selected PDF
+                </button>
+            </div>
         </div>
+
+        </div>
+       
+
     </div>
+
+
 
     <!-- ═══════════ REPORT TABLE ═══════════ -->
     <div class="ar-card">
@@ -815,7 +859,11 @@
             <table class="ar-table" id="reportTable">
                 <thead>
                     <tr>
+                        
                         <th>#</th>
+                        <th style="width: 20px; text-align:center; padding-left: 0px; padding-right: 0px;">
+                            <input type="checkbox" id="selectAllEmployees" title="Select all visible">
+                        </th>
                         <th>Employee</th>
                         <th class="text-center">Shift</th>
                         <th class="text-center">Working Days</th>
@@ -830,7 +878,11 @@
                 <tbody>
                     {% for item in employee_data %}
                         <tr class="report-row">
+                            
                             <td class="idx">{{ forloop.counter }}</td>
+                            <td style="text-align:center; padding-left: 0px; padding-right: 0px;">
+                                <input type="checkbox" class="employee-select-cb" value="{{ item.employee.id }}">
+                            </td>
                             <td>
                                 <div class="ar-emp">
                                     <div class="ar-avatar">{{ item.employee.username|slice:":1"|upper }}</div>
@@ -941,6 +993,9 @@
         </div>
     </div>
 
+
+
+
     <!-- ═══════════ EXPAND / COLLAPSE ALL ═══════════ -->
     <div class="ar-expand-wrap">
         <button class="ar-expand-all" id="toggleAllBtn">
@@ -949,6 +1004,9 @@
     </div>
 
 </div>
+
+
+
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -1071,6 +1129,62 @@ document.addEventListener('DOMContentLoaded', function () {
             filterTable('');
         }
     });
+});
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const selectAll  = document.getElementById('selectAllEmployees');
+    const counter    = document.getElementById('selectedCount');
+
+    function getVisibleCheckboxes() {
+        return Array.from(document.querySelectorAll('.employee-select-cb'))
+            .filter(cb => cb.closest('tr').style.display !== 'none');
+    }
+
+    function updateCount() {
+        const checked = document.querySelectorAll('.employee-select-cb:checked').length;
+        if (counter) counter.textContent = checked + ' selected';
+    }
+
+    if (selectAll) {
+        selectAll.addEventListener('change', function () {
+            getVisibleCheckboxes().forEach(cb => cb.checked = this.checked);
+            updateCount();
+        });
+    }
+
+    document.addEventListener('change', function (e) {
+        if (e.target.classList.contains('employee-select-cb')) {
+            updateCount();
+        }
+    });
+
+    window.clearSelection = function () {
+        document.querySelectorAll('.employee-select-cb:checked').forEach(cb => cb.checked = false);
+        if (selectAll) selectAll.checked = false;
+        updateCount();
+    };
+
+    window.downloadSelected = function (format) {
+        const checked = document.querySelectorAll('.employee-select-cb:checked');
+
+        if (checked.length === 0) {
+            alert('Please select at least one employee first.');
+            return;
+        }
+
+        const ids = Array.from(checked).map(cb => cb.value);
+
+        const params = new URLSearchParams(window.location.search);
+        params.set('download', format);
+        params.set('download_type', 'multiple');
+        params.delete('employee_id');
+        params.delete('employee_ids');
+        ids.forEach(id => params.append('employee_ids', id));
+
+        window.location.href = '/attendance-report/?' + params.toString();
+    };
 });
 </script>
 

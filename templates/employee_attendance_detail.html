@@ -11,6 +11,24 @@
        Employee Attendance Detail — refined design system
        Prefix: .ead-
        ═══════════════════════════════════════════════════ */
+       .ead-late-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-left: 6px;
+            padding: 2px 8px;
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            border-radius: 999px;
+            font-size: .68rem;
+            font-weight: 600;
+            color: #b45309;
+            font-variant-numeric: tabular-nums;
+        }
+        .ead-late-tag i {
+            font-size: .75rem;
+        }
+
     .ead-wrap {
         --ead-surface:        #ffffff;
         --ead-surface-2:      #fafbfc;
@@ -660,7 +678,7 @@
             <div class="ead-kpi-ico success"><i class="las la-check-circle"></i></div>
             <div class="ead-kpi-body">
                 <div class="ead-kpi-label">Present</div>
-                <div class="ead-kpi-value">{{ present }}</div>
+                <div class="ead-kpi-value">{{ present_weighted|floatformat:"-1" }} <span class="rate-pill">{{ rate }}%</span></div>
             </div>
         </div>
 
@@ -668,7 +686,24 @@
             <div class="ead-kpi-ico danger"><i class="las la-times-circle"></i></div>
             <div class="ead-kpi-body">
                 <div class="ead-kpi-label">Absent</div>
-                <div class="ead-kpi-value">{{ absent }}</div>
+                <div class="ead-kpi-value" style="display: inline-flex;
+    align-items: center;
+    gap: 8px;">
+                    <span> {{ absent_weighted|floatformat:"-1" }} </span> <span> {% if half_day > 0 and absent > 0 %}
+                        <small style="display:block;font-size:.75rem;font-weight:400;color:#94a3b8;margin-top:2px;">
+                            {{ absent }} full + {{ half_day }} half
+                        </small>
+                    {% endif %} </span>
+                    
+                </div>
+            </div>
+        </div>
+
+        <div class="ead-kpi">
+            <div class="ead-kpi-ico warning"><i class="las la-sign-out-alt"></i></div>
+            <div class="ead-kpi-body">
+                <div class="ead-kpi-label">Missing Checkout</div>
+                <div class="ead-kpi-value">{{ missing_checkout }}</div>
             </div>
         </div>
 
@@ -680,13 +715,7 @@
             </div>
         </div>
 
-        <div class="ead-kpi">
-            <div class="ead-kpi-ico warning"><i class="las la-adjust"></i></div>
-            <div class="ead-kpi-body">
-                <div class="ead-kpi-label">Half Day</div>
-                <div class="ead-kpi-value">{{ half_day }}</div>
-            </div>
-        </div>
+        
 
         <div class="ead-kpi">
             <div class="ead-kpi-ico danger"><i class="las la-hourglass-half"></i></div>
@@ -695,25 +724,17 @@
                 <div class="ead-kpi-value">{{ late_days }}</div>
             </div>
         </div>
-
-        <div class="ead-kpi">
-            <div class="ead-kpi-ico warning"><i class="las la-sign-out-alt"></i></div>
-            <div class="ead-kpi-body">
-                <div class="ead-kpi-label">Early Out</div>
-                <div class="ead-kpi-value">{{ early_out_days }}</div>
-            </div>
-        </div>
-
+        {% if shift_ot_allowed and overtime and overtime != '—' %}
         <div class="ead-kpi">
             <div class="ead-kpi-ico info"><i class="las la-business-time"></i></div>
             <div class="ead-kpi-body">
                 <div class="ead-kpi-label">Overtime</div>
                 <div class="ead-kpi-value info">
                     {{ overtime }}
-                    <span class="rate-pill">{{ rate }}%</span>
                 </div>
             </div>
         </div>
+        {% endif %}
     </div>
 
     <!-- ═══════════ Daily records ═══════════ -->
@@ -756,11 +777,19 @@
                                         {% if rec.status == 'Present' %}present
                                         {% elif rec.status == 'Absent' %}absent
                                         {% elif rec.status == 'On Leave' %}onleave
-                                        {% elif rec.status == 'Late' %}late
-                                        {% elif rec.status == 'Early Out' %}earlyout
+                                        {% elif rec.status == 'Missing Checkout' %}default
+                                        {% elif rec.status == 'Under Review' %}default
+                                        {% elif rec.status == 'Half Day' %}default
+                                        {% elif rec.status == 'Weekend' %}default
+                                        {% elif rec.status == 'Holiday' %}default
                                         {% else %}default{% endif %}">
                                         {{ rec.status }}
                                     </span>
+                                    {% if rec.is_late and rec.late_minutes > 0 %}
+                                        <span class="ead-late-tag" title="Late by {{ rec.late_minutes }} minute{{ rec.late_minutes|pluralize }}">
+                                            <i class="las la-clock"></i> +{{ rec.late_minutes }}m
+                                        </span>
+                                    {% endif %}
                                 </td>
                             </tr>
                         {% endfor %}

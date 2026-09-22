@@ -356,14 +356,30 @@
                                 {% endif %}
                             </td>
                             
-                            <td class="text-center">
+                                <td class="text-center">
                                 <div class="d-inline-flex align-items-center gap-1">
                                     <a href="{% url 'payslip_view' p.id %}" class="psll-view">
                                         <i class="fas fa-file-invoice"></i> View
                                     </a>
+
                                     {% if p.status|lower == 'draft' %}
-                                        <a href="{% url 'payroll_delete' p.id %}" class="psll-delete" title="Delete Draft">
+                                        <a href="{% url 'payroll_process' p.id %}"
+                                           class="psll-view"
+                                           title="Mark as Processed">
+                                            <i class="fas fa-cog"></i> Process
+                                        </a>
+                                        <a href="{% url 'payroll_delete' p.id %}"
+                                           class="psll-delete"
+                                           title="Delete Draft">
                                             <i class="fas fa-trash-alt"></i>
+                                        </a>
+
+                                    {% elif p.status|lower == 'processed' %}
+                                        <a href="{% url 'payroll_paid' p.id %}"
+                                           class="psll-view"
+                                           style="color: #059669;"
+                                           title="Mark as Paid">
+                                            <i class="fas fa-check-circle"></i> Mark as Paid
                                         </a>
                                     {% endif %}
                                 </div>

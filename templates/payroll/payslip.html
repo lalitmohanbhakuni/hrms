@@ -495,26 +495,32 @@
                     </div>
                     <div class="psl-kpi">
                         <div class="psl-kpi-label">Present</div>
-                        <div class="psl-kpi-value success">{{ payroll.present_days }}</div>
+                        <div class="psl-kpi-value success">{{ payroll.present_days|floatformat:"-1" }}</div>
                     </div>
                     <div class="psl-kpi">
                         <div class="psl-kpi-label">Absent</div>
                         <div class="psl-kpi-value {% if payroll.absent_days > 0 %}danger{% endif %}">
-                            {{ payroll.absent_days }}
+                            {{ payroll.absent_days|floatformat:"-1" }}
+                            {% if half_day_count > 0 and pure_absent_days > 0 %}
+                                <small class="psl-kpi-sub" style="display:block;font-size:0.7rem;font-weight:400;color:#64748b;margin-top:2px;">
+                                    {{ pure_absent_days|floatformat:"-1" }} full + {{ half_day_count }} half
+                                </small>
+                            {% endif %}
                         </div>
                     </div>
+
                     <div class="psl-kpi">
                         <div class="psl-kpi-label">Paid Leave</div>
-                        <div class="psl-kpi-value info">{{ payroll.paid_leave_days }}</div>
+                        <div class="psl-kpi-value info">{{ payroll.paid_leave_days|floatformat:"-1" }}</div>
                     </div>
                     <div class="psl-kpi">
                         <div class="psl-kpi-label">Unpaid Leave</div>
                         <div class="psl-kpi-value {% if payroll.unpaid_leave_days > 0 %}danger{% endif %}">
-                            {{ payroll.unpaid_leave_days }}
+                            {{ payroll.unpaid_leave_days|floatformat:"-1" }}
                         </div>
                     </div>
-                </div>
-            </div>
+            </div>  
+            <br>
 
             <!-- ═══════════ Earnings & Deductions ═══════════ -->
             <div class="psl-section">
@@ -573,11 +579,17 @@
                             </div>
 
                             {# ─── Absence alert (only when relevant) ─── #}
-                            {% if payroll.absent_days and payroll.absent_days > 0 %}
+                            {% if pure_absent_days > 0 or half_day_count > 0 %}
                                 <div class="psl-alert warning">
                                     <i class="las la-exclamation-triangle"></i>
                                     <div>
-                                        <strong>{{ payroll.absent_days }} day{{ payroll.absent_days|pluralize }} absent</strong>
+                                        {% if pure_absent_days > 0 %}
+                                            <strong>{{ pure_absent_days|floatformat:"-1" }} day{{ pure_absent_days|floatformat:"-1"|pluralize }} absent</strong>
+                                        {% endif %}
+                                        {% if pure_absent_days > 0 and half_day_count > 0 %} + {% endif %}
+                                        {% if half_day_count > 0 %}
+                                            <strong>{{ half_day_count }} half-day{{ half_day_count|pluralize }}</strong>
+                                        {% endif %}
                                         this month. Salary has been reduced proportionally.
                                     </div>
                                 </div>
@@ -585,13 +597,23 @@
 
                             <div class="psl-items">
                                 {# Absent Deduction — highlighted when > 0 #}
-                                {% if payroll.absent_deduction and payroll.absent_deduction > 0 %}
+                                {% if pure_absent_deduction > 0 %}
                                     <div class="psl-item is-notable">
                                         <span class="psl-item-label">
                                             Absent Deduction
-                                            <small>{{ payroll.absent_days }} day{{ payroll.absent_days|pluralize }} absent × per-day rate</small>
+                                            <small>{{ pure_absent_days|floatformat:"-1" }} day{{ pure_absent_days|floatformat:"-1"|pluralize }} absent × per-day rate</small>
                                         </span>
-                                        <span class="psl-item-value danger">₹{{ payroll.absent_deduction|floatformat:2 }}</span>
+                                        <span class="psl-item-value danger">₹{{ pure_absent_deduction|floatformat:2 }}</span>
+                                    </div>
+                                {% endif %}
+
+                                {% if half_day_deduction > 0 %}
+                                    <div class="psl-item is-notable-warning">
+                                        <span class="psl-item-label">
+                                            Half-Day
+                                            <small>{{ half_day_count }} half-day ({{ half_day_units }} day unit) × per-day rate</small>
+                                        </span>
+                                        <span class="psl-item-value danger">₹{{ half_day_deduction|floatformat:2 }}</span>
                                     </div>
                                 {% endif %}
 
@@ -634,7 +656,7 @@
                             <div class="psl-total">
                                 <span class="psl-total-label">Total Deduction</span>
                                 <span class="psl-total-value danger">
-                                    ₹{{ payroll.absent_deduction|add:payroll.unpaid_leave_deduction|add:payroll.other_deduction|floatformat:2 }}
+                                    ₹{{ payroll.net_salary|floatformat:2|slice:"-100" }}
                                 </span>
                             </div>
                         </div>

@@ -245,7 +245,7 @@
                         <div class="db-stat-label">Present Today</div>
 
                         <div class="db-stat-value">
-                            {{ attendance_rate }}<small>%</small>
+                            {{ attendance_rate }}<small>%</small> <small class="text-success">● {{ present_today }} present</small>
                         </div>
 
                         <div class="db-rate-bar">
@@ -253,10 +253,9 @@
                         </div>
 
                         <div class="db-stat-hint">
-                            <span class="text-success">● {{ present_today }} present</span>
                             <span class="text-danger ms-2">● {{ absent_today }} absent</span>
                             {% if on_leave_today %}
-                            <span class="text-primary ms-2">● {{ on_leave_today }} on leave</span>
+                            <span class="text-primary ms-2">● {{ on_leave_today }} leave</span>
                             {% endif %}
                         </div>
                     </div>
@@ -353,7 +352,7 @@
     {% endif %}
 
     {% if not user|is_admin_or_hr %}
-        <div class="col-12 col-md-6">
+        <div class="col-12 col-md-4">
             <div class="db-card h-100">
                 <div class="db-card-bd d-flex align-items-start justify-content-between">
                     <div>
@@ -365,7 +364,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-12 col-md-6">
+        <div class="col-12 col-md-4">
             <div class="db-card h-100">
                 <div class="db-card-bd d-flex align-items-start justify-content-between">
                     <div>
@@ -378,6 +377,34 @@
                         {% endif %}
                     </div>
                     <div class="db-stat-ico teal"><i class="las la-calendar-alt"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="db-card h-100">
+                <div class="db-card-bd d-flex align-items-start justify-content-between">
+                    <div>
+                        {% if user.is_superuser or user|has_group:"HR Admin" %}
+                            <div class="db-stat-label">Attendance Ratio</div>
+                            <div class="fw-bold mb-1" style="font-size:1.05rem;">
+                                {{ attendance_rate }}%
+                            </div>
+                            <span class="text-muted small">
+                                {{ present_today|default:0 }} present today
+                            </span>
+                        {% else %}
+                            <div class="db-stat-label">My Attendance</div>
+                            <div class="fw-bold mb-1 success" style="font-size:1.05rem; color: #059669;">
+                                {{ employee_attendance_rate }}%
+                            </div>
+                            <span class="text-muted small">
+                                {{ employee_present_month }} of {{ employee_working_days_month }} days
+                            </span>
+                        {% endif %}
+                    </div>
+                    <div class="db-stat-ico teal">
+                        <i class="las la-chart-pie"></i>
+                    </div>
                 </div>
             </div>
         </div>
@@ -447,34 +474,40 @@
                 </div>
 
                 <div class="mt-4 d-flex flex-wrap align-items-center gap-3">
-                    {% if not today_attendance or today_attendance.state == 'checked_out' %}
+                    {% if not today_attendance %}
+                        {# No check-in yet → show Clock In #}
                         <button id="clock-in-btn" class="btn btn-success btn-lg db-btn-pill px-5" onclick="getLocationAndClockIn()">
                             <i class="las la-sign-in-alt me-2"></i> Clock In
                         </button>
                         <span class="text-muted small">
                             <i class="fas fa-info-circle me-1"></i>
-                            {% if today_attendance and today_attendance.state == 'checked_out' %}
-                                You are currently clocked out. Click to start a new interval.
-                            {% else %}
-                                You haven't clocked in today.
-                            {% endif %}
+                            You haven't clocked in today.
                         </span>
-                    {% elif today_attendance and today_attendance.state == 'checked_in' %}
-                    <button type="button"
-                            id="clock-out-btn"
-                            onclick="getLocationAndClockOut()"
-                            class="btn btn-danger btn-lg db-btn-pill px-5">
-                        <i class="las la-sign-out-alt me-2"></i> Clock Out
-                    </button>
 
-                        <!-- <a  id="clock-out-btn" onclick="getLocationAndClockOut()" class="btn btn-danger btn-lg db-btn-pill px-5">
+                    {% elif today_attendance.state == 'checked_in' %}
+                        {# Checked in, not out → show Clock Out #}
+                        <button type="button"
+                                id="clock-out-btn"
+                                onclick="getLocationAndClockOut()"
+                                class="btn btn-danger btn-lg db-btn-pill px-5">
                             <i class="las la-sign-out-alt me-2"></i> Clock Out
-                        </a> -->
+                        </button>
+
                         {% if late_minutes > 0 %}
                             <span class="badge bg-warning text-dark px-3 py-2 rounded-pill">
                                 <i class="fas fa-exclamation-triangle me-1"></i> Late: {{ late_minutes }} min
                             </span>
                         {% endif %}
+
+                    {% elif today_attendance.state == 'checked_out' %}
+                        {# Day complete → disabled state, no more clock-in today #}
+                        <button class="btn btn-secondary btn-lg db-btn-pill px-5" disabled>
+                            <i class="las la-check-circle me-2"></i> Day Complete
+                        </button>
+                        <span class="text-muted small">
+                            <i class="fas fa-check-circle me-1 text-success"></i>
+                            You've completed today's attendance. See you tomorrow!
+                        </span>
                     {% endif %}
                 </div>
             </div>
@@ -556,7 +589,7 @@
 
         <div class="col-lg-7">
             <div class="db-card h-100">
-                <div class="db-card-hd">
+                <div class="db-card-hd" >
                     <h5 class="db-card-title"><i class="las la-clock"></i> Pending Leave Requests</h5>
                     <div class="d-flex align-items-center gap-2">
                         <span class="db-count-pill warning">{{ pending_leave_requests|length }}</span>
@@ -566,7 +599,7 @@
                     </div>
                 </div>
                 <div class="db-card-bd flush">
-                    <div class="table-responsive">
+                    <div class="table-responsive" style="border-top: 1px solid #e8eaee;">
                         <table class="db-table">
                             <thead>
                                 <tr>
@@ -747,7 +780,15 @@
 
         <div style="width: 70px;"></div>
     </div>
-
+    <div class="calendar-weekdays mt-2" style="border-top: 1px solid #e8eaee;">
+        <div class="calendar-weekday">Mon</div>
+        <div class="calendar-weekday">Tue</div>
+        <div class="calendar-weekday">Wed</div>
+        <div class="calendar-weekday">Thu</div>
+        <div class="calendar-weekday">Fri</div>
+        <div class="calendar-weekday">Sat</div>
+        <div class="calendar-weekday">Sun</div>
+    </div>
     <div class="calendar-days">
 
         {% for i in "x"|rjust:first_weekday %}
@@ -950,7 +991,7 @@
         </div>
 
         <div class="db-card-bd flush">
-            <div class="table-responsive">
+            <div class="table-responsive" style="border-top: 1px solid #e8eaee;">
                 <table class="db-table" id="adminTeamTable">
                     <thead>
                         <tr>

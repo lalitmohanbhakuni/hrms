@@ -1,0 +1,348 @@
+{% extends 'base.html' %}
+{% block title %}Cancel Leave Request - HRMS{% endblock %}
+{% block page_icon %}calendar-times{% endblock %}
+{% block page_title %}Cancel Leave Request{% endblock %}
+
+{% block content %}
+
+<style>
+    .lcc-wrap {
+        --lcc-surface:        #ffffff;
+        --lcc-surface-2:      #fafbfc;
+        --lcc-border:         #e8eaee;
+        --lcc-text:           #0f172a;
+        --lcc-text-muted:     #64748b;
+        --lcc-text-faint:     #94a3b8;
+        --lcc-danger:         #dc2626;
+        --lcc-danger-hover:   #b91c1c;
+        --lcc-danger-soft:    #fef2f2;
+        --lcc-danger-border:  #fecaca;
+        --lcc-pill:           999px;
+        --lcc-shadow:         0 1px 3px rgba(15,23,42,.06), 0 1px 2px rgba(15,23,42,.04);
+        --lcc-shadow-lg:      0 10px 40px rgba(15,23,42,.08);
+        --lcc-ease:           cubic-bezier(.4, 0, .2, 1);
+    }
+
+    .lcc-wrap {
+        max-width: 520px;
+        margin: 0 auto;
+        padding: 8px 0;
+    }
+
+    /* ─── Back link ─── */
+    .lcc-back {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: .8rem;
+        font-weight: 500;
+        color: var(--lcc-text-muted);
+        text-decoration: none;
+        margin-bottom: 20px;
+        transition: color .15s var(--lcc-ease);
+    }
+    .lcc-back:hover { color: var(--lcc-danger); }
+    .lcc-back i { font-size: .8rem; }
+
+    /* ─── Card ─── */
+    .lcc-card {
+        background: var(--lcc-surface);
+        border: 1px solid var(--lcc-border);
+        border-radius: 20px;
+        box-shadow: var(--lcc-shadow-lg);
+        overflow: hidden;
+    }
+
+    /* ─── Hero header ─── */
+    .lcc-hero {
+        padding: 32px 28px 24px;
+        text-align: center;
+        background:
+            radial-gradient(circle at top right, rgba(220,38,38,.06), transparent 60%),
+            radial-gradient(circle at bottom left, rgba(220,38,38,.04), transparent 60%),
+            var(--lcc-surface);
+        border-bottom: 1px solid var(--lcc-border);
+    }
+
+    .lcc-icon-ring {
+        width: 72px;
+        height: 72px;
+        margin: 0 auto 18px;
+        border-radius: 50%;
+        background: var(--lcc-danger-soft);
+        border: 4px solid #fff;
+        box-shadow: 0 0 0 1px var(--lcc-danger-border), 0 4px 12px rgba(220,38,38,.15);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        animation: lccPulse 2s ease-in-out infinite;
+    }
+    .lcc-icon-ring i {
+        font-size: 1.9rem;
+        color: var(--lcc-danger);
+    }
+    @keyframes lccPulse {
+        0%, 100% { box-shadow: 0 0 0 1px var(--lcc-danger-border), 0 4px 12px rgba(220,38,38,.15); }
+        50%      { box-shadow: 0 0 0 1px var(--lcc-danger-border), 0 4px 20px rgba(220,38,38,.30); }
+    }
+
+    .lcc-title {
+        font-size: 1.15rem;
+        font-weight: 700;
+        letter-spacing: -.015em;
+        color: var(--lcc-text);
+        margin: 0 0 6px;
+        line-height: 1.3;
+    }
+    .lcc-subtitle {
+        font-size: .84rem;
+        color: var(--lcc-text-muted);
+        margin: 0;
+        line-height: 1.5;
+        max-width: 380px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    /* ─── Body ─── */
+    .lcc-body {
+        padding: 24px 28px 28px;
+    }
+
+    /* ─── Request details card ─── */
+    .lcc-details {
+        background: var(--lcc-surface-2);
+        border: 1px solid var(--lcc-border);
+        border-radius: 14px;
+        padding: 4px 20px;
+        margin-bottom: 20px;
+    }
+
+    .lcc-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+        padding: 14px 0;
+        border-bottom: 1px solid var(--lcc-border);
+    }
+    .lcc-row:last-child { border-bottom: none; }
+
+    .lcc-row-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 9px;
+        background: var(--lcc-surface);
+        border: 1px solid var(--lcc-border);
+        color: var(--lcc-text-faint);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .82rem;
+        flex-shrink: 0;
+        margin-top: 1px;
+    }
+
+    .lcc-row-body {
+        flex: 1;
+        min-width: 0;
+    }
+    .lcc-row-label {
+        font-size: .68rem;
+        font-weight: 600;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--lcc-text-faint);
+        margin-bottom: 3px;
+    }
+    .lcc-row-value {
+        font-size: .88rem;
+        font-weight: 600;
+        color: var(--lcc-text);
+        line-height: 1.4;
+        word-break: break-word;
+    }
+    .lcc-row-value.plain {
+        font-weight: 500;
+        color: var(--lcc-text-muted);
+    }
+
+    /* ─── Warning note ─── */
+    .lcc-note {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 12px 14px;
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        border-radius: 10px;
+        font-size: .78rem;
+        color: #78350f;
+        line-height: 1.55;
+        margin-bottom: 22px;
+    }
+    .lcc-note i {
+        color: #d97706;
+        font-size: .95rem;
+        margin-top: 1px;
+        flex-shrink: 0;
+    }
+    .lcc-note strong {
+        font-weight: 600;
+        color: #92400e;
+    }
+
+    /* ─── Actions ─── */
+    .lcc-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+    }
+
+    .lcc-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        height: 42px;
+        padding: 0 22px;
+        font-size: .84rem;
+        font-weight: 500;
+        border-radius: var(--lcc-pill);
+        border: 1px solid transparent;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all .15s var(--lcc-ease);
+        white-space: nowrap;
+        flex: 1;
+    }
+    .lcc-btn i { font-size: .85rem; }
+
+    .lcc-btn-ghost {
+        background: var(--lcc-surface);
+        color: var(--lcc-text-muted);
+        border-color: var(--lcc-border);
+    }
+    .lcc-btn-ghost:hover {
+        background: var(--lcc-surface-2);
+        color: var(--lcc-text);
+        border-color: #d5d9e0;
+    }
+
+    .lcc-btn-danger {
+        background: var(--lcc-danger);
+        color: #fff;
+    }
+    .lcc-btn-danger:hover {
+        background: var(--lcc-danger-hover);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 14px rgba(220,38,38,.3);
+    }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 575.98px) {
+        .lcc-hero { padding: 26px 20px 20px; }
+        .lcc-body { padding: 20px; }
+        .lcc-icon-ring { width: 60px; height: 60px; }
+        .lcc-icon-ring i { font-size: 1.6rem; }
+        .lcc-title { font-size: 1.05rem; }
+        .lcc-actions { flex-direction: column-reverse; }
+        .lcc-btn { width: 100%; }
+    }
+</style>
+
+<div class="lcc-wrap">
+
+    <!-- Back link -->
+    <a href="{% url 'employee_leaves' %}" class="lcc-back">
+        <i class="fas fa-arrow-left"></i> Back to My Leaves
+    </a>
+
+    <!-- Card -->
+    <div class="lcc-card">
+
+        <!-- Hero -->
+        <div class="lcc-hero">
+           <h1 class="lcc-title">Cancel this leave request?</h1>
+            <p class="lcc-subtitle">
+                This action will permanently remove the request. You can apply again later if needed.
+            </p>
+        </div>
+
+        <!-- Body -->
+        <div class="lcc-body">
+
+            <!-- Details -->
+            <div class="lcc-details">
+
+                <div class="lcc-row">
+                    <div class="lcc-row-icon"><i class="las la-tag"></i></div>
+                    <div class="lcc-row-body">
+                        <div class="lcc-row-label">Leave Type</div>
+                        <div class="lcc-row-value">{{ leave.leave_type.name }}</div>
+                    </div>
+                </div>
+
+                <div class="lcc-row">
+                    <div class="lcc-row-icon"><i class="las la-calendar-alt"></i></div>
+                    <div class="lcc-row-body">
+                        <div class="lcc-row-label">Duration</div>
+                        <div class="lcc-row-value">
+                            {{ leave.start_date|date:"d M Y" }}
+                            {% if leave.start_date != leave.end_date %}
+                                <span style="color: var(--lcc-text-faint); font-weight: 400;"> — </span>
+                                {{ leave.end_date|date:"d M Y" }}
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lcc-row">
+                    <div class="lcc-row-icon"><i class="las la-comment-alt"></i></div>
+                    <div class="lcc-row-body">
+                        <div class="lcc-row-label">Reason</div>
+                        <div class="lcc-row-value plain">
+                            {{ leave.reason|truncatechars:120 }}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lcc-row">
+                    <div class="lcc-row-icon"><i class="las la-clock"></i></div>
+                    <div class="lcc-row-body">
+                        <div class="lcc-row-label">Applied On</div>
+                        <div class="lcc-row-value plain">
+                            {{ leave.applied_on|date:"d M Y, h:i A" }}
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Warning note -->
+            <div class="lcc-note">
+                <i class="las la-exclamation-triangle"></i>
+                <div>
+                    <strong>Note:</strong> Once cancelled, this request cannot be recovered.
+                    If you still need these days off, you'll have to submit a new request.
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <form method="post" class="lcc-actions">
+                {% csrf_token %}
+                <a href="{% url 'employee_leaves' %}" class="lcc-btn lcc-btn-ghost">
+                    <i class="las la-arrow-left"></i> Keep Request
+                </a>
+                <button type="submit" class="lcc-btn lcc-btn-danger">
+                    <i class="las la-trash-alt"></i> Yes, Cancel
+                </button>
+            </form>
+
+        </div>
+    </div>
+
+</div>
+
+{% endblock %}

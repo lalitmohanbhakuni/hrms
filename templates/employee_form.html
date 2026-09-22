@@ -447,7 +447,10 @@
             <!-- Page header -->
             <div class="emf-hd">
                 <h5 class="emf-hd-title">
-                    <span class="emf-hd-ico"><i class="las la-user-plus"></i></span>
+                    <a href="{% url 'employee_list' %}" class="emf-hd-ico" style="text-decoration: none;">
+                        <i class="fas fa-arrow-left"></i> 
+                    </a>
+                    <!-- <span ><i class="las la-user-plus"></i></span> -->
                     {% if action == 'Edit' %}Edit{% else %}Add New{% endif %} Employee
                 </h5>
                 <p class="emf-hd-sub">

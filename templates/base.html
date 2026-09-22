@@ -80,9 +80,15 @@
                 <i class="las la-chart-pie"></i><span>Dashboard</span>
             </a>
 
-            <a href="{% url 'attendance_view' %}" class="nav-item {% if request.resolver_match.url_name == 'attendance_view' %}active{% endif %}">
+            <!-- <a href="{% url 'attendance_view' %}" class="nav-item {% if request.resolver_match.url_name == 'attendance_view' %}active{% endif %}">
                 <i class="las la-clock"></i><span>Attendance</span>
-            </a>
+            </a> -->
+
+            <a href="{% url 'attendance_view' %}"
+                class="nav-item {% if request.resolver_match.url_name in 'attendance_view,regularize_request,regularize_request_list,regularize_approve,regularize_reject' %}active{% endif %}">
+                    <i class="las la-clock"></i><span>Attendance</span>
+                </a>
+
 
             {% if user.is_authenticated %}
                 <a href="{% url 'employee_leaves' %}" class="nav-item {% if 'employee-leaves' in request.path %}active{% endif %}">

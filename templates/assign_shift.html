@@ -11,6 +11,65 @@
 {% block content %}
 
 <style>
+
+    /* ─── Search Box ─── */
+.ash-search-wrap {
+    position: relative;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+}
+.ash-search-ico {
+    position: absolute;
+    left: 14px;
+    font-size: 1rem;
+    color: #94a3b8;
+    pointer-events: none;
+}
+.ash-search-input {
+    width: 100%;
+    height: 42px;
+    padding: 0 40px 0 38px;
+    border: 1px solid #e8eaee;
+    border-radius: 10px;
+    background: #fafbfc;
+    font-size: .85rem;
+    color: #0f172a;
+    transition: all .15s cubic-bezier(.4, 0, .2, 1);
+}
+.ash-search-input::placeholder {
+    color: #94a3b8;
+}
+.ash-search-input:hover {
+    border-color: #d5d9e0;
+}
+.ash-search-input:focus {
+    outline: none;
+    background: #fff;
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 3px #eef2ff;
+}
+.ash-search-clear {
+    position: absolute;
+    right: 10px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: .9rem;
+    transition: all .12s ease;
+}
+.ash-search-clear:hover {
+    background: #e8eaee;
+    color: #0f172a;
+}
+
     /* ═══════════════════════════════════════════════════
        Assign Shift — refined design system
        Prefix: .ash-
@@ -563,11 +622,34 @@
                 </div>
 
                 <!-- ═══ SECTION 3: Employee Selection ═══ -->
-                <div class="ash-section">
-                    <div class="ash-section-hd">
+                <div class="ash-section  row" style="border-width: 0px;">
+                    <div class="ash-section-hd col-md-4">
                         <span class="ash-section-ico"><i class="las la-user-check"></i></span>
                         <h6 class="ash-section-title">Select Employees</h6>
                     </div>
+
+                    <div class="col-md-2"></div>
+
+                    <div class="col-md-6">
+                        <div class="ash-search-wrap ">
+                            <i class="las la-search ash-search-ico"></i>
+                            <input type="text"
+                                id="empSearch"
+                                class="ash-search-input"
+                                placeholder="Search by name, username, or employee ID..."
+                                autocomplete="off">
+                            <button type="button"
+                                    id="clearSearch"
+                                    class="ash-search-clear"
+                                    style="display:none;"
+                                    title="Clear">
+                                <i class="las la-times"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    
+
 
                     <div class="ash-selectall">
                         <label class="ash-selectall-left" for="selectAll">
@@ -581,7 +663,9 @@
 
                     <div class="ash-emp-list">
                         {% for emp in employees %}
-                            <label class="ash-emp" for="emp_{{ emp.id }}">
+                                <label class="ash-emp emp-row"
+                                   for="emp_{{ emp.id }}"
+                                   data-search="{{ emp.full_name|default:'' }} {{ emp.username|default:'' }} {{ emp.employee_id|default:'' }} {{ emp.department|default:'' }} {{ emp.designation|default:'' }}">
                                 <input class="form-check-input employee-checkbox" type="checkbox"
                                        name="employees" value="{{ emp.id }}" id="emp_{{ emp.id }}">
                                 <span class="ash-emp-avatar">{{ emp.full_name|slice:":1"|upper }}</span>
@@ -636,11 +720,79 @@
 </div>
 
 <script>
-    // Select / Deselect all (unchanged)
-    document.getElementById('selectAll').addEventListener('change', function() {
-        const checkboxes = document.querySelectorAll('.employee-checkbox');
-        checkboxes.forEach(cb => cb.checked = this.checked);
+    // Select only VISIBLE (non-filtered-out) checkboxes
+    document.querySelectorAll('.emp-row').forEach(row => {
+        if (row.style.display !== 'none') {
+            const cb = row.querySelector('.employee-checkbox');
+            if (cb) cb.checked = this.checked;
+        }
     });
+
+
+    // ═══════════════════════════════════════════════════════
+    // 🔍 Live employee search
+    // ═══════════════════════════════════════════════════════
+    const empSearch    = document.getElementById('empSearch');
+    const clearSearch  = document.getElementById('clearSearch');
+    const empCounter   = document.querySelector('.ash-selectall-hint');
+    const totalEmps    = document.querySelectorAll('.emp-row').length;
+
+    function filterEmployees() {
+        const q = (empSearch.value || '').toLowerCase().trim();
+        let visible = 0;
+
+        document.querySelectorAll('.emp-row').forEach(row => {
+            const haystack = (row.dataset.search || '').toLowerCase();
+            const match = !q || haystack.includes(q);
+            row.style.display = match ? '' : 'none';
+            if (match) visible++;
+        });
+
+        // Show/hide "no results" state
+        let emptyMsg = document.getElementById('searchEmptyMsg');
+        if (visible === 0 && q) {
+            if (!emptyMsg) {
+                emptyMsg = document.createElement('div');
+                emptyMsg.id = 'searchEmptyMsg';
+                emptyMsg.className = 'ash-empty';
+                emptyMsg.innerHTML = `
+                    <div class="ash-empty-ico"><i class="las la-search"></i></div>
+                    <p class="ash-empty-title">No matches for "${empSearch.value}"</p>
+                    <p class="ash-empty-sub">Try a different name or ID.</p>
+                `;
+                document.querySelector('.ash-emp-list').appendChild(emptyMsg);
+            }
+        } else if (emptyMsg) {
+            emptyMsg.remove();
+        }
+
+        // Update counter
+        if (empCounter) {
+            if (q) {
+                empCounter.textContent = `${visible} of ${totalEmps} match`;
+            } else {
+                empCounter.textContent = `${totalEmps} employee${totalEmps !== 1 ? 's' : ''} available`;
+            }
+        }
+
+        // Show/hide clear button
+        if (clearSearch) {
+            clearSearch.style.display = q ? 'flex' : 'none';
+        }
+    }
+
+    if (empSearch) {
+        empSearch.addEventListener('input', filterEmployees);
+
+        if (clearSearch) {
+            clearSearch.addEventListener('click', function () {
+                empSearch.value = '';
+                filterEmployees();
+                empSearch.focus();
+            });
+        }
+    }
+    
 </script>
 
 {% endblock %}

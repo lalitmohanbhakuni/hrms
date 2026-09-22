@@ -1,0 +1,338 @@
+{% extends 'base.html' %}
+{% block title %}{{ action }} Category - HRMS{% endblock %}
+{% block page_icon %}edit{% endblock %}
+{% block page_title %}{{ action }} Regularization Category{% endblock %}
+
+{% block content %}
+
+<style>
+    .stp-wrap {
+        --stp-surface:        #ffffff;
+        --stp-surface-2:      #fafbfc;
+        --stp-surface-3:      #f4f6f8;
+        --stp-border:         #e8eaee;
+        --stp-border-hover:   #d5d9e0;
+        --stp-text:           #0f172a;
+        --stp-text-muted:     #64748b;
+        --stp-text-faint:     #94a3b8;
+        --stp-primary:        #4f46e5;
+        --stp-primary-soft:   #eef2ff;
+        --stp-primary-hover:  #4338ca;
+        --stp-pill:           999px;
+        --stp-shadow-xs:      0 1px 2px rgba(15,23,42,.04);
+        --stp-ease:           cubic-bezier(.4, 0, .2, 1);
+    }
+
+    .stp-back {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: .78rem;
+        font-weight: 500;
+        color: var(--stp-text-muted);
+        text-decoration: none;
+        margin-bottom: 20px;
+        transition: color .15s var(--stp-ease);
+    }
+    .stp-back:hover { color: var(--stp-primary); }
+    .stp-back i { font-size: .8rem; }
+
+    /* ─── Form header ─── */
+    .stp-head {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 24px;
+    }
+    .stp-head-ico {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        background: var(--stp-primary-soft);
+        color: var(--stp-primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        flex-shrink: 0;
+    }
+    .stp-head-title {
+        font-size: 1.05rem;
+        font-weight: 600;
+        letter-spacing: -.01em;
+        color: var(--stp-text);
+        margin: 0 0 2px;
+        line-height: 1.2;
+    }
+    .stp-head-sub {
+        font-size: .78rem;
+        color: var(--stp-text-muted);
+        margin: 0;
+    }
+
+    /* ─── Card ─── */
+    .stp-card {
+        background: var(--stp-surface);
+        border: 1px solid var(--stp-border);
+        border-radius: 16px;
+        box-shadow: var(--stp-shadow-xs);
+        overflow: hidden;
+    }
+
+    /* ─── Form body ─── */
+    .stp-form-body { padding: 28px; }
+
+    /* ─── Field ─── */
+    .stp-field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 22px;
+    }
+    .stp-field:last-of-type { margin-bottom: 0; }
+
+    .stp-lbl {
+        font-size: .7rem;
+        font-weight: 600;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--stp-text-faint);
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .stp-lbl i {
+        font-size: .78rem;
+        color: var(--stp-text-faint);
+    }
+    .stp-lbl .req {
+        color: #dc2626;
+        font-size: .85rem;
+        line-height: 1;
+    }
+
+    .stp-input,
+    .stp-select {
+        width: 100%;
+        height: 42px;
+        padding: 0 14px;
+        border: 1px solid var(--stp-border);
+        border-radius: 8px;
+        font-size: .88rem;
+        font-weight: 500;
+        color: var(--stp-text);
+        background: var(--stp-surface);
+        transition: border-color .15s var(--stp-ease), box-shadow .15s var(--stp-ease);
+        appearance: none;
+    }
+    .stp-select {
+        background-image:
+            url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+        background-size: 18px;
+        padding-right: 40px;
+    }
+    .stp-input::placeholder { color: #cbd5e1; font-weight: 400; }
+    .stp-input:hover,
+    .stp-select:hover { border-color: var(--stp-border-hover); }
+    .stp-input:focus,
+    .stp-select:focus {
+        outline: none;
+        border-color: var(--stp-primary);
+        box-shadow: 0 0 0 3px var(--stp-primary-soft);
+    }
+
+    .stp-hint {
+        font-size: .75rem;
+        color: var(--stp-text-faint);
+        line-height: 1.45;
+        margin-top: 2px;
+    }
+
+    /* ─── Two-column row ─── */
+    .stp-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-bottom: 22px;
+    }
+    @media (max-width: 575.98px) {
+        .stp-row { grid-template-columns: 1fr; }
+    }
+
+    /* ─── Toggle checkbox ─── */
+    .stp-check {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 14px 16px;
+        border: 1px solid var(--stp-border);
+        border-radius: 10px;
+        background: var(--stp-surface-2);
+        cursor: pointer;
+        transition: border-color .15s var(--stp-ease), background .15s var(--stp-ease);
+        margin-top: 22px;
+    }
+    .stp-check:hover { border-color: var(--stp-border-hover); }
+    .stp-check input { margin-top: 2px; accent-color: var(--stp-primary); }
+    .stp-check-lbl {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        line-height: 1.35;
+    }
+    .stp-check-title {
+        font-size: .82rem;
+        font-weight: 600;
+        color: var(--stp-text);
+    }
+    .stp-check-sub {
+        font-size: .72rem;
+        color: var(--stp-text-muted);
+    }
+
+    /* ─── Footer actions ─── */
+    .stp-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        padding: 18px 28px;
+        background: var(--stp-surface-2);
+        border-top: 1px solid var(--stp-border);
+    }
+    .stp-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        height: 40px;
+        padding: 0 20px;
+        font-size: .82rem;
+        font-weight: 500;
+        border-radius: var(--stp-pill);
+        border: 1px solid transparent;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all .15s var(--stp-ease);
+        white-space: nowrap;
+    }
+    .stp-btn i { font-size: .82rem; }
+
+    .stp-btn-primary {
+        background: var(--stp-primary);
+        color: #fff;
+    }
+    .stp-btn-primary:hover {
+        background: var(--stp-primary-hover);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(79,70,229,.25);
+    }
+
+    .stp-btn-ghost {
+        background: var(--stp-surface);
+        color: var(--stp-text-muted);
+        border-color: var(--stp-border);
+    }
+    .stp-btn-ghost:hover {
+        background: var(--stp-surface-2);
+        color: var(--stp-text);
+        border-color: var(--stp-border-hover);
+    }
+</style>
+
+<div class="stp-wrap" style="max-width: 680px; margin: 0 auto;">
+
+    <!-- Back link -->
+    <a href="{% url 'setup' %}?tab=attendance" class="stp-back">
+        <i class="fas fa-arrow-left"></i> Back to Setup
+    </a>
+
+    <!-- Header -->
+    <div class="stp-head">
+        <span class="stp-head-ico"><i class="las la-edit"></i></span>
+        <div>
+            <h5 class="stp-head-title">{{ action }} Regularization Category</h5>
+            <p class="stp-head-sub">
+                {% if action == 'Edit' %}
+                    Update the limit or behavior of this category.
+                {% else %}
+                    Define a new category for employee regularization requests.
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <!-- Card -->
+    <form method="post" class="stp-card">
+        {% csrf_token %}
+
+        <div class="stp-form-body">
+
+            <!-- Name -->
+            <div class="stp-field">
+                <label class="stp-lbl" for="id_name">
+                    <i class="las la-tag"></i> Category Name <span class="req">*</span>
+                </label>
+                <input type="text" id="id_name" name="name" class="stp-input"
+                       value="{{ category.name|default:'' }}"
+                       placeholder="e.g. Miss Punch" required autofocus>
+                <span class="stp-hint">Shown to employees when they submit a request.</span>
+            </div>
+
+            <!-- System type -->
+
+            <!-- Limit + order -->
+            <div class="stp-row">
+                <div class="stp-field" style="margin-bottom: 0;">
+                    <label class="stp-lbl" for="id_monthly_limit">
+                        <i class="las la-redo-alt"></i> Monthly Limit <span class="req">*</span>
+                    </label>
+                    <input type="number" id="id_monthly_limit" name="monthly_limit"
+                           class="stp-input" min="0"
+                           value="{{ category.monthly_limit|default:3 }}" required>
+                    <span class="stp-hint">Max requests per employee, per month.</span>
+                </div>
+
+                <div class="stp-field" style="margin-bottom: 0;">
+                    <label class="stp-lbl" for="id_order">
+                        <i class="las la-sort-numeric-down"></i> Display Order
+                    </label>
+                    <input type="number" id="id_order" name="order"
+                           class="stp-input" min="0"
+                           value="{{ category.order|default:0 }}">
+                    <span class="stp-hint">Lower numbers appear first.</span>
+                </div>
+            </div>
+
+            <!-- Active toggle (Edit only) -->
+            {% if action == 'Edit' %}
+                <label class="stp-check" for="isActive">
+                    <input class="form-check-input" type="checkbox" name="is_active"
+                           id="isActive" {% if category.is_active %}checked{% endif %}>
+                    <span class="stp-check-lbl">
+                        <span class="stp-check-title">Active</span>
+                        <span class="stp-check-sub">
+                            Inactive categories are hidden from employees but keep their history.
+                        </span>
+                    </span>
+                </label>
+            {% endif %}
+
+        </div>
+
+        <!-- Footer actions -->
+        <div class="stp-actions">
+            <a href="{% url 'setup' %}?tab=attendance" class="stp-btn stp-btn-ghost">
+                Cancel
+            </a>
+            <button type="submit" class="stp-btn stp-btn-primary">
+                <i class="fas fa-save"></i>
+                {% if action == 'Edit' %}Save Changes{% else %}Create Category{% endif %}
+            </button>
+        </div>
+
+    </form>
+</div>
+
+{% endblock %}

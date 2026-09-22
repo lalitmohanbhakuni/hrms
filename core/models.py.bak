@@ -357,7 +357,6 @@ class EmployeeProfile(models.Model):
 
 
 # ---------- Leave Request Model ----------
-
 class LeaveRequest(models.Model):
     STATUS_CHOICES = [
         ('Pending', 'Pending'),
@@ -368,39 +367,17 @@ class LeaveRequest(models.Model):
         ('First', 'First Half'),
         ('Second', 'Second Half'),
     ]
-    SESSION_CHOICES = [
-        ('full',         'Full Day'),
-        ('first_half',   'First Half (Morning)'),
-        ('second_half',  'Second Half (Afternoon)'),
-    ]
-
+    
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     company = models.ForeignKey(Company, on_delete=models.CASCADE, null=True, blank=True)
     leave_type = models.ForeignKey(LeaveType, on_delete=models.CASCADE)
-
-    # ── Legacy fields (kept for backward compat with old records) ──
     is_half_day = models.BooleanField(default=False)
-    half_day_session = models.CharField(
-        max_length=10, choices=HALF_DAY_CHOICES, blank=True, null=True
-    )
-
-    # ── Dates + sessions (new: supports mixed start/end halves) ──
+    half_day_session = models.CharField(max_length=10, choices=HALF_DAY_CHOICES, blank=True, null=True)
     start_date = models.DateField()
-    start_session = models.CharField(
-        max_length=15, choices=SESSION_CHOICES, default='full'
-    )
     end_date = models.DateField()
-    end_session = models.CharField(
-        max_length=15, choices=SESSION_CHOICES, default='full'
-    )
-
     reason = models.TextField()
-    attachment = models.FileField(
-        upload_to='leave_attachments/', blank=True, null=True
-    )
-    status = models.CharField(
-        max_length=10, choices=STATUS_CHOICES, default='Pending'
-    )
+    attachment = models.FileField(upload_to='leave_attachments/', blank=True, null=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='Pending')
     applied_on = models.DateTimeField(auto_now_add=True)
     admin_comment = models.TextField(blank=True, null=True)
     rejection_reason = models.TextField(blank=True, null=True)
@@ -408,53 +385,14 @@ class LeaveRequest(models.Model):
         default=False,
         help_text="True when the requester self-approved as Company Owner.",
     )
-
+    
     def __str__(self):
         return f"{self.user.username} - {self.leave_type.name} ({self.start_date} to {self.end_date})"
-
+    
     def get_duration(self):
-        """
-        Compute duration in days, supporting mixed start/end sessions.
-
-        Examples:
-          Start=1st half, End=2nd half (same day)  → 1.0
-          Start=2nd half, End=2nd half (same day)  → 0.5
-          Start=2nd half, End=1st half (3 days)    → 2.0
-          Start=full,     End=full (3 days)        → 3.0
-        """
-        from decimal import Decimal
-
-        # ── Backward compat: legacy half-day records ──
-        if self.is_half_day and self.start_date == self.end_date:
-            return Decimal('0.5')
-
-        start_sess = self.start_session or 'full'
-        end_sess   = self.end_session   or 'full'
-
-        # ── Same-day leave ──
-        if self.start_date == self.end_date:
-            if start_sess == 'full' or end_sess == 'full':
-                return Decimal('1.0')
-            if start_sess == end_sess:
-                return Decimal('0.5')                  # half + same half
-            return Decimal('1.0')                      # 1st + 2nd = full
-
-        # ── Multi-day leave ──
-        total = Decimal('0')
-
-        # Start day
-        total += Decimal('1.0') if start_sess == 'full' else Decimal('0.5')
-
-        # Middle days (always full)
-        middle_days = (self.end_date - self.start_date).days - 1
-        if middle_days > 0:
-            total += Decimal(str(middle_days))
-
-        # End day
-        total += Decimal('1.0') if end_sess == 'full' else Decimal('0.5')
-
-        return total
-        
+        if self.is_half_day:
+            return 0.5
+        return (self.end_date - self.start_date).days + 1
 
 
 # ---------- Regularization Request Model ----------
@@ -498,15 +436,23 @@ class RegularizationType(models.Model):
         return f"{self.company.name} — {self.label}"
 
 
+
 class RegularizationCategory(models.Model):
     """
     HR Admin–managed categories for regularization requests.
-    Employees pick one when submitting; limits enforced per employee, per month.
+    Each category is linked to a RegularizationType (which carries the auto-detect behavior).
     """
     company = models.ForeignKey(
         Company, on_delete=models.CASCADE, related_name='reg_categories'
     )
     name = models.CharField(max_length=100)
+    system_type = models.ForeignKey(
+        'RegularizationType',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='categories',
+        help_text="Which HR-defined type this category belongs to.",
+    )
     monthly_limit = models.PositiveIntegerField(
         default=3, help_text="Max requests per employee per month."
     )
@@ -521,9 +467,7 @@ class RegularizationCategory(models.Model):
 
     def __str__(self):
         return f"{self.company.name} — {self.name}"
-
-        
-
+            
 
 class RegularizationRequest(models.Model):
     STATUS_CHOICES = [
@@ -688,87 +632,31 @@ class PasswordResetRequest(models.Model):
 # ─────────────────────────────────────────
 # Late Coming Rules (per company)
 # ─────────────────────────────────────────
-
 class LateComingRule(models.Model):
-    METHOD_CHOICES = [
-        ('marks',   'Late Marks (simple)'),
-        ('minutes', 'Late Minutes (precise)'),
-    ]
     PENALTY_CHOICES = [
         ('leave',  'Deduct Leave'),
         ('salary', 'Deduct Salary'),
         ('none',   'No Penalty'),
     ]
-    INSUFFICIENT_CHOICES = [
-        ('lop',  'Loss of Pay (LOP)'),
-        ('skip', 'Skip Deduction'),
-    ]
 
     company = models.OneToOneField(
         Company, on_delete=models.CASCADE, related_name='late_coming_rule'
     )
-    is_enabled = models.BooleanField(default=True)
-    calculation_method = models.CharField(
-        max_length=10, choices=METHOD_CHOICES, default='marks',
-        help_text="How late arrivals are counted and penalized."
-    )
-
-    # ── Method 1: Late Marks ──
+    is_enabled                = models.BooleanField(default=True)
     monthly_allowed_late_marks = models.PositiveIntegerField(default=3)
-    penalty_type = models.CharField(
+    penalty_type              = models.CharField(
         max_length=10, choices=PENALTY_CHOICES, default='leave'
     )
-    penalty_amount = models.DecimalField(
+    penalty_amount            = models.DecimalField(
         max_digits=5, decimal_places=2, default=0.25
     )
-    half_day_cutoff_minutes = models.PositiveIntegerField(default=45)
-    target_leave_type = models.ForeignKey(
-        'LeaveType',
-        on_delete=models.SET_NULL,
-        null=True, blank=True,
-        related_name='late_rules_using_this',
-        help_text="Which leave type absorbs late-arrival penalties. If empty, all penalties go to LOP.",
-    )
-    
-    insufficient_balance_action = models.CharField(
-        max_length=10, choices=INSUFFICIENT_CHOICES, default='lop'
-    )
-
-    updated_at = models.DateTimeField(auto_now=True)
+    half_day_cutoff_minutes   = models.PositiveIntegerField(default=45)
+    updated_at                = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"Late Coming Rules — {self.company.name}"
 
 
-class LateMinuteSlab(models.Model):
-    """
-    Minute-based slabs used when LateComingRule.calculation_method = 'minutes'.
-    Each slab defines: from_minutes ≤ total_late_minutes ≤ to_minutes → penalty_days
-    """
-    rule = models.ForeignKey(
-        LateComingRule, on_delete=models.CASCADE, related_name='minute_slabs'
-    )
-    from_minutes = models.PositiveIntegerField(
-        help_text="Inclusive lower bound (e.g. 60)."
-    )
-    to_minutes = models.PositiveIntegerField(
-        null=True, blank=True,
-        help_text="Inclusive upper bound. Leave blank for 'and above'.",
-    )
-    penalty_days = models.DecimalField(
-        max_digits=5, decimal_places=2, default=0,
-        help_text="Days of leave to deduct (e.g. 0.25 = quarter day).",
-    )
-    order = models.PositiveIntegerField(default=0)
-
-    class Meta:
-        ordering = ['order', 'from_minutes']
-        verbose_name_plural = 'Late Minute Slabs'
-
-    def __str__(self):
-        rng = f"{self.from_minutes}-{self.to_minutes}" if self.to_minutes else f"{self.from_minutes}+"
-        return f"{rng} min → {self.penalty_days} day"
-        
 
 # ---------- Payroll Model ----------
 class Payroll(models.Model):
@@ -791,16 +679,12 @@ class Payroll(models.Model):
 
     # ── Attendance snapshot ──
     working_days = models.PositiveIntegerField(default=0)
-    absent_days = models.DecimalField(max_digits=6, decimal_places=1, default=0)
-    present_days = models.DecimalField(max_digits=6, decimal_places=1, default=0)                          # ✅ NEW
+    absent_days = models.PositiveIntegerField(default=0)                           # ✅ NEW
+    present_days = models.PositiveIntegerField(default=0)                          # ✅ NEW
     paid_leave_days = models.DecimalField(max_digits=6, decimal_places=1, default=0)   # ✅ NEW
     unpaid_leave_days = models.DecimalField(max_digits=6, decimal_places=1, default=0) # ✅ NEW
 
     absent_deduction = models.DecimalField(max_digits=12, decimal_places=2, default=0) 
-
-    half_day_days      = models.DecimalField(max_digits=5, decimal_places=1, default=0)
-    half_day_deduction = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-
     # ── Overtime snapshot ──
     overtime_hours = models.DecimalField(max_digits=8, decimal_places=2, default=0)   # ✅ NEW
     overtime_rate = models.DecimalField(max_digits=10, decimal_places=2, default=0)   # ✅ NEW
@@ -816,16 +700,12 @@ class Payroll(models.Model):
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='draft')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
 
     # ── Late Coming (from LateComingRule) ──
     late_days              = models.PositiveIntegerField(default=0)
     late_halfday_days      = models.PositiveIntegerField(default=0)
     late_deduction         = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     late_halfday_deduction = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    late_penalty_days      = models.DecimalField(max_digits=5, decimal_places=2, default=0)
-    late_leave_days        = models.DecimalField(max_digits=5, decimal_places=2, default=0)
-    late_lop_days          = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     
 
 

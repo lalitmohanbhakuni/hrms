@@ -273,6 +273,27 @@
                     <form method="post" id="rqf-form">
                         {% csrf_token %}
 
+                        <div class="form-group mb-3">
+                            <label class="form-label small fw-semibold">
+                                Category <span class="text-danger">*</span>
+                            </label>
+                            <select name="category" class="form-select" required>
+                                <option value="">— Select a category —</option>
+                                {% for c in categories %}
+                                    <option value="{{ c.obj.id }}"
+                                            {% if c.disabled %}disabled{% endif %}>
+                                        {{ c.obj.name }}
+                                        ({{ c.remaining }} of {{ c.limit }} left)
+                                        {% if c.disabled %} — limit reached{% endif %}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">
+                                Your remaining monthly quota is shown next to each category.
+                            </small>
+                        </div>
+
+
                         <!-- Date -->
                         <div class="rqf-field">
                             <label for="date" class="rqf-label">
@@ -343,5 +364,15 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const sel = document.querySelector('select[name="category"]');
+    if (!sel) return;
+    const enabled = Array.from(sel.options).filter(o => o.value && !o.disabled);
+    if (enabled.length === 1) sel.value = enabled[0].value;
+});
+</script>
+
 
 {% endblock %}

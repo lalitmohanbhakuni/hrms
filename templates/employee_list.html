@@ -560,7 +560,7 @@
             <div class="emp-stat">
                 <div class="emp-stat-ico warning"><i class="las la-user"></i></div>
                 <div>
-                    <div class="emp-stat-label">Staff</div>
+                    <div class="emp-stat-label">Employee</div>
                     <div class="emp-stat-value">
                         {{ staff_count }}
                     </div>
@@ -634,7 +634,7 @@
                                         {{ emp.profile.full_name|slice:":1"|upper|default:emp.username|slice:":1"|upper }}
                                     </div>
                                     <span class="emp-name">
-                                        {{ emp.profile.full_name|default:emp.username }}
+                                       <a style="color: #0f172a; text-decoration: none ;"  href="{% url 'employee_edit' emp.id %}">  {{ emp.profile.full_name|default:emp.username }} </a>
                                     </span>
                                 </div>
                             </td>

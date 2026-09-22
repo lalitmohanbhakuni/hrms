@@ -1,0 +1,261 @@
+{% extends 'base.html' %}
+{% block title %}Delete Category - HRMS{% endblock %}
+{% block page_icon %}trash-alt{% endblock %}
+{% block page_title %}Delete Regularization Category{% endblock %}
+
+{% block content %}
+
+<style>
+    .stp-wrap {
+        --stp-surface:        #ffffff;
+        --stp-surface-2:      #fafbfc;
+        --stp-border:         #e8eaee;
+        --stp-border-hover:   #d5d9e0;
+        --stp-text:           #0f172a;
+        --stp-text-muted:     #64748b;
+        --stp-text-faint:     #94a3b8;
+        --stp-primary:        #4f46e5;
+        --stp-danger:         #dc2626;
+        --stp-danger-soft:    #fef2f2;
+        --stp-pill:           999px;
+        --stp-shadow-xs:      0 1px 2px rgba(15,23,42,.04);
+        --stp-ease:           cubic-bezier(.4, 0, .2, 1);
+    }
+
+    .stp-back {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: .78rem;
+        font-weight: 500;
+        color: var(--stp-text-muted);
+        text-decoration: none;
+        margin-bottom: 20px;
+        transition: color .15s var(--stp-ease);
+    }
+    .stp-back:hover { color: var(--stp-primary); }
+    .stp-back i { font-size: .8rem; }
+
+    /* ─── Card ─── */
+    .stp-card {
+        background: var(--stp-surface);
+        border: 1px solid var(--stp-border);
+        border-radius: 16px;
+        box-shadow: var(--stp-shadow-xs);
+        overflow: hidden;
+    }
+
+    /* ─── Warning banner ─── */
+    .stp-warn {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+        padding: 22px 24px;
+        background: var(--stp-danger-soft);
+        border-bottom: 1px solid var(--stp-border);
+    }
+    .stp-warn-ico {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        background: #fff;
+        color: var(--stp-danger);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.15rem;
+        flex-shrink: 0;
+        box-shadow: 0 1px 3px rgba(220,38,38,.15);
+    }
+    .stp-warn-title {
+        font-size: .95rem;
+        font-weight: 600;
+        letter-spacing: -.01em;
+        color: var(--stp-text);
+        margin: 0 0 4px;
+        line-height: 1.3;
+    }
+    .stp-warn-sub {
+        font-size: .8rem;
+        color: var(--stp-text-muted);
+        margin: 0;
+        line-height: 1.5;
+    }
+
+    /* ─── Card body ─── */
+    .stp-body { padding: 24px; }
+
+    .stp-label {
+        font-size: .7rem;
+        font-weight: 600;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--stp-text-faint);
+        margin-bottom: 8px;
+        display: block;
+    }
+
+    /* ─── Category preview box ─── */
+    .stp-preview {
+        padding: 14px 16px;
+        background: var(--stp-surface-2);
+        border: 1px solid var(--stp-border);
+        border-radius: 10px;
+        margin-bottom: 20px;
+    }
+    .stp-preview-name {
+        font-size: .92rem;
+        font-weight: 600;
+        color: var(--stp-text);
+        margin: 0 0 4px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        line-height: 1.3;
+    }
+    .stp-preview-name i {
+        color: var(--stp-text-faint);
+        font-size: .82rem;
+    }
+    .stp-preview-meta {
+        font-size: .75rem;
+        color: var(--stp-text-muted);
+        margin: 0;
+    }
+
+    /* ─── Info note ─── */
+    .stp-note {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 12px 14px;
+        background: #eff6ff;
+        border: 1px solid #dbeafe;
+        border-radius: 10px;
+        font-size: .78rem;
+        color: #1e40af;
+        line-height: 1.5;
+    }
+    .stp-note i {
+        color: #2563eb;
+        font-size: .9rem;
+        margin-top: 1px;
+        flex-shrink: 0;
+    }
+
+    /* ─── Footer actions ─── */
+    .stp-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        padding: 18px 24px;
+        background: var(--stp-surface-2);
+        border-top: 1px solid var(--stp-border);
+    }
+    .stp-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        height: 40px;
+        padding: 0 20px;
+        font-size: .82rem;
+        font-weight: 500;
+        border-radius: var(--stp-pill);
+        border: 1px solid transparent;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all .15s var(--stp-ease);
+        white-space: nowrap;
+    }
+    .stp-btn i { font-size: .82rem; }
+
+    .stp-btn-ghost {
+        background: var(--stp-surface);
+        color: var(--stp-text-muted);
+        border-color: var(--stp-border);
+    }
+    .stp-btn-ghost:hover {
+        background: var(--stp-surface-2);
+        color: var(--stp-text);
+        border-color: var(--stp-border-hover);
+    }
+
+    .stp-btn-danger {
+        background: var(--stp-danger);
+        color: #fff;
+    }
+    .stp-btn-danger:hover {
+        background: #b91c1c;
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(220,38,38,.25);
+    }
+</style>
+
+<div class="stp-wrap" style="max-width: 560px; margin: 0 auto;">
+
+    <!-- Back link -->
+    <a href="{% url 'setup' %}?tab=attendance" class="stp-back">
+        <i class="fas fa-arrow-left"></i> Back to Setup
+    </a>
+
+    <!-- Card -->
+    <form method="post" class="stp-card">
+        {% csrf_token %}
+
+        <!-- Warning banner -->
+        <div class="stp-warn">
+            <span class="stp-warn-ico"><i class="fas fa-exclamation-triangle"></i></span>
+            <div>
+                <h5 class="stp-warn-title">Delete this category?</h5>
+                <p class="stp-warn-sub">
+                    This action <strong>cannot be undone</strong>. Employees will no longer be able to submit requests under this category.
+                </p>
+            </div>
+        </div>
+
+        <!-- Body -->
+        <div class="stp-body">
+
+            <span class="stp-label">Category to delete</span>
+
+            <div class="stp-preview">
+                <p class="stp-preview-name">
+                    <i class="las la-tag"></i> {{ category.name }}
+                </p>
+                <p class="stp-preview-meta">
+                    Monthly limit: <strong>{{ category.monthly_limit }}</strong>
+                    &nbsp;·&nbsp;
+                    Display order: <strong>{{ category.order }}</strong>
+                    &nbsp;·&nbsp;
+                    {% if category.is_active %}
+                        <span style="color:#059669;">Active</span>
+                    {% else %}
+                        <span style="color:#94a3b8;">Inactive</span>
+                    {% endif %}
+                </p>
+            </div>
+
+            <div class="stp-note">
+                <i class="las la-info-circle"></i>
+                <div>
+                    Existing regularization requests filed under this category will <strong>keep their records</strong>. Their category link will simply be cleared.
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Footer actions -->
+        <div class="stp-actions">
+            <a href="{% url 'setup' %}?tab=attendance" class="stp-btn stp-btn-ghost">
+                Cancel
+            </a>
+            <button type="submit" class="stp-btn stp-btn-danger">
+                <i class="fas fa-trash-alt"></i> Delete Category
+            </button>
+        </div>
+
+    </form>
+</div>
+
+{% endblock %}

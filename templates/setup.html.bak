@@ -424,8 +424,8 @@
 }
 .stp-subtabs .nav-link:hover { color: var(--stp-text); background: var(--stp-surface); }
 .stp-subtabs .nav-link.active {
-    background: var(--stp-primary) ;
-    color:  var(--stp-surface) ;
+    background: var(--stp-surface);
+    color: var(--stp-primary);
     box-shadow: var(--stp-shadow-xs);
 }
 .stp-rule-grid {
@@ -494,85 +494,6 @@
 }
 .stp-switch input:checked + .stp-switch-slider { background: var(--stp-primary); }
 .stp-switch input:checked + .stp-switch-slider::before { transform: translateX(20px); }
-
-.stp-method {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 14px 16px;
-    border: 2px solid var(--stp-border);
-    border-radius: 12px;
-    background: var(--stp-surface);
-    cursor: pointer;
-    transition: all .15s var(--stp-ease);
-}
-.stp-method:hover { border-color: var(--stp-border-hover); }
-.stp-method.active {
-    border-color: var(--stp-primary);
-    background: var(--stp-primary-soft);
-}
-.stp-method input { margin-top: 3px; accent-color: var(--stp-primary); }
-.stp-method-title {
-    font-size: .85rem;
-    font-weight: 600;
-    color: var(--stp-text);
-    margin-bottom: 2px;
-}
-.stp-method-sub {
-    font-size: .72rem;
-    color: var(--stp-text-muted);
-    line-height: 1.4;
-}
-
-.stp-slab-row {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr auto 1fr auto auto;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 10px;
-}
-.stp-slab-row .stp-input { padding: 8px 10px; }
-.stp-slab-sep, .stp-slab-arrow {
-    font-size: .85rem;
-    color: var(--stp-text-faint);
-    font-weight: 500;
-}
-.stp-slab-unit {
-    font-size: .78rem;
-    color: var(--stp-text-muted);
-    font-weight: 500;
-}
-.stp-slab-remove {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    border: 1px solid var(--stp-border);
-    background: var(--stp-surface);
-    color: var(--stp-text-muted);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all .15s var(--stp-ease);
-}
-.stp-slab-remove:hover {
-    background: #fef2f2;
-    color: #dc2626;
-    border-color: transparent;
-}
-.stp-note {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 12px 14px;
-    background: #eff6ff;
-    border: 1px solid #dbeafe;
-    border-radius: 10px;
-    font-size: .78rem;
-    color: #1e40af;
-    line-height: 1.5;
-}
-.stp-note i { color: #2563eb; font-size: .9rem; margin-top: 1px; }
 
         </style>
 
@@ -769,6 +690,7 @@
                                         <thead>
                                             <tr>
                                                 <th>Category</th>
+                                                <th>Auto-detect</th>
                                                 <th class="text-center">Monthly Limit</th>
                                                 <th class="text-center">Status</th>
                                                 <th class="text-end">Actions</th>
@@ -778,6 +700,7 @@
                                             {% for cat in reg_categories %}
                                                 <tr>
                                                     <td class="name">{{ cat.name }}</td>
+                                                    <td><span class="stp-time">{{ cat.get_system_type_display }}</span></td>
                                                     <td class="text-center num">{{ cat.monthly_limit }}</td>
                                                     <td class="text-center">
                                                         {% if cat.is_active %}
@@ -815,8 +738,6 @@
                         </div>
 
                         <!-- SUB-TAB 3: LATE COMING RULES -->
-                        
-                        <!-- SUB-TAB 3: LATE COMING RULES -->
                         <div class="tab-pane fade" id="sub-late" role="tabpanel">
 
                             <div class="stp-sec">
@@ -824,67 +745,37 @@
                                     <span class="stp-sec-ico"><i class="las la-hourglass-half"></i></span>
                                     <div>
                                         <h5 class="stp-sec-title">Late Coming Rules</h5>
-                                        <p class="stp-sec-sub">Choose how late arrivals are counted, then set the policy.</p>
+                                        <p class="stp-sec-sub">Grace marks before penalty, penalty type, and half-day cutoff.</p>
                                     </div>
                                 </div>
                             </div>
 
-                            <form method="post" class="stp-card" style="padding: 24px;">
-                                {% csrf_token %}
-                                <input type="hidden" name="form_type" value="late">
+                            <div class="stp-card" style="padding: 24px;">
+                                <form method="post">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="form_type" value="late">
 
-                                <!-- Enable toggle -->
-                                <div style="margin-bottom: 24px;">
-                                    <label class="stp-rule-lbl"><i class="las la-toggle-on"></i> Enable Late Policy</label>
-                                    <label class="stp-switch" style="margin-top: 8px;">
-                                        <input type="checkbox" name="is_enabled" {% if late_rule.is_enabled %}checked{% endif %}>
-                                        <span class="stp-switch-slider"></span>
-                                    </label>
-                                    <span class="stp-rule-hint" style="display: block; margin-top: 6px;">Turn late tracking on/off</span>
-                                </div>
-
-                                <!-- Method selection -->
-                                <div style="border-top: 1px solid var(--stp-border); padding-top: 20px; margin-bottom: 24px;">
-                                    <label class="stp-rule-lbl" style="margin-bottom: 12px; display: block;">
-                                        <i class="las la-calculator"></i> Calculation Method
-                                    </label>
-
-                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                                        <label class="stp-method {% if late_rule.calculation_method == 'marks' %}active{% endif %}">
-                                            <input type="radio" name="calculation_method" value="marks"
-                                                {% if late_rule.calculation_method == 'marks' %}checked{% endif %}>
-                                            <div>
-                                                <div class="stp-method-title">Late Marks</div>
-                                                <div class="stp-method-sub">Simple · count each late, deduct fixed</div>
-                                            </div>
-                                        </label>
-
-                                        <label class="stp-method {% if late_rule.calculation_method == 'minutes' %}active{% endif %}">
-                                            <input type="radio" name="calculation_method" value="minutes"
-                                                {% if late_rule.calculation_method == 'minutes' %}checked{% endif %}>
-                                            <div>
-                                                <div class="stp-method-title">Late Minutes</div>
-                                                <div class="stp-method-sub">Precise · slab-based on total minutes</div>
-                                            </div>
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <!-- ═══ METHOD 1: LATE MARKS ═══ -->
-                                <div id="section-marks" style="{% if late_rule.calculation_method != 'marks' %}display:none;{% endif %}">
                                     <div class="stp-rule-grid">
 
                                         <div class="stp-rule-item">
-                                            <label class="stp-rule-lbl"><i class="las la-redo-alt"></i> Penalty-Free Marks / Month</label>
+                                            <label class="stp-rule-lbl"><i class="las la-toggle-on"></i> Enable Late Policy</label>
+                                            <label class="stp-switch">
+                                                <input type="checkbox" name="is_enabled" {% if late_rule.is_enabled %}checked{% endif %}>
+                                                <span class="stp-switch-slider"></span>
+                                            </label>
+                                            <span class="stp-rule-hint">Turn late tracking on/off</span>
+                                        </div>
+
+                                        <div class="stp-rule-item">
+                                            <label class="stp-rule-lbl"><i class="las la-redo-alt"></i> Monthly Allowed Late Marks</label>
                                             <input type="number" name="monthly_allowed_late_marks" min="0"
                                                 value="{{ late_rule.monthly_allowed_late_marks|default:3 }}"
                                                 class="stp-input">
-                                            <span class="stp-rule-hint">Free lates before penalty starts</span>
+                                            <span class="stp-rule-hint">Free lates before penalty kicks in</span>
                                         </div>
 
-                                        
                                         <div class="stp-rule-item">
-                                            <label class="stp-rule-lbl"><i class="las la-gavel"></i> Penalty Type</label>
+                                            <label class="stp-rule-lbl"><i class="las la-gavel"></i> Late Penalty</label>
                                             <select name="penalty_type" class="stp-input">
                                                 <option value="leave"  {% if late_rule.penalty_type == 'leave'  %}selected{% endif %}>Deduct Leave</option>
                                                 <option value="salary" {% if late_rule.penalty_type == 'salary' %}selected{% endif %}>Deduct Salary</option>
@@ -893,149 +784,32 @@
                                             <span class="stp-rule-hint">What gets deducted per late mark</span>
                                         </div>
 
-                                        <div class="stp-rule-item" id="target-leave-wrap">
-                                            <label class="stp-rule-lbl"><i class="las la-calendar-check"></i> Target Leave Type</label>
-                                            <select name="target_leave_type" class="stp-input">
-                                                <option value="">— None (LOP from salary) —</option>
-                                                {% for lt in late_leave_types %}
-                                                    <option value="{{ lt.id }}"
-                                                        {% if late_rule.target_leave_type_id == lt.id %}selected{% endif %}>
-                                                        {{ lt.name }}
-                                                    </option>
-                                                {% endfor %}
-                                            </select>
-                                            <span class="stp-rule-hint">Which leave absorbs late penalties first</span>
-                                        </div>
-
-
                                         <div class="stp-rule-item">
-                                            <label class="stp-rule-lbl"><i class="las la-balance-scale"></i> Deduction per Late</label>
+                                            <label class="stp-rule-lbl"><i class="las la-balance-scale"></i> Penalty Amount</label>
                                             <input type="number" step="0.25" min="0" name="penalty_amount"
                                                 value="{{ late_rule.penalty_amount|default:'0.25' }}"
                                                 class="stp-input">
-                                            <span class="stp-rule-hint">e.g. 0.25 = quarter day</span>
+                                            <span class="stp-rule-hint">e.g., 0.25 = quarter-day</span>
                                         </div>
 
                                         <div class="stp-rule-item">
-                                            <label class="stp-rule-lbl"><i class="las la-stopwatch"></i> Half-Day Cutoff (min)</label>
+                                            <label class="stp-rule-lbl"><i class="las la-stopwatch"></i> Half-Day Cutoff (minutes)</label>
                                             <input type="number" min="0" name="half_day_cutoff_minutes"
                                                 value="{{ late_rule.half_day_cutoff_minutes|default:45 }}"
                                                 class="stp-input">
                                             <span class="stp-rule-hint">Late beyond this → Half-Day</span>
                                         </div>
 
-                                        <div class="stp-rule-item">
-                                            <label class="stp-rule-lbl"><i class="las la-exclamation-circle"></i> If Leave Insufficient</label>
-                                            <select name="insufficient_balance_action" class="stp-input">
-                                                <option value="lop"  {% if late_rule.insufficient_balance_action == 'lop'  %}selected{% endif %}>Loss of Pay (LOP)</option>
-                                                <option value="skip" {% if late_rule.insufficient_balance_action == 'skip' %}selected{% endif %}>Skip Deduction</option>
-                                            </select>
-                                            <span class="stp-rule-hint">When no leave balance left</span>
-                                        </div>
-
-                                    </div>
-                                </div>
-
-                                <!-- ═══ METHOD 2: LATE MINUTES ═══ -->
-                                <div id="section-minutes" style="{% if late_rule.calculation_method != 'minutes' %}display:none;{% endif %}">
-                                    <label class="stp-rule-lbl" style="margin-bottom: 12px; display: block;">
-                                        <i class="las la-layer-group"></i> Minute Slabs
-                                    </label>
-
-                                    <div id="slab-container">
-                                        {% for slab in late_slabs %}
-                                            <div class="stp-slab-row">
-                                                <input type="number" name="slab_from" min="0" class="stp-input"
-                                                    placeholder="From" value="{{ slab.from_minutes }}">
-                                                <span class="stp-slab-sep">–</span>
-                                                <input type="number" name="slab_to" min="0" class="stp-input"
-                                                    placeholder="To (blank = ∞)" value="{{ slab.to_minutes|default_if_none:'' }}">
-                                                <span class="stp-slab-arrow">→</span>
-                                                <input type="number" name="slab_penalty" min="0" step="0.25"
-                                                    class="stp-input" placeholder="Days" value="{{ slab.penalty_days }}">
-                                                <span class="stp-slab-unit">day</span>
-                                                <button type="button" class="stp-slab-remove" onclick="removeSlab(this)">
-                                                    <i class="fas fa-times"></i>
-                                                </button>
-                                            </div>
-                                        {% empty %}
-                                            <div class="stp-slab-row">
-                                                <input type="number" name="slab_from" min="0" class="stp-input" placeholder="From">
-                                                <span class="stp-slab-sep">–</span>
-                                                <input type="number" name="slab_to" min="0" class="stp-input" placeholder="To (blank = ∞)">
-                                                <span class="stp-slab-arrow">→</span>
-                                                <input type="number" name="slab_penalty" min="0" step="0.25" class="stp-input" placeholder="Days">
-                                                <span class="stp-slab-unit">day</span>
-                                                <button type="button" class="stp-slab-remove" onclick="removeSlab(this)">
-                                                    <i class="fas fa-times"></i>
-                                                </button>
-                                            </div>
-                                        {% endfor %}
                                     </div>
 
-                                    <button type="button" class="stp-btn stp-btn-ghost" style="margin-top: 12px;" onclick="addSlab()">
-                                        <i class="fas fa-plus"></i> Add Slab
-                                    </button>
-
-                                    <div class="stp-note" style="margin-top: 16px;">
-                                        <i class="las la-info-circle"></i>
-                                        <div>
-                                            Total monthly late minutes are matched against the slabs above.
-                                            Only the <strong>first matching slab</strong> is applied.
-                                        </div>
+                                    <div class="stp-rule-actions">
+                                        <button type="submit" class="stp-btn stp-btn-primary">
+                                            <i class="fas fa-save"></i> Save Rules
+                                        </button>
                                     </div>
-                                </div>
-
-                                <!-- Footer -->
-                                <div class="stp-rule-actions" style="margin-top: 24px;">
-                                    <button type="submit" class="stp-btn stp-btn-primary">
-                                        <i class="fas fa-save"></i> Save Rules
-                                    </button>
-                                </div>
-                            </form>
+                                </form>
+                            </div>
                         </div>
-
-                        <script>
-                        document.addEventListener('DOMContentLoaded', function () {
-                            const radios = document.querySelectorAll('input[name="calculation_method"]');
-                            const secMarks   = document.getElementById('section-marks');
-                            const secMinutes = document.getElementById('section-minutes');
-
-                            radios.forEach(r => r.addEventListener('change', function () {
-                                const isMarks = this.value === 'marks';
-                                secMarks.style.display   = isMarks ? '' : 'none';
-                                secMinutes.style.display = isMarks ? 'none' : '';
-
-                                document.querySelectorAll('.stp-method').forEach(el => {
-                                    el.classList.toggle('active', el.querySelector('input').checked);
-                                });
-                            }));
-                        });
-
-                        function addSlab() {
-                            const container = document.getElementById('slab-container');
-                            const row = document.createElement('div');
-                            row.className = 'stp-slab-row';
-                            row.innerHTML = `
-                                <input type="number" name="slab_from" min="0" class="stp-input" placeholder="From">
-                                <span class="stp-slab-sep">–</span>
-                                <input type="number" name="slab_to" min="0" class="stp-input" placeholder="To (blank = ∞)">
-                                <span class="stp-slab-arrow">→</span>
-                                <input type="number" name="slab_penalty" min="0" step="0.25" class="stp-input" placeholder="Days">
-                                <span class="stp-slab-unit">day</span>
-                                <button type="button" class="stp-slab-remove" onclick="removeSlab(this)">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            `;
-                            container.appendChild(row);
-                        }
-
-                        function removeSlab(btn) {
-                            const rows = document.querySelectorAll('.stp-slab-row');
-                            if (rows.length > 1) btn.parentElement.remove();
-                        }
-                        </script>
-
 
                     </div><!-- /tab-content -->
                 </div>
@@ -1210,21 +984,5 @@
 
             </div>
         </div>
-
-        <script>
-            // ── Show/hide Target Leave Type based on Penalty Type ──
-            const penaltySel = document.querySelector('select[name="penalty_type"]');
-            const targetWrap = document.getElementById('target-leave-wrap');
-
-            function updateTargetVisibility() {
-                if (!penaltySel || !targetWrap) return;
-                targetWrap.style.display = (penaltySel.value === 'leave') ? '' : 'none';
-            }
-
-            if (penaltySel) {
-                penaltySel.addEventListener('change', updateTargetVisibility);
-                updateTargetVisibility();
-            }
-        </script>
 
         {% endblock %}
