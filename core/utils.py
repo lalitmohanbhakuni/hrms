@@ -250,30 +250,6 @@ def get_user_company(request):
     return getattr(request, 'user_company', None)
 
 
-def get_company_filtered(request, queryset, company_field='company'):
-    """
-    Filter a queryset by the current user's company.
-
-    - Superuser → returns the queryset unchanged (sees all).
-    - HR Admin / Manager / Employee → filters by their company.
-    - No company → returns empty queryset.
-    """
-    if not request.user.is_authenticated:
-        return queryset.none()
-
-    # Superuser sees everything
-    if request.user.is_superuser:
-        return queryset
-
-    from .utils import get_user_company
-    company = get_user_company(request)
-    if company is None:
-        return queryset.none()
-
-    # Apply company filter
-    return queryset.filter(**{company_field: company})
-
-
 def get_company_filtered(request, queryset, company_field=None):
     """
     Filter a queryset by the current user's company.
