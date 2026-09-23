@@ -929,12 +929,14 @@ def clock_in(request):
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
 
     def err(msg, status=400):
+        """Return error — JSON for AJAX, redirect for normal form."""
         if is_ajax:
             return JsonResponse({'success': False, 'error': msg}, status=status)
         messages.error(request, msg)
         return redirect('dashboard')
 
     def ok(msg):
+        """Return success — JSON for AJAX, redirect for normal form."""
         if is_ajax:
             return JsonResponse({'success': True, 'message': msg})
         messages.success(request, msg)
@@ -958,13 +960,6 @@ def clock_in(request):
     check_in_lng = None
     check_in_dist = None
 
-    # ─── Detect device type (used in error messages) ───
-    user_agent = request.META.get('HTTP_USER_AGENT', '').lower()
-    is_mobile = any(
-        x in user_agent
-        for x in ['android', 'iphone', 'ipad', 'mobile', 'webos', 'blackberry']
-    )
-
     # ─── Location validation (Office only) ───
     if attendance_type == 'office':
         office = profile.office_location
@@ -977,10 +972,19 @@ def clock_in(request):
         ip_allowed = office.matches_ip(client_ip)
 
         if ip_allowed:
-            # ✅ On office network — GPS not required AND not captured
-            check_in_lat = None
-            check_in_lng = None
-            check_in_dist = None
+            # ✅ On office network — GPS optional
+            lat = request.POST.get('latitude')
+            lng = request.POST.get('longitude')
+            if lat and lng:
+                try:
+                    check_in_lat = float(lat)
+                    check_in_lng = float(lng)
+                    check_in_dist = int(haversine(
+                        check_in_lat, check_in_lng,
+                        float(office.latitude), float(office.longitude)
+                    ))
+                except (ValueError, TypeError):
+                    pass
         else:
             # ❌ Not on office network — GPS required
             lat = request.POST.get('latitude')
@@ -988,16 +992,7 @@ def clock_in(request):
             accuracy = request.POST.get('accuracy')
 
             if not lat or not lng:
-                if is_mobile:
-                    return err(
-                        'Location permission required. When your browser asks, '
-                        'choose "Allow" and select "Precise" (not "Approximate"). '
-                        'Alternatively, connect to office WiFi.'
-                    )
-                return err(
-                    'Please allow location access in your browser, '
-                    'or connect to office WiFi.'
-                )
+                return err('Please connect to office WiFi, or enable GPS on your mobile device.')
 
             try:
                 lat = float(lat)
@@ -1007,24 +1002,13 @@ def clock_in(request):
                 return err('Invalid location data.')
 
             if accuracy > 500:
-                if is_mobile:
-                    return err(
-                        f'Location accuracy too low (±{accuracy:.0f}m). '
-                        'On your phone, tap "Precise" (not "Approximate") when the '
-                        'location prompt appears. Then try again.'
-                    )
                 return err(
-                    f'Location accuracy too low (±{accuracy:.0f}m). '
-                    'Enable Precise Location in your browser, or connect to office WiFi.'
+                    f'GPS signal too weak (±{accuracy:.0f}m). '
+                    'Please connect to office WiFi or use a mobile phone.'
                 )
 
             distance = haversine(lat, lng, float(office.latitude), float(office.longitude))
             if distance > office.allowed_radius:
-                if is_mobile:
-                    return err(
-                        f'You are not at office ({distance:.0f}m away, limit {office.allowed_radius}m). '
-                        'Make sure location is "Precise", or connect to office WiFi.'
-                    )
                 return err(
                     f'You are not in the office location. '
                     f'(Distance: {distance:.0f}m, Allowed: {office.allowed_radius}m)'
@@ -1075,12 +1059,14 @@ def clock_out(request):
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
 
     def err(msg, status=400):
+        """Return error — JSON for AJAX, redirect for normal form."""
         if is_ajax:
             return JsonResponse({'success': False, 'error': msg}, status=status)
         messages.error(request, msg)
         return redirect('dashboard')
 
     def ok(msg):
+        """Return success — JSON for AJAX, redirect for normal form."""
         if is_ajax:
             return JsonResponse({'success': True, 'message': msg})
         messages.success(request, msg)
@@ -1103,13 +1089,6 @@ def clock_out(request):
     check_out_lat = None
     check_out_lng = None
 
-    # ─── Detect device type (used in error messages) ───
-    user_agent = request.META.get('HTTP_USER_AGENT', '').lower()
-    is_mobile = any(
-        x in user_agent
-        for x in ['android', 'iphone', 'ipad', 'mobile', 'webos', 'blackberry']
-    )
-
     # ─── Location validation (Office only) ───
     if attendance_type == 'office':
         office = profile.office_location
@@ -1122,9 +1101,15 @@ def clock_out(request):
         ip_allowed = office.matches_ip(client_ip)
 
         if ip_allowed:
-            # ✅ On office network — GPS not captured
-            check_out_lat = None
-            check_out_lng = None
+            # ✅ On office network — GPS optional
+            lat = request.POST.get('latitude')
+            lng = request.POST.get('longitude')
+            if lat and lng:
+                try:
+                    check_out_lat = float(lat)
+                    check_out_lng = float(lng)
+                except (ValueError, TypeError):
+                    pass
         else:
             # ❌ Not on office network — GPS required
             lat = request.POST.get('latitude')
@@ -1132,16 +1117,7 @@ def clock_out(request):
             accuracy = request.POST.get('accuracy')
 
             if not lat or not lng:
-                if is_mobile:
-                    return err(
-                        'Location permission required. When your browser asks, '
-                        'choose "Allow" and select "Precise" (not "Approximate"). '
-                        'Alternatively, connect to office WiFi.'
-                    )
-                return err(
-                    'Please allow location access in your browser, '
-                    'or connect to office WiFi.'
-                )
+                return err('Please connect to office WiFi, or enable GPS to check out.')
 
             try:
                 lat = float(lat)
@@ -1151,24 +1127,13 @@ def clock_out(request):
                 return err('Invalid location data.')
 
             if accuracy > 500:
-                if is_mobile:
-                    return err(
-                        f'Location accuracy too low (±{accuracy:.0f}m). '
-                        'On your phone, tap "Precise" (not "Approximate") when the '
-                        'location prompt appears. Then try again.'
-                    )
                 return err(
-                    f'Location accuracy too low (±{accuracy:.0f}m). '
-                    'Enable Precise Location in your browser, or connect to office WiFi.'
+                    f'GPS signal too weak (±{accuracy:.0f}m). '
+                    'Please connect to office WiFi or use a mobile phone.'
                 )
 
             distance = haversine(lat, lng, float(office.latitude), float(office.longitude))
             if distance > office.allowed_radius:
-                if is_mobile:
-                    return err(
-                        f'You are not at office ({distance:.0f}m away, limit {office.allowed_radius}m). '
-                        'Make sure location is "Precise", or connect to office WiFi.'
-                    )
                 return err(
                     f'You are not in the office location. '
                     f'(Distance: {distance:.0f}m, Allowed: {office.allowed_radius}m)'
@@ -1204,7 +1169,7 @@ def clock_out(request):
         f'Total worked today: {attendance.total_working_time}'
     )
 
-    
+
 # ---------- Helper ----------
 def is_admin(user):
     return user.is_superuser
