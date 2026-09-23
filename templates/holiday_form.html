@@ -225,7 +225,8 @@
             <!-- Page header -->
             <div class="hlf-hd">
                 <h5 class="hlf-hd-title">
-                    <span class="hlf-hd-ico"><i class="fas fa-calendar-plus"></i></span>
+                    <a href="javascript:history.back()" style="text-decoration: none;" class="hlf-hd-ico"><i class="fas fa-arrow-left"></i></a>
+                    <!-- <span class=""><i class="fas fa-calendar-plus"></i></span> -->
                     {{ action }} Holiday
                 </h5>
                 <p class="hlf-hd-sub">
@@ -276,7 +277,7 @@
                                 <i class="fas fa-save"></i>
                                 {% if action == 'Add' %}Add{% else %}Update{% endif %}
                             </button>
-                            <a href="{% url 'holiday_list' %}" class="hlf-btn hlf-btn-ghost">
+                            <a href="javascript:history.back()" class="hlf-btn hlf-btn-ghost">
                                 <i class="fas fa-times"></i> Cancel
                             </a>
                         </div>

@@ -228,7 +228,8 @@
             <!-- Page header -->
             <div class="hld-hd">
                 <h5 class="hld-hd-title">
-                    <span class="hld-hd-ico"><i class="fas fa-calendar-times"></i></span>
+                    <a href="javascript:history.back()" style="text-decoration: none;" class="hld-hd-ico"><i class="fas fa-arrow-left"></i></a>
+                    <!-- <span class="hld-hd-ico"><i class="fas fa-calendar-times"></i></span> -->
                     Delete Holiday
                 </h5>
                 <p class="hld-hd-sub">This action is permanent and cannot be undone.</p>
@@ -266,7 +267,7 @@
                     <form method="post">
                         {% csrf_token %}
                         <div class="hld-foot">
-                            <a href="{% url 'holiday_list' %}" class="hld-btn hld-btn-ghost">
+                            <a href="javascript:history.back()" class="hld-btn hld-btn-ghost">
                                 <i class="fas fa-arrow-left"></i> Cancel
                             </a>
                             <button type="submit" class="hld-btn hld-btn-danger">

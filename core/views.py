@@ -1790,7 +1790,9 @@ def holiday_delete(request, pk):
     return render(request, 'holiday_confirm_delete.html', {'holiday': holiday})
 
 
-# ---------- Employee Leave Dashboard ----------@login_required
+# ---------- Employee Leave Dashboard ----------
+
+@login_required
 def employee_leaves(request):
     user = request.user
     tab = request.GET.get('tab', 'status')
@@ -3933,6 +3935,7 @@ def attendance_overview_data(request):
 # ---------- Setup Page ----------
 
 @login_required
+@admin_or_hr_required
 @company_required
 def setup(request):
     from .utils import get_company_filtered, get_user_company

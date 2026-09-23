@@ -1,6 +1,8 @@
 import ipaddress
 import logging
 from .models import EmployeeProfile
+from django.http import HttpResponseForbidden
+
 
 logger = logging.getLogger(__name__)
 
@@ -128,3 +130,87 @@ class CompanyMiddleware:
                     )
 
         return self.get_response(request)
+
+class URLGuardMiddleware:
+    """
+    Centralized URL-based access control.
+
+    Runs AFTER AuthenticationMiddleware + CompanyMiddleware.
+    Blocks users from URLs they don't have permission for, based on their group.
+
+    Rules:
+      * Superuser       → bypasses all URL checks
+      * HR Admin        → can access everything except /admin/
+      * Manager         → can access Team/Approvals only
+      * Employee        → no admin/HR URLs
+    """
+
+    # HR Admin only (Managers blocked)
+    HR_ONLY_PREFIXES = (
+        '/setup/',
+        '/employees/',
+        '/shifts/',
+        '/leave-types/',
+        '/holidays/',
+        '/attendance-report/',
+        '/employee-attendance/',
+        '/assign-shift/',
+        '/payroll/',
+        '/reg-category/',
+    )
+
+    # HR Admin OR Manager
+    MANAGER_OR_HR_PREFIXES = (
+        '/team/',
+        '/admin-leaves/',
+        '/leave-approve/',
+        '/leave-reject/',
+        '/attendance/regularize-list/',
+        '/attendance/regularize-approve/',
+        '/attendance/regularize-reject/',
+    )
+
+    # Superuser only
+    SUPERUSER_PREFIXES = (
+        '/admin/',          # Django admin
+    )
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        path = request.path
+        user = getattr(request, 'user', None)
+
+        # Unauthenticated → let downstream views handle (login_required etc.)
+        if not user or not user.is_authenticated:
+            return self.get_response(request)
+
+        # Superuser → everything except Django admin also passes
+        if user.is_superuser:
+            return self.get_response(request)
+
+        is_hr  = user.groups.filter(name='HR Admin').exists()
+        is_mgr = user.groups.filter(name='Manager').exists()
+
+        # ─── Superuser-only URL ───
+        for prefix in self.SUPERUSER_PREFIXES:
+            if path.startswith(prefix):
+                return HttpResponseForbidden("Access denied.")
+
+        # ─── HR-only URL ───
+        for prefix in self.HR_ONLY_PREFIXES:
+            if path.startswith(prefix):
+                if not is_hr:
+                    return HttpResponseForbidden("Access denied.")
+                break
+
+        # ─── Manager or HR URL ───
+        for prefix in self.MANAGER_OR_HR_PREFIXES:
+            if path.startswith(prefix):
+                if not (is_hr or is_mgr):
+                    return HttpResponseForbidden("Access denied.")
+                break
+
+        return self.get_response(request)
+        

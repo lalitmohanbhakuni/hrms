@@ -263,6 +263,27 @@
         .lvt-name-icon { width: 28px; height: 28px; font-size: .78rem; }
         .lvt-action { width: 30px; height: 30px; font-size: .72rem; }
     }
+    .ead-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: .82rem;
+    font-weight: 500;
+    color: #64748b;
+    text-decoration: none;
+    margin-bottom: 16px;
+    transition: color .15s ease;
+}
+
+.ead-back:hover {
+    color: #4f46e5;
+    text-decoration: none;
+}
+
+.ead-back i {
+    font-size: .8rem;
+}
+
 </style>
 
 <div class="lvt-wrap">
@@ -270,6 +291,9 @@
     <!-- ═══════════ Page heading + action ═══════════ -->
     <div class="lvt-hd">
         <div>
+            <a href="{% url 'setup' %}" class="ead-back">
+                <i class="fas fa-arrow-left"></i> Back to Setup
+            </a>
             <h1 class="lvt-hd-title">Manage Leave Types</h1>
             <p class="lvt-hd-sub">Define the categories of leave your team can request.</p>
         </div>

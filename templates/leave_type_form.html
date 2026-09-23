@@ -296,7 +296,8 @@
             <!-- Page header -->
             <div class="ltf-hd">
                 <h5 class="ltf-hd-title">
-                    <span class="ltf-hd-ico"><i class="fas fa-tag"></i></span>
+                    <a href="javascript:history.back()" style="text-decoration: none;" class="ltf-hd-ico"><i class="fas fa-arrow-left"></i></a>
+                    <!-- <span class="ltf-hd-ico"><i class="fas fa-tag"></i></span> -->
                     {{ action }} Leave Type
                 </h5>
                 <p class="ltf-hd-sub">
@@ -379,7 +380,7 @@
                                 <i class="fas fa-save"></i>
                                 {% if action == 'Create' %}Create{% else %}Update{% endif %}
                             </button>
-                            <a href="{% url 'leave_type_list' %}" class="ltf-btn ltf-btn-ghost">
+                            <a href="javascript:history.back()" class="ltf-btn ltf-btn-ghost">
                                 <i class="fas fa-times"></i> Cancel
                             </a>
                         </div>
