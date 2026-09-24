@@ -45,9 +45,11 @@ from .decorators import (
     admin_or_hr_required, hr_admin_required,
     company_required, payroll_required
 )
+
+
 from .utils import (
     get_approver, get_hr_admin, can_approve_request,
-    get_company_filtered, get_user_company
+    get_company_filtered, get_user_company, is_weekend_for_shift
 )
 
 
@@ -141,6 +143,7 @@ def logout_view(request):
 
 
 # ---------- Dashboard ----------
+
 @login_required
 def dashboard(request):
     from .utils import get_company_filtered, get_user_company
@@ -276,7 +279,13 @@ def dashboard(request):
     calendar_data = []
     for day in range(1, num_days + 1):
         current_date = date(year, month, day)
-        is_weekend = current_date.weekday() >= 5
+
+        _user_shift = getattr(getattr(user, 'profile', None), 'shift', None)
+        if _user_shift:
+            _attr = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'][current_date.weekday()]
+            is_weekend = not getattr(_user_shift, _attr, True)
+        else:
+            is_weekend = current_date.weekday() >= 5
 
         holiday_name = month_holidays.get(day)
         counts = attendance_by_day.get(day, {})
@@ -286,10 +295,8 @@ def dashboard(request):
         half_count    = counts.get('Half-Day', 0)
 
         # ── Compute absent dynamically (team mode only) ──
-                # ── Compute absent dynamically (team mode only) ──
         absent_count = 0
         if calendar_mode == 'team' and current_date <= today and not is_weekend and not holiday_name:
-            # Only count employees who had already joined by this date
             employees_joined_by_date = EmployeeProfile.objects.filter(
                 user_id__in=scope_user_ids,
                 is_active=True,
@@ -308,7 +315,7 @@ def dashboard(request):
             'mode': calendar_mode,
             'counts': {
                 'present': present_count,
-                'absent':  absent_count,           # ✅ computed for team
+                'absent':  absent_count,
                 'half':    half_count,
                 'leave':   on_leave,
             },
@@ -346,6 +353,10 @@ def dashboard(request):
                     status = att.status or 'Absent'
                 elif current_date > today:
                     status = 'Future'
+                elif holiday_name:
+                    status = 'Holiday'
+                elif is_weekend:
+                    status = 'Weekend'
                 else:
                     status = 'Absent'
 
@@ -358,27 +369,48 @@ def dashboard(request):
                     'check_in':     att.check_in_time.strftime('%I:%M %p') if att and att.check_in_time else '--:--',
                     'check_out':    att.check_out_time.strftime('%I:%M %p') if att and att.check_out_time else '--:--',
                 })
+
         # ─── Self mode → own status ───
         row['self_status'] = None
         if calendar_mode == 'self':
+            self_att = Attendance.objects.filter(
+                user=user, date=current_date,
+            ).first()
+
             if current_date > today:
                 row['self_status'] = 'future'
-            elif counts.get('Present'):
-                row['self_status'] = 'present'
-            elif counts.get('Half-Day'):
-                row['self_status'] = 'halfday'
             elif holiday_name:
                 row['self_status'] = 'holiday'
-            elif is_weekend:
-                row['self_status'] = 'weekend'
             elif on_leave:
                 row['self_status'] = 'leave'
-            elif counts.get('Absent'):
-                row['self_status'] = 'absent'
+            elif self_att:
+                # Mirror attendance_view status logic
+                if self_att.status in ('Missing Checkout', 'Under Review',
+                                    'On Leave', 'Half-Day', 'Late', 'Early Out'):
+                    _s = (self_att.status or '').strip().lower()
+                    if _s == 'missing checkout':
+                        row['self_status'] = 'missing_checkout'
+                    elif _s == 'under review':
+                        row['self_status'] = 'under_review'
+                    elif _s == 'half-day':
+                        row['self_status'] = 'halfday'
+                    elif _s == 'on leave':
+                        row['self_status'] = 'leave'
+                    else:
+                        row['self_status'] = 'absent'
+                elif self_att.check_in_time and self_att.check_out_time:
+                    row['self_status'] = 'present'
+                elif self_att.check_in_time:
+                    row['self_status'] = 'missing_checkout'
+                else:
+                    row['self_status'] = 'absent'
+            elif is_weekend:
+                row['self_status'] = 'weekend'
             else:
-                row['self_status'] = 'none'
+                row['self_status'] = 'absent'
 
         calendar_data.append(row)
+
 
     # ✅ OUTSIDE the loop — builds once, after all rows are in
     calendar_employees_json = {
