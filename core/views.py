@@ -917,6 +917,7 @@ def dashboard(request):
 
 
 # ---------- Attendance ----------
+
 @login_required
 def clock_in(request):
     from datetime import timedelta
@@ -925,7 +926,6 @@ def clock_in(request):
     if request.method != 'POST':
         return redirect('dashboard')
 
-    # ─── Detect AJAX request ───
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
 
     def err(msg, status=400):
@@ -958,7 +958,7 @@ def clock_in(request):
     check_in_lng = None
     check_in_dist = None
 
-    # ─── Detect device type (used in error messages) ───
+    # ─── Detect device type ───
     user_agent = request.META.get('HTTP_USER_AGENT', '').lower()
     is_mobile = any(
         x in user_agent
@@ -971,32 +971,18 @@ def clock_in(request):
         if not office:
             return err('No office location assigned. Please contact HR.')
 
-        xff = request.META.get('HTTP_X_FORWARDED_FOR')
-        client_ip = xff.split(',')[0].strip() if xff else request.META.get('REMOTE_ADDR')
-
-        ip_allowed = office.matches_ip(client_ip)
-
-        if ip_allowed:
-            # ✅ On office network — GPS not required AND not captured
-            check_in_lat = None
-            check_in_lng = None
-            check_in_dist = None
-        else:
-            # ❌ Not on office network — GPS required
+        # ═══════════════════════════════════════════════════
+        # MOBILE — always GPS (skip IP check)
+        # ═══════════════════════════════════════════════════
+        if is_mobile:
             lat = request.POST.get('latitude')
             lng = request.POST.get('longitude')
             accuracy = request.POST.get('accuracy')
 
             if not lat or not lng:
-                if is_mobile:
-                    return err(
-                        'Location permission required. When your browser asks, '
-                        'choose "Allow" and select "Precise" (not "Approximate"). '
-                        'Alternatively, connect to office WiFi.'
-                    )
                 return err(
-                    'Please allow location access in your browser, '
-                    'or connect to office WiFi.'
+                    'Location is OFF on your phone. '
+                    'Please enable GPS in Settings → Location and try again.'
                 )
 
             try:
@@ -1006,33 +992,76 @@ def clock_in(request):
             except ValueError:
                 return err('Invalid location data.')
 
-            if accuracy > 500:
-                if is_mobile:
-                    return err(
-                        f'Location accuracy too low (±{accuracy:.0f}m). '
-                        'On your phone, tap "Precise" (not "Approximate") when the '
-                        'location prompt appears. Then try again.'
-                    )
+            distance = haversine(lat, lng, float(office.latitude), float(office.longitude))
+
+            # Weak GPS but near office → trust coordinates
+            if accuracy > 500 and distance > office.allowed_radius:
                 return err(
-                    f'Location accuracy too low (±{accuracy:.0f}m). '
-                    'Enable Precise Location in your browser, or connect to office WiFi.'
+                    f'GPS signal too weak (±{accuracy:.0f}m). '
+                    'Enable "High Accuracy" in Settings → Location, '
+                    'or move near a window and try again.'
                 )
 
-            distance = haversine(lat, lng, float(office.latitude), float(office.longitude))
             if distance > office.allowed_radius:
-                if is_mobile:
-                    return err(
-                        f'You are not at office ({distance:.0f}m away, limit {office.allowed_radius}m). '
-                        'Make sure location is "Precise", or connect to office WiFi.'
-                    )
                 return err(
-                    f'You are not in the office location. '
-                    f'(Distance: {distance:.0f}m, Allowed: {office.allowed_radius}m)'
+                    f'You are {distance:.0f}m from office '
+                    f'(limit: {office.allowed_radius}m). '
+                    'Please check in from the office.'
                 )
 
             check_in_lat = lat
             check_in_lng = lng
             check_in_dist = int(distance)
+
+        # ═══════════════════════════════════════════════════
+        # DESKTOP — IP first, GPS fallback
+        # ═══════════════════════════════════════════════════
+        else:
+            xff = request.META.get('HTTP_X_FORWARDED_FOR')
+            client_ip = xff.split(',')[0].strip() if xff else request.META.get('REMOTE_ADDR')
+            ip_allowed = office.matches_ip(client_ip)
+
+            if ip_allowed:
+                # ✅ On office network — GPS not captured
+                check_in_lat = None
+                check_in_lng = None
+                check_in_dist = None
+            else:
+                lat = request.POST.get('latitude')
+                lng = request.POST.get('longitude')
+                accuracy = request.POST.get('accuracy')
+
+                if not lat or not lng:
+                    return err(
+                        'Please allow location access in your browser, '
+                        'or connect to office WiFi.'
+                    )
+
+                try:
+                    lat = float(lat)
+                    lng = float(lng)
+                    accuracy = float(accuracy) if accuracy else 0
+                except ValueError:
+                    return err('Invalid location data.')
+
+                distance = haversine(lat, lng, float(office.latitude), float(office.longitude))
+
+                if accuracy > 500 and distance > office.allowed_radius:
+                    return err(
+                        f'Location accuracy too low (±{accuracy:.0f}m). '
+                        'Enable "Precise Location" in your browser, '
+                        'or connect to office WiFi.'
+                    )
+
+                if distance > office.allowed_radius:
+                    return err(
+                        f'You are not in the office location. '
+                        f'(Distance: {distance:.0f}m, Allowed: {office.allowed_radius}m)'
+                    )
+
+                check_in_lat = lat
+                check_in_lng = lng
+                check_in_dist = int(distance)
     else:
         # Remote / Flexible — capture location if provided
         lat = request.POST.get('latitude')
@@ -1071,7 +1100,6 @@ def clock_out(request):
     if request.method != 'POST':
         return redirect('dashboard')
 
-    # ─── Detect AJAX request ───
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
 
     def err(msg, status=400):
@@ -1103,7 +1131,7 @@ def clock_out(request):
     check_out_lat = None
     check_out_lng = None
 
-    # ─── Detect device type (used in error messages) ───
+    # ─── Detect device type ───
     user_agent = request.META.get('HTTP_USER_AGENT', '').lower()
     is_mobile = any(
         x in user_agent
@@ -1116,31 +1144,18 @@ def clock_out(request):
         if not office:
             return err('No office location assigned. Contact HR.')
 
-        xff = request.META.get('HTTP_X_FORWARDED_FOR')
-        client_ip = xff.split(',')[0].strip() if xff else request.META.get('REMOTE_ADDR')
-
-        ip_allowed = office.matches_ip(client_ip)
-
-        if ip_allowed:
-            # ✅ On office network — GPS not captured
-            check_out_lat = None
-            check_out_lng = None
-        else:
-            # ❌ Not on office network — GPS required
+        # ═══════════════════════════════════════════════════
+        # MOBILE — always GPS
+        # ═══════════════════════════════════════════════════
+        if is_mobile:
             lat = request.POST.get('latitude')
             lng = request.POST.get('longitude')
             accuracy = request.POST.get('accuracy')
 
             if not lat or not lng:
-                if is_mobile:
-                    return err(
-                        'Location permission required. When your browser asks, '
-                        'choose "Allow" and select "Precise" (not "Approximate"). '
-                        'Alternatively, connect to office WiFi.'
-                    )
                 return err(
-                    'Please allow location access in your browser, '
-                    'or connect to office WiFi.'
+                    'Location is OFF on your phone. '
+                    'Please enable GPS in Settings → Location and try again.'
                 )
 
             try:
@@ -1150,32 +1165,71 @@ def clock_out(request):
             except ValueError:
                 return err('Invalid location data.')
 
-            if accuracy > 500:
-                if is_mobile:
-                    return err(
-                        f'Location accuracy too low (±{accuracy:.0f}m). '
-                        'On your phone, tap "Precise" (not "Approximate") when the '
-                        'location prompt appears. Then try again.'
-                    )
+            distance = haversine(lat, lng, float(office.latitude), float(office.longitude))
+
+            if accuracy > 500 and distance > office.allowed_radius:
                 return err(
-                    f'Location accuracy too low (±{accuracy:.0f}m). '
-                    'Enable Precise Location in your browser, or connect to office WiFi.'
+                    f'GPS signal too weak (±{accuracy:.0f}m). '
+                    'Enable "High Accuracy" in Settings → Location and try again.'
                 )
 
-            distance = haversine(lat, lng, float(office.latitude), float(office.longitude))
             if distance > office.allowed_radius:
-                if is_mobile:
-                    return err(
-                        f'You are not at office ({distance:.0f}m away, limit {office.allowed_radius}m). '
-                        'Make sure location is "Precise", or connect to office WiFi.'
-                    )
                 return err(
-                    f'You are not in the office location. '
-                    f'(Distance: {distance:.0f}m, Allowed: {office.allowed_radius}m)'
+                    f'You are {distance:.0f}m from office '
+                    f'(limit: {office.allowed_radius}m). '
+                    'Please check out from the office.'
                 )
 
             check_out_lat = lat
             check_out_lng = lng
+
+        # ═══════════════════════════════════════════════════
+        # DESKTOP — IP first, GPS fallback
+        # ═══════════════════════════════════════════════════
+        else:
+            xff = request.META.get('HTTP_X_FORWARDED_FOR')
+            client_ip = xff.split(',')[0].strip() if xff else request.META.get('REMOTE_ADDR')
+            ip_allowed = office.matches_ip(client_ip)
+
+            if ip_allowed:
+                # ✅ On office network — GPS not captured
+                check_out_lat = None
+                check_out_lng = None
+            else:
+                lat = request.POST.get('latitude')
+                lng = request.POST.get('longitude')
+                accuracy = request.POST.get('accuracy')
+
+                if not lat or not lng:
+                    return err(
+                        'Please allow location access in your browser, '
+                        'or connect to office WiFi.'
+                    )
+
+                try:
+                    lat = float(lat)
+                    lng = float(lng)
+                    accuracy = float(accuracy) if accuracy else 0
+                except ValueError:
+                    return err('Invalid location data.')
+
+                distance = haversine(lat, lng, float(office.latitude), float(office.longitude))
+
+                if accuracy > 500 and distance > office.allowed_radius:
+                    return err(
+                        f'Location accuracy too low (±{accuracy:.0f}m). '
+                        'Enable "Precise Location" in your browser, '
+                        'or connect to office WiFi.'
+                    )
+
+                if distance > office.allowed_radius:
+                    return err(
+                        f'You are not in the office location. '
+                        f'(Distance: {distance:.0f}m, Allowed: {office.allowed_radius}m)'
+                    )
+
+                check_out_lat = lat
+                check_out_lng = lng
     else:
         # Remote / Flexible — capture location if provided
         lat = request.POST.get('latitude')
