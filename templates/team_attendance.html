@@ -444,6 +444,43 @@
     }
     .mta-expand-all i { font-size: .8rem; }
 
+
+    .pg-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 36px;
+        height: 36px;
+        padding: 0 12px;
+        border-radius: 8px;
+        border: 1px solid #e8eaee;
+        background: #fff;
+        color: #0f172a;
+        font-size: .82rem;
+        font-weight: 500;
+        text-decoration: none;
+        transition: background .15s ease, border-color .15s ease;
+        cursor: pointer;
+    }
+    .pg-btn:hover {
+        background: #f6f7f9;
+        border-color: #d5d9e0;
+        color: #0f172a;
+        text-decoration: none;
+    }
+    .pg-btn.active {
+        background: #4f46e5;
+        border-color: #4f46e5;
+        color: #fff;
+        font-weight: 600;
+    }
+    .pg-btn.disabled {
+        opacity: .4;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
+
+
     /* ─── Responsive ─── */
     @media (max-width: 767.98px) {
         .mta-hero { padding: 22px 20px; }
@@ -527,14 +564,14 @@
                 <tbody>
                     {% for item in employee_data %}
                         <tr class="team-row">
-                            <td class="idx">{{ forloop.counter }}</td>
+                            <td class="idx">{{ page_obj.start_index|add:forloop.counter0 }}</td>
 
                             <td>
                                 <div class="mta-emp">
-                                    <div class="mta-avatar">{{ item.employee.get_full_name|default:item.employee.username|slice:":1"|upper }}</div>
+                                    <div class="mta-avatar">{{ item.employee.profile.full_name|default:item.employee.get_full_name|default:item.employee.username|slice:":1"|upper }}</div>
                                     <div class="mta-emp-meta">
-                                        <span class="mta-emp-name"> {{ item.employee.profile.full_name|default:item.employee.username }}</span><br>
-                                        <small class="mta-emp-id" style="color: #999;"> {{ item.employee.profile.employee_id|default:"—" }} </small>
+                                        <span class="mta-emp-name">{{ item.employee.profile.full_name|default:item.employee.get_full_name|default:item.employee.username }}</span><br>
+                                        <small class="mta-emp-id" style="color: #999;">{{ item.employee.profile.employee_id|default:"—" }}</small>
                                     </div>
                                 </div>
                             </td>
@@ -618,6 +655,47 @@
             </table>
         </div>
     </div>
+
+    <!-- {# ─── Pagination ─── #} -->
+    {% if page_obj.has_other_pages %}
+    <nav aria-label="Team pagination" style="margin:20px 0;display:flex;justify-content:center;">
+        <ul style="display:flex;gap:6px;list-style:none;padding:0;margin:0;align-items:center;">
+
+            {# Prev #}
+            {% if page_obj.has_previous %}
+                <li>
+                    <a href="?page={{ page_obj.previous_page_number }}{{ extra_query }}"
+                        class="pg-btn">← Prev</a>
+                </li>
+            {% else %}
+                <li><span class="pg-btn disabled">← Prev</span></li>
+            {% endif %}
+
+            {# Page numbers #}
+            {% for num in page_obj.paginator.page_range %}
+                {% if num == page_obj.number %}
+                    <li><span class="pg-btn active">{{ num }}</span></li>
+                {% elif num > page_obj.number|add:"-3" and num < page_obj.number|add:"3" %}
+                    <li><a href="?page={{ num }}{{ extra_query }}" class="pg-btn">{{ num }}</a></li>
+                {% endif %}
+            {% endfor %}
+
+            {# Next #}
+            {% if page_obj.has_next %}
+                <li>
+                    <a href="?page={{ page_obj.next_page_number }}{{ extra_query }}"
+                        class="pg-btn">Next →</a>
+                </li>
+            {% else %}
+                <li><span class="pg-btn disabled">Next →</span></li>
+            {% endif %}
+
+        </ul>
+    </nav>
+    {% endif %}
+
+
+    
 
     <!-- ═══════════ Expand / Collapse all ═══════════ -->
     <div class="mta-expand-wrap">

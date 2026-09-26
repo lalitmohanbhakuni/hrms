@@ -195,6 +195,7 @@ MIDDLEWARE = [
     'core.middleware.CompanyMiddleware',                 # ← already there
     'core.middleware.URLGuardMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+    'core.middleware.ApplyPendingShiftMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 

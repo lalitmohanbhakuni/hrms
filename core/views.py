@@ -1111,6 +1111,7 @@ def clock_in(request):
         user=user,
         company=company,
         date=today,
+        shift=profile.shift,
         check_in_time=now,
         state='checked_in',
         total_working_time=timedelta(0),
@@ -1913,8 +1914,11 @@ def holiday_delete(request, pk):
 
 # ---------- Employee Leave Dashboard ----------
 
+
 @login_required
 def employee_leaves(request):
+    from .utils import get_leave_balance, get_late_deduction_history
+
     user = request.user
     tab = request.GET.get('tab', 'status')
 
@@ -1924,18 +1928,14 @@ def employee_leaves(request):
     )
     leave_balance = []
     for lt in leave_types:
-        total = lt.days_allowed
-        approved = LeaveRequest.objects.filter(user=user, leave_type=lt, status='Approved')
-        used = sum(req.get_duration() for req in approved)
-        pending = LeaveRequest.objects.filter(user=user, leave_type=lt, status='Pending')
-        pending_days = sum(req.get_duration() for req in pending)
-        available = total - used
+        info = get_leave_balance(user, lt)
         leave_balance.append({
             'leave_type': lt,
-            'total': total,
-            'used': used,
-            'pending': pending_days,
-            'available': available,
+            'total':      info['total'],
+            'used':       info['used'],
+            'pending':    info['pending'],
+            'late_used':  info['late_used'],
+            'available':  info['available'],
         })
 
     filter_status = request.GET.get('filter', 'all')
@@ -2201,20 +2201,23 @@ def leave_reject(request, leave_id):
 
 # ---------- Team Attendance (Admin only) ----------
 
+
 @login_required
 @admin_or_hr_required
 @company_required
 def team_attendance(request):
     from .utils import get_company_filtered, get_user_company
-    
+    from django.core.paginator import Paginator
+    from collections import defaultdict
+
     today = date.today()
     month = int(request.GET.get('month', today.month))
     year = int(request.GET.get('year', today.year))
     if month < 1 or month > 12: month = today.month
     if year < 2000 or year > 2100: year = today.year
-    
+
     user = request.user
-    
+
     # Base: company-scoped employees
     if user.is_superuser:
         employees = User.objects.filter(is_superuser=False).order_by('username')
@@ -2224,7 +2227,6 @@ def team_attendance(request):
             is_superuser=False, profile__company=company
         ).order_by('username')
     else:
-        # Manager: only their team
         try:
             profile = user.profile
             team_ids = EmployeeProfile.objects.filter(
@@ -2233,21 +2235,26 @@ def team_attendance(request):
             employees = User.objects.filter(id__in=team_ids).order_by('username')
         except EmployeeProfile.DoesNotExist:
             employees = User.objects.none()
-    
+
     attendances = get_company_filtered(
         request,
         Attendance.objects.filter(date__year=year, date__month=month)
     ).select_related('user')
-    
+
+    # Pre-group attendance by user_id — faster than nested scan
+    att_by_user = defaultdict(list)
+    for att in attendances:
+        att_by_user[att.user_id].append(att)
+
     employee_data = []
     for emp in employees:
-        emp_records = [att for att in attendances if att.user == emp]
+        emp_records = att_by_user.get(emp.id, [])
         total_days = len(emp_records)
         present = len([r for r in emp_records if r.status == 'Present'])
         absent = len([r for r in emp_records if r.status == 'Absent'])
         half_day = len([r for r in emp_records if r.status == 'Half-Day'])
         percentage = int((present / total_days) * 100) if total_days > 0 else 0
-        
+
         profile = getattr(emp, 'profile', None)
         shift_name = profile.shift.name if profile and profile.shift else '—'
         shift_timing = ''
@@ -2255,7 +2262,7 @@ def team_attendance(request):
             start = profile.shift.start_time.strftime('%I:%M %p')
             end = profile.shift.end_time.strftime('%I:%M %p')
             shift_timing = f"{start} – {end}"
-        
+
         employee_data.append({
             'employee': emp,
             'records': emp_records,
@@ -2267,15 +2274,26 @@ def team_attendance(request):
             'shift_name': shift_name,
             'shift_timing': shift_timing,
         })
-    
+
+    # ─── Pagination — 10 per page ───
+    paginator = Paginator(employee_data, 10)
+    page_obj = paginator.get_page(request.GET.get('page', 1))
+
     prev_month = month - 1 if month > 1 else 12
     prev_year = year if month > 1 else year - 1
     next_month = month + 1 if month < 12 else 1
     next_year = year if month < 12 else year + 1
     next_disabled = (year == today.year and month == today.month)
-    
+
+    # Preserve ?month=&year= across page clicks
+    qp = request.GET.copy()
+    qp.pop('page', None)
+    extra_query = '&' + qp.urlencode() if qp else ''
+
     context = {
-        'employee_data': employee_data,
+        'employee_data': page_obj,           # template iterates this
+        'page_obj': page_obj,                # for page-links
+        'extra_query': extra_query,
         'selected_month_name': date(year, month, 1).strftime('%B %Y'),
         'month': month,
         'year': year,
@@ -2285,6 +2303,7 @@ def team_attendance(request):
         'next_year': next_year,
         'next_disabled': next_disabled,
         'total_employees': employees.count(),
+        'total_shown': len(employee_data),
     }
     return render(request, 'team_attendance.html', context)
 
@@ -2342,7 +2361,7 @@ def attendance_report(request):
             date__month=month,
             date__lte=end_date
         )
-    ).select_related('user')
+    ).select_related('user', 'shift')
 
     # --- Get leaves (limited to end_date) — COMPANY FILTERED ---
     all_leaves = get_company_filtered(
@@ -2410,9 +2429,12 @@ def attendance_report(request):
             if any(start <= att.date <= end for l in emp_leaves for start, end in [(max(l.start_date, first_day), min(l.end_date, end_date))]):
                 status_label = 'On Leave'
 
-            if att.check_in_time and att.check_out_time and shift:
-                shift_start = timezone.make_aware(datetime.combine(att.date, shift.start_time))
-                shift_end = timezone.make_aware(datetime.combine(att.date, shift.end_time))
+            # ─── Historical shift for this attendance row ───
+            day_shift = att.shift if att.shift else shift
+
+            if att.check_in_time and att.check_out_time and day_shift:
+                shift_start = timezone.make_aware(datetime.combine(att.date, day_shift.start_time))
+                shift_end = timezone.make_aware(datetime.combine(att.date, day_shift.end_time))
 
                 if att.check_in_time > shift_start:
                     late_days += 1
@@ -2424,16 +2446,21 @@ def attendance_report(request):
                     if status_label == 'Present':
                         status_label = 'Early Out'
 
-                if att.check_out_time > shift_end and shift.overtime_allowed:
+                ot_minutes = 0
+                if att.check_out_time > shift_end and day_shift.overtime_allowed:
                     overtime_seconds = (att.check_out_time - shift_end).total_seconds()
                     ot_minutes = int(overtime_seconds // 60)
 
-                    if shift.overtime_limit:
-                        limit_minutes = shift.overtime_limit * 60
+                    # Apply minimum OT threshold
+                    _min_ot = int(getattr(day_shift, 'min_overtime_minutes', 0) or 0)
+                    if ot_minutes < _min_ot:
+                        ot_minutes = 0
+
+                    # Cap at daily limit
+                    if ot_minutes > 0 and day_shift.overtime_limit:
+                        limit_minutes = int(day_shift.overtime_limit * 60)
                         if ot_minutes > limit_minutes:
                             ot_minutes = limit_minutes
-                else:
-                    ot_minutes = 0
 
                 overtime_minutes += ot_minutes
 
@@ -2449,7 +2476,7 @@ def attendance_report(request):
 
             daily_records.append({
                 'date': att.date,
-                'shift': shift.name if shift else '—',
+                'shift': day_shift.name if day_shift else '—',
                 'in_time': att.check_in_time.strftime('%I:%M %p') if att.check_in_time else '--:--',
                 'out_time': att.check_out_time.strftime('%I:%M %p') if att.check_out_time else '--:--',
                 'hours': hours_str,
@@ -2511,7 +2538,6 @@ def attendance_report(request):
                 messages.error(request, 'Please select an employee.')
                 return redirect('attendance_report')
             try:
-                # Security: verify employee is in the current user's scope
                 emp = get_company_filtered(
                     request,
                     User.objects.filter(id=employee_id)
@@ -2544,13 +2570,11 @@ def attendance_report(request):
             messages.error(request, 'No data available for the selected filters.')
             return redirect('attendance_report')
 
-        # --- Generate PDF ---
         buffer = BytesIO()
         first_day = date(year, month, 1)
         _, last_day_num = monthrange(year, month)
         last_day = date(year, month, last_day_num)
 
-        # Company name from the current user's company
         if request.user.is_superuser:
             company = Company.objects.first()
         else:
@@ -2582,14 +2606,12 @@ def attendance_report(request):
             shift = detailed['shift']
             daily = detailed['daily_data']
 
-            # Company header
             elements.append(Paragraph(company_name, header_style))
             elements.append(Paragraph("Attendance Report", subheader_style))
             month_name = first_day.strftime('%B %Y')
             elements.append(Paragraph(month_name, normal_style))
             elements.append(Spacer(1, 0.3*inch))
 
-            # Employee Info (3 columns, borderless)
             info_data = [
                 [
                     Paragraph(f"<b>Employee:</b> {emp.username}", normal_style),
@@ -2620,7 +2642,6 @@ def attendance_report(request):
             elements.append(info_table)
             elements.append(Spacer(1, 0.2*inch))
 
-            # Daily Attendance
             elements.append(Paragraph("Daily Attendance", heading_style))
             table_data = [['Date', 'Day', 'Status', 'Check In', 'Check Out', 'Hours']]
             for day in daily:
@@ -2649,7 +2670,6 @@ def attendance_report(request):
             elements.append(table)
             elements.append(Spacer(1, 0.3*inch))
 
-            # Monthly Summary
             elements.append(Paragraph("Monthly Summary", heading_style))
             ot_hours = int(detailed['overtime_minutes'] // 60)
             ot_minutes = int(detailed['overtime_minutes'] % 60)
@@ -2680,13 +2700,11 @@ def attendance_report(request):
             elements.append(summary_table)
             elements.append(Spacer(1, 0.5*inch))
 
-            # ----- Footer (inside the loop) -----
             local_now = timezone.localtime(timezone.now())
             footer_text = f"Generated on {local_now.strftime('%d %B %Y, %I:%M %p')} · Employee ID: {profile.employee_id if profile else 'N/A'}"
             elements.append(Paragraph(footer_text,
                                       ParagraphStyle('Footer', parent=normal_style, fontSize=7, alignment=1)))
 
-        # ----- Build the document (outside the loop) -----
         doc.build(elements)
         buffer.seek(0)
 
@@ -2705,13 +2723,11 @@ def attendance_report(request):
         download_type = request.GET.get('download_type', 'all')
         employee_id = request.GET.get('employee_id')
 
-        # --- Single employee mode ---
         if download_type == 'single':
             if not employee_id:
                 messages.error(request, 'Please select an employee.')
                 return redirect('attendance_report')
 
-            # Security: verify employee is in the user's company scope
             single_user = get_company_filtered(
                 request,
                 User.objects.filter(id=employee_id)
@@ -2726,7 +2742,6 @@ def attendance_report(request):
                 return redirect('attendance_report')
             employee_data = filtered_data
 
-        # --- Multiple employee mode ---
         elif download_type == 'multiple':
             emp_ids = request.GET.getlist('employee_ids')
             if not emp_ids:
@@ -2744,7 +2759,6 @@ def attendance_report(request):
             messages.error(request, 'No attendance data available for the selected month.')
             return redirect('attendance_report')
 
-        # --- Generate CSV ---
         month_name = date(year, month, 1).strftime('%B_%Y')
 
         dates = [first_day + timedelta(days=i) for i in range((end_date - first_day).days + 1)]
@@ -2790,7 +2804,7 @@ def attendance_report(request):
             emp_att_records = get_company_filtered(
                 request,
                 Attendance.objects.filter(user=emp, date__gte=first_day, date__lte=end_date)
-            )
+            ).select_related('shift')
             for att in emp_att_records:
                 if att.status == 'Present':
                     status_dict[att.date] = 'P'
@@ -2831,15 +2845,20 @@ def attendance_report(request):
             half_count = sum(1 for s in daily_statuses if s == 'HD')
             late_count = emp_data.get('late_days', 0)
 
+            # ─── OT (per-day historical shift + min threshold) ───
             ot_minutes_total = 0
             for att in emp_att_records.filter(status='Present'):
-                if shift and att.check_in_time and att.check_out_time:
-                    shift_end = timezone.make_aware(datetime.combine(att.date, shift.end_time))
+                day_shift = att.shift if att.shift else shift
+                if day_shift and att.check_in_time and att.check_out_time:
+                    shift_end = timezone.make_aware(datetime.combine(att.date, day_shift.end_time))
                     if att.check_out_time > shift_end:
-                        ot = (att.check_out_time - shift_end).total_seconds() // 60
-                        if shift.overtime_allowed:
-                            if shift.overtime_limit:
-                                ot = min(ot, shift.overtime_limit * 60)
+                        ot = int((att.check_out_time - shift_end).total_seconds() // 60)
+                        _min_ot = int(getattr(day_shift, 'min_overtime_minutes', 0) or 0)
+                        if ot < _min_ot:
+                            ot = 0
+                        if ot > 0 and day_shift.overtime_allowed:
+                            if day_shift.overtime_limit:
+                                ot = min(ot, int(day_shift.overtime_limit * 60))
                             ot_minutes_total += ot
 
             row.extend([
@@ -2883,7 +2902,6 @@ def attendance_report(request):
         'shift_filter': shift_filter,
     }
     return render(request, 'attendance_report.html', context)
-
 
 # ---------- Employee Attendance Detail ----------
 @login_required
@@ -2995,6 +3013,8 @@ def employee_attendance_detail(request, user_id):
     for day in range(start_day, max_day + 1):
         current_date = date(year, month, day)
         att = att_dict.get(current_date)
+        day_shift = att.shift if (att and att.shift) else shift
+        # day_shift = att.shift if (att and att.shift) else employee_shift
 
         in_time   = '--:--'
         out_time  = '--:--'
@@ -3002,10 +3022,11 @@ def employee_attendance_detail(request, user_id):
         status_label = 'Absent'
         record_is_late      = False
         record_late_minutes = 0
+        record_ot_minutes   = 0
 
         # ─── Determine working day / holiday for this date ───
         _day_attr    = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'][current_date.weekday()]
-        _is_work_day = getattr(shift, _day_attr, False) if shift else True
+        _is_work_day = getattr(day_shift, _day_attr, False) if day_shift else True
         _is_holiday  = current_date in holiday_days
 
         if att:
@@ -3052,14 +3073,15 @@ def employee_attendance_detail(request, user_id):
                     and _is_work_day and not _is_holiday):
 
                 shift_start = timezone.make_aware(
-                    datetime.combine(att.date, shift.start_time)
+                    datetime.combine(att.date, day_shift.start_time)
                 )
                 shift_end = timezone.make_aware(
-                    datetime.combine(att.date, shift.end_time)
+                    datetime.combine(att.date, day_shift.end_time)
                 )
 
-                # Late arrival
-                if att.check_in_time > shift_start:
+                    # Late arrival (respecting shift grace period)
+                _grace = int(day_shift.grace_period or 0)
+                if att.check_in_time > shift_start + timedelta(minutes=_grace):
                     late_days += 1
                     record_is_late = True
                     late_sec = (att.check_in_time - shift_start).total_seconds()
@@ -3070,12 +3092,21 @@ def employee_attendance_detail(request, user_id):
                     early_out_days += 1
 
                 # Overtime (only if shift allows)
-                if att.check_out_time > shift_end and shift.overtime_allowed:
+                if att.check_out_time > shift_end and day_shift.overtime_allowed:
                     ot_sec = (att.check_out_time - shift_end).total_seconds()
                     ot_min = int(ot_sec // 60)
-                    if shift.overtime_limit:
-                        ot_min = min(ot_min, int(shift.overtime_limit * 60))
-                    total_overtime_minutes += ot_min
+
+                    # Minimum threshold — below this, ignore
+                    _min_ot = int(getattr(day_shift, 'min_overtime_minutes', 0) or 0)
+                    if ot_min < _min_ot:
+                        ot_min = 0
+
+                    if ot_min > 0 and day_shift.overtime_limit:
+                        ot_min = min(ot_min, int(day_shift.overtime_limit * 60))
+
+                    if ot_min > 0:
+                        total_overtime_minutes += ot_min
+                        record_ot_minutes = ot_min
 
             # ─── Stats ───
             if status_label in ('Present', 'Late', 'Early Out', 'Under Review'):
@@ -3106,15 +3137,24 @@ def employee_attendance_detail(request, user_id):
                 status_label = 'Absent'
                 absent += 1
 
+        # Format per-day OT
+        if record_ot_minutes > 0:
+            _oh, _om = divmod(record_ot_minutes, 60)
+            _ot_str = f"{_oh}h {_om}m" if _oh else f"{_om}m"
+        else:
+            _ot_str = '—'
+
         daily_records.append({
             'date':         current_date,
-            'shift':        shift.name if shift else '—',
+            'shift':        day_shift.name if day_shift else '—',
             'in_time':      in_time,
             'out_time':     out_time,
             'hours':        hours_str,
             'status':       status_label,
             'is_late':      record_is_late,
             'late_minutes': record_late_minutes,
+            'overtime':     _ot_str,
+            'overtime_min': record_ot_minutes,
         })
 
     # ─── Sort — most recent date first ───
@@ -3176,6 +3216,7 @@ def employee_attendance_detail(request, user_id):
         'late_days': late_days,
         'early_out_days': early_out_days,
         'overtime': ot_formatted,
+        'show_overtime':          bool(shift and shift.overtime_allowed),
         'rate': rate,
         'month': month,
         'year': year,
@@ -3194,6 +3235,7 @@ def employee_attendance_detail(request, user_id):
         'holiday_work': holiday_work,
         'present_weighted': present_weighted,
         'absent_weighted':  absent_weighted,
+        
     }
     return render(request, 'employee_attendance_detail.html', context)
 
@@ -3269,6 +3311,8 @@ def attendance_view(request):
     for day in range(1, last_day + 1):
         current_date = date(year, month, day)
         att = att_dict.get(current_date)
+        day_shift = att.shift if (att and att.shift) else employee_shift
+        
 
         if att:
             # ✅ Trust the DB status for flagged/flow states
@@ -3285,7 +3329,23 @@ def attendance_view(request):
             check_in = att.check_in_time
             check_out = att.check_out_time
             work_seconds = (check_out - check_in).total_seconds() if check_in and check_out else 0
-            overtime_seconds = max(0, work_seconds - 8 * 3600) if work_seconds else 0
+            # overtime_seconds = max(0, work_seconds - 8 * 3600) if work_seconds else 0
+            # Overtime — respects shift's end_time, min_overtime_minutes, and cap
+            overtime_seconds = 0
+            if check_in and check_out and employee_shift and employee_shift.overtime_allowed:
+                _shift_end = timezone.make_aware(
+                    datetime.combine(check_in.date(), employee_shift.end_time)
+                )
+                if check_out > _shift_end:
+                    _raw_ot_min = int((check_out - _shift_end).total_seconds() // 60)
+                    _min_ot = int(getattr(employee_shift, 'min_overtime_minutes', 0) or 0)
+                    if _raw_ot_min < _min_ot:
+                        _raw_ot_min = 0
+                    if _raw_ot_min > 0 and employee_shift.overtime_limit:
+                        _cap = int(employee_shift.overtime_limit * 60)
+                        _raw_ot_min = min(_raw_ot_min, _cap)
+                    overtime_seconds = _raw_ot_min * 60
+
             if check_in and check_out:
                 complete_count += 1
                 total_working_hours += work_seconds / 3600
@@ -3888,6 +3948,10 @@ def notification_list(request):
         user=request.user
     ).order_by('-created_at')
 
+    # Split by type — template's two tabs need their own lists
+    info_notifs   = notifications.filter(notification_type='info')
+    action_notifs = notifications.filter(notification_type='action')
+
     # Only auto-mark INFO notifications as read when the list is viewed.
     # Action notifications stay unread until HR acts on them.
     Notification.objects.filter(
@@ -3898,10 +3962,11 @@ def notification_list(request):
 
     context = {
         'notifications': notifications,
+        'info_notifs':   info_notifs,
+        'action_notifs': action_notifs,
     }
     return render(request, 'notifications.html', context)
-
-
+    
 
 # ---------- Profile ----------
 @login_required
@@ -4103,6 +4168,7 @@ def setup(request):
     context = {
         'shifts':         shifts,
         'leave_types':    leave_types,
+        'late_leave_types': leave_types,
         'holidays':       holidays,
         'active_tab':     active_tab,
         'late_rule':      late_rule,
@@ -4139,6 +4205,7 @@ def shift_create(request):
             min_working_hours=int(request.POST.get('min_working_hours', 480)),
             overtime_allowed=request.POST.get('overtime_allowed') == 'on',
             overtime_limit=float(request.POST.get('overtime_limit', 2)),
+            min_overtime_minutes=int(request.POST.get('min_overtime_minutes', 0)),
             mon=request.POST.get('mon') == 'on',
             tue=request.POST.get('tue') == 'on',
             wed=request.POST.get('wed') == 'on',
@@ -4176,6 +4243,7 @@ def shift_edit(request, pk):
         shift.min_working_hours = int(request.POST.get('min_working_hours', 480))
         shift.overtime_allowed = request.POST.get('overtime_allowed') == 'on'
         shift.overtime_limit = float(request.POST.get('overtime_limit', 2))
+        shift.min_overtime_minutes = int(request.POST.get('min_overtime_minutes', 0))
         shift.mon = request.POST.get('mon') == 'on'
         shift.tue = request.POST.get('tue') == 'on'
         shift.wed = request.POST.get('wed') == 'on'
@@ -4234,16 +4302,13 @@ def assign_shift(request):
 
         # ─── Filter employee_ids by role and company ───
         if user.is_superuser:
-            # Superuser can assign any employee
             allowed_profiles = EmployeeProfile.objects.filter(user_id__in=employee_ids)
         elif user.groups.filter(name='HR Admin').exists():
-            # HR Admin: only own company employees
             company = get_user_company(request)
             allowed_profiles = EmployeeProfile.objects.filter(
                 user_id__in=employee_ids, company=company
             )
         else:
-            # Manager: only their team
             try:
                 profile = user.profile
                 team_members = EmployeeProfile.objects.filter(
@@ -4251,7 +4316,7 @@ def assign_shift(request):
                 ).values_list('user_id', flat=True)
                 allowed_profiles = EmployeeProfile.objects.filter(
                     user_id__in=employee_ids
-                ).filter(user_id__in=team_members)   # ✅ Chained filter (was commented out)
+                ).filter(user_id__in=team_members)
             except EmployeeProfile.DoesNotExist:
                 allowed_profiles = EmployeeProfile.objects.none()
 
@@ -4261,17 +4326,61 @@ def assign_shift(request):
             messages.error(request, 'No valid employees selected for shift assignment.')
             return redirect('assign_shift')
 
-        updated = EmployeeProfile.objects.filter(user_id__in=allowed_ids).update(
-            shift=shift,
-            shift_effective_from=effective_from if effective_from else None
-        )
+        # ─── Parse effective date ───
+        from datetime import datetime as _dt
+        today_d = timezone.localdate()
+        eff_date = None
+        if effective_from:
+            try:
+                eff_date = _dt.strptime(str(effective_from), '%Y-%m-%d').date()
+            except (ValueError, TypeError):
+                eff_date = None
+
+        # ─── Apply now OR queue as pending ───
+        if eff_date and eff_date > today_d:
+            updated = EmployeeProfile.objects.filter(user_id__in=allowed_ids).update(
+                pending_shift=shift,
+                pending_shift_effective_from=eff_date,
+            )
+        else:
+            updated = EmployeeProfile.objects.filter(user_id__in=allowed_ids).update(
+                shift=shift,
+                shift_effective_from=eff_date,
+                pending_shift=None,
+                pending_shift_effective_from=None,
+            )
+
+        # ─── Notify each assigned employee ───
+        working_days = [
+            name for code, name in [
+                ('mon', 'Mon'), ('tue', 'Tue'), ('wed', 'Wed'),
+                ('thu', 'Thu'), ('fri', 'Fri'), ('sat', 'Sat'), ('sun', 'Sun'),
+            ]
+            if getattr(shift, code, False)
+        ]
+        _timing = f"{shift.start_time.strftime('%I:%M %p')} – {shift.end_time.strftime('%I:%M %p')}"
+        _effective = eff_date.strftime('%d %b %Y') if eff_date else 'Immediate'
+
+        for prof in EmployeeProfile.objects.filter(user_id__in=allowed_ids).select_related('user'):
+            Notification.objects.create(
+                user=prof.user,
+                company=prof.company,
+                message=(
+                    f"Your shift has been updated.\n"
+                    f"Shift: {shift.name}\n"
+                    f"Timing: {_timing}\n"
+                    f"Working days: {', '.join(working_days) if working_days else '—'}\n"
+                    f"Effective from: {_effective}"
+                ),
+                notification_type='info',
+            )
+
         messages.success(request, f'Shift "{shift.name}" assigned to {updated} employee(s).')
         return redirect('assign_shift')
 
     # ─── GET – filter everything by company ───
     shifts = get_company_filtered(request, Shift.objects.all()).order_by('name')
 
-    # Filter employees based on role
     if user.is_superuser:
         employees = User.objects.filter(is_superuser=False).select_related('profile').order_by('username')
     elif user.groups.filter(name='HR Admin').exists():
@@ -4280,7 +4389,6 @@ def assign_shift(request):
             is_superuser=False, profile__company=company
         ).select_related('profile').order_by('username')
     else:
-        # Manager: only their team
         try:
             profile = user.profile
             team_ids = EmployeeProfile.objects.filter(
@@ -4290,13 +4398,11 @@ def assign_shift(request):
         except EmployeeProfile.DoesNotExist:
             employees = User.objects.none()
 
-    # Get filter parameters
     department_filter = request.GET.get('department', '')
     designation_filter = request.GET.get('designation', '')
     location_filter = request.GET.get('location', '')
     team_filter = request.GET.get('team', '')
 
-    # Apply filters
     filtered_employees = employees
     if department_filter:
         filtered_employees = filtered_employees.filter(profile__department__icontains=department_filter)
@@ -4307,7 +4413,6 @@ def assign_shift(request):
     if team_filter:
         filtered_employees = filtered_employees.filter(profile__team__icontains=team_filter)
 
-    # Build employee list
     employee_list = []
     for emp_user in filtered_employees:
         profile = getattr(emp_user, 'profile', None)
@@ -4322,7 +4427,6 @@ def assign_shift(request):
             'team': getattr(profile, 'team', ''),
         })
 
-    # ─── Distinct departments/designations from the SAME company only ───
     distinct_departments = get_company_filtered(
         request, EmployeeProfile.objects.all()
     ).values_list('department', flat=True).distinct().order_by('department')
@@ -4342,7 +4446,6 @@ def assign_shift(request):
         'distinct_designations': [d for d in distinct_designations if d],
     }
     return render(request, 'assign_shift.html', context)
-
 
 
 # ---------- Employee Search API (for autocomplete) ----------
@@ -5075,6 +5178,10 @@ def payroll_generate(request):
             late_deduction=calc['late_deduction'],
             late_halfday_deduction=calc['late_halfday_deduction'],
 
+            late_penalty_days=calc['late_penalty_days'],
+            late_leave_days=calc['late_leave_days'],
+            late_lop_days=calc['late_lop_days'],
+
 
             net_salary=calc['net_payable'],
             status='draft',
@@ -5274,7 +5381,13 @@ def payslip_pdf(request, pk):
         return s
 
     gross     = d(payroll.gross_salary) + ot_amount
-    total_ded = abs_ded + ul_ded + other_ded
+    total_ded = (
+        abs_ded
+        + ul_ded
+        + other_ded
+        + d(payroll.late_deduction)
+        + d(payroll.late_halfday_deduction)
+    )
     net       = d(payroll.net_salary)
 
     # ─── Document ───
@@ -5520,7 +5633,6 @@ def payslip_pdf(request, pk):
             Paragraph("Amount", col_header_right_style),
         ],
         # Basic / Absence
-        # Basic / Absence (pure)
         [
             Paragraph("Basic", cell_style),
             Paragraph(f"Rs. {payroll.basic_salary:,.2f}", cell_amount_style),
@@ -5532,7 +5644,7 @@ def payslip_pdf(request, pk):
             Paragraph("HRA", cell_style),
             Paragraph(f"Rs. {hra:,.2f}", cell_amount_style),
             Paragraph(f"Half-Day ({half_day_count} day)" if half_day_count > 0
-                      else "Half-Day", cell_style),
+                    else "Half-Day", cell_style),
             Paragraph(f"Rs. {half_day_deduction:,.2f}", cell_amount_style),
         ],
         # Allowance / Unpaid Leave
@@ -5548,6 +5660,18 @@ def payslip_pdf(request, pk):
             Paragraph(f"Rs. {ot_amount:,.2f}", cell_amount_style),
             Paragraph("Other Deduction", cell_style),
             Paragraph(f"Rs. {other_ded:,.2f}", cell_amount_style),
+        ],
+        # Late Penalty row (empty on earnings side, value on deductions side)
+        [
+            Paragraph("", cell_style),
+            Paragraph("", cell_amount_style),
+            Paragraph(
+                f"Late Penalty ({payroll.late_days} mark{'s' if payroll.late_days != 1 else ''})"
+                if payroll.late_deduction and payroll.late_deduction > 0
+                else "Late Penalty",
+                cell_style,
+            ),
+            Paragraph(f"Rs. {(payroll.late_deduction or 0):,.2f}", cell_amount_style),
         ],
         # Total row
         [
@@ -5592,7 +5716,13 @@ def payslip_pdf(request, pk):
     elements.append(Spacer(1, 4))
 
     # ─── In words ───
-    net_words_text = number_to_words(net) + ' Rupees Only'
+    net_dec = Decimal(str(net))
+    rupees = int(net_dec)
+    paise = int(round((net_dec - rupees) * 100))
+    if paise > 0:
+        net_words_text = f"{number_to_words(rupees)} Rupees and {number_to_words(paise)} Paise Only"
+    else:
+        net_words_text = f"{number_to_words(rupees)} Rupees Only"
     elements.append(Paragraph(
         f"In words: <b>{net_words_text}</b>",
         words_style,

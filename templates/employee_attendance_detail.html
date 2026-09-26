@@ -724,7 +724,7 @@
                 <div class="ead-kpi-value">{{ late_days }}</div>
             </div>
         </div>
-        {% if shift_ot_allowed and overtime and overtime != '—' %}
+        {% if show_overtime and overtime and overtime != '—' %} 
         <div class="ead-kpi">
             <div class="ead-kpi-ico info"><i class="las la-business-time"></i></div>
             <div class="ead-kpi-body">
@@ -790,6 +790,16 @@
                                             <i class="las la-clock"></i> +{{ rec.late_minutes }}m
                                         </span>
                                     {% endif %}
+                                    {% if show_overtime %}
+                                        {% if rec.overtime and rec.overtime != '—' %}
+                                            <span class="ead-chip" style="color: #4f46e5; background-color: #fff;">
+                                                <i class="las la-business-time" style="color: #4f46e5;"></i> {{ rec.overtime }}
+                                            </span>
+                                        {% else %}
+                                            <span class="muted"></span>
+                                        {% endif %}
+                                    {% endif %}
+                                        
                                 </td>
                             </tr>
                         {% endfor %}

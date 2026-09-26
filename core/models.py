@@ -14,7 +14,6 @@ class Company(models.Model):
     def __str__(self):
         return self.name
 
-
 # ---------- Attendance Model (MOVED OUTSIDE Company) ----------
 class Attendance(models.Model):
     # ─── Status for reports and business logic ───
@@ -87,6 +86,15 @@ class Attendance(models.Model):
         help_text="Longitude of check-out location",
     )
 
+    # ─── Shift snapshot (historical record) ───
+    shift = models.ForeignKey(
+        'Shift',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='attendance_records',
+        help_text="The shift that was active on this date",
+    )
+
     class Meta:
         # One attendance record per user per day
         unique_together = [['user', 'date']]
@@ -109,7 +117,6 @@ class Attendance(models.Model):
     #
     # Now views set `status` explicitly, and it sticks.
     # ─────────────────────────────────────────────────────
-
 
 
 
@@ -168,6 +175,14 @@ class Shift(models.Model):
         default=1.50,
         help_text="Multiplier for OT rate. 1.50 = 1.5×, 2.00 = 2×."
     )
+
+    # ────────── NEW FIELD ──────────
+    min_overtime_minutes = models.IntegerField(
+        default=0,
+        help_text="Minimum OT in minutes to count. Below this, OT is ignored (e.g. 30)"
+    )
+    # ──────────────────────────────
+
     # ──────────────────────────────
 
     mon = models.BooleanField(default=True)
@@ -297,6 +312,19 @@ class EmployeeProfile(models.Model):
     shift = models.ForeignKey(Shift, on_delete=models.SET_NULL, null=True, blank=True)
     shift_effective_from = models.DateField(null=True, blank=True, help_text="Date when this shift becomes effective")
 
+    # ── NEW: Pending shift (takes effect on the effective date) ──
+    pending_shift = models.ForeignKey(
+        Shift,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='pending_for_profiles',
+        help_text="Shift queued to take over on pending_shift_effective_from",
+    )
+    pending_shift_effective_from = models.DateField(
+        null=True, blank=True,
+        help_text="Date when pending_shift becomes the active shift",
+    )
+
     # ----- NEW: Role Field -----
     role = models.CharField(
         max_length=20,
@@ -354,8 +382,7 @@ class EmployeeProfile(models.Model):
     
     def __str__(self):
         return self.full_name or self.user.username
-
-
+        
 # ---------- Leave Request Model ----------
 
 class LeaveRequest(models.Model):
@@ -837,11 +864,22 @@ class Payroll(models.Model):
         return f"{self.employee.full_name} - {self.month}/{self.year} ({self.status})"
         
 
-    # ✅ ADD THESE TWO PROPERTIES HERE
+    @property
+    def total_deduction(self):
+        return (
+            (self.absent_deduction or 0)
+            + (self.half_day_deduction or 0)
+            + (self.unpaid_leave_deduction or 0)
+            + (self.other_deduction or 0)
+            + (self.late_deduction or 0)
+            + (self.late_halfday_deduction or 0)
+        )
+
     @property
     def total_earnings(self):
         return (self.gross_salary or 0) + (self.overtime_amount or 0)
 
     @property
     def total_deductions(self):
-        return (self.unpaid_leave_deduction or 0) + (self.other_deduction or 0)
+        return self.total_deduction
+

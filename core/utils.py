@@ -5,24 +5,34 @@ from datetime import date, timedelta, datetime
 from calendar import monthrange
 from django.utils import timezone
 
-
 def get_employee_attendance_for_pdf(employee, year, month, first_day, last_day):
     """
     Returns a dictionary with employee attendance data for PDF generation.
+    Uses the HISTORICAL shift stored on each Attendance row (falls back to
+    the employee's current profile shift for days with no record).
     """
     from .models import Attendance, LeaveRequest, Holiday, Shift, EmployeeProfile
+    from collections import Counter
 
     profile = employee.profile
     shift = profile.shift if profile else None
     holidays = Holiday.objects.filter(date__gte=first_day, date__lte=last_day).values_list('date', flat=True)
     holidays = set(holidays)
 
-    # Get attendance records
+    # Get attendance records (select_related shift for speed)
     attendances = Attendance.objects.filter(
         user=employee,
         date__year=year,
         date__month=month
-    ).order_by('date')
+    ).select_related('shift').order_by('date')
+
+    # ─── Dominant shift for this month (for the PDF header) ───
+    _shift_ids = [a.shift_id for a in attendances if a.shift_id]
+    if _shift_ids:
+        _dom_id = Counter(_shift_ids).most_common(1)[0][0]
+        month_shift = Shift.objects.filter(id=_dom_id).first() or shift
+    else:
+        month_shift = shift
 
     # Get approved leaves
     leaves = LeaveRequest.objects.filter(
@@ -52,16 +62,20 @@ def get_employee_attendance_for_pdf(employee, year, month, first_day, last_day):
             'working_hours': '--'
         }
 
+        # ─── Fetch attendance early so we can pick the historical shift ───
+        att = attendances.filter(date=d).first()
+        day_shift = att.shift if (att and att.shift) else shift
+
         # Check holiday
         if d in holidays:
             day_data['status'] = 'Holiday'
             daily_data.append(day_data)
             continue
 
-        # Check weekly off
-        if shift:
+        # Check weekly off (only when no record — worked on a weekly off)
+        if day_shift and not att:
             day_abbr = d.strftime('%a').lower()[:3]
-            if not getattr(shift, day_abbr, False):
+            if not getattr(day_shift, day_abbr, False):
                 day_data['status'] = 'Weekly Off'
                 daily_data.append(day_data)
                 continue
@@ -83,8 +97,7 @@ def get_employee_attendance_for_pdf(employee, year, month, first_day, last_day):
             daily_data.append(day_data)
             continue
 
-        # Check attendance record
-        att = attendances.filter(date=d).first()
+        # Attendance record
         if att:
             if att.status == 'Present':
                 day_data['status'] = 'Present'
@@ -111,20 +124,28 @@ def get_employee_attendance_for_pdf(employee, year, month, first_day, last_day):
                 day_data['working_hours'] = f"{hours}h {minutes}m"
                 total_working_seconds += diff.seconds
 
-                # Check late
-                if shift and att.check_in_time:
-                    shift_start = timezone.make_aware(datetime.combine(d, shift.start_time))
+                # Check late (uses the shift active on that day)
+                if day_shift and att.check_in_time:
+                    shift_start = timezone.make_aware(datetime.combine(d, day_shift.start_time))
                     if att.check_in_time > shift_start:
                         total_late += 1
 
-                # Check overtime
-                if shift and att.check_out_time:
-                    shift_end = timezone.make_aware(datetime.combine(d, shift.end_time))
+                # Check overtime (uses the shift active on that day)
+                if day_shift and att.check_out_time:
+                    shift_end = timezone.make_aware(datetime.combine(d, day_shift.end_time))
                     if att.check_out_time > shift_end:
-                        ot = (att.check_out_time - shift_end).total_seconds() // 60
-                        if shift.overtime_allowed and shift.overtime_limit:
-                            ot = min(ot, shift.overtime_limit * 60)
-                        total_overtime_minutes += ot
+                        ot = int((att.check_out_time - shift_end).total_seconds() // 60)
+
+                        # Apply minimum OT threshold
+                        _min_ot = int(getattr(day_shift, 'min_overtime_minutes', 0) or 0)
+                        if ot < _min_ot:
+                            ot = 0
+
+                        # Cap at daily limit
+                        if ot > 0 and day_shift.overtime_allowed:
+                            if day_shift.overtime_limit:
+                                ot = min(ot, int(day_shift.overtime_limit * 60))
+                            total_overtime_minutes += ot
         else:
             # No attendance record = Absent (if not leave/holiday/off)
             day_data['status'] = 'Absent'
@@ -141,7 +162,7 @@ def get_employee_attendance_for_pdf(employee, year, month, first_day, last_day):
     return {
         'employee': employee,
         'profile': profile,
-        'shift': shift,
+        'shift': month_shift,
         'daily_data': daily_data,
         'working_days': total_working_days,
         'present': total_present,
@@ -153,7 +174,7 @@ def get_employee_attendance_for_pdf(employee, year, month, first_day, last_day):
         'total_working_hours': f"{total_hours}h {total_minutes}m",
         'avg_working_hours': f"{int(avg_hours)}h {int((avg_hours % 1) * 60)}m" if avg_hours > 0 else "--",
     }
-
+    
 
 def get_approver(employee_user):
     """
@@ -289,6 +310,7 @@ def get_company_filtered(request, queryset, company_field=None):
 
     
 
+
 def calculate_monthly_payroll(employee, year, month, salary):
     """
     Calculate monthly payroll for one employee by REUSING
@@ -301,7 +323,8 @@ def calculate_monthly_payroll(employee, year, month, salary):
     from django.utils import timezone
     from django.db.models import Q
     from decimal import Decimal
-    from .models import Attendance, LeaveRequest, Holiday, LateComingRule
+    from collections import Counter
+    from .models import Attendance, LeaveRequest, Holiday, LateComingRule, Shift
 
     first_day = date(year, month, 1)
     _, last_day_num = monthrange(year, month)
@@ -315,12 +338,43 @@ def calculate_monthly_payroll(employee, year, month, salary):
 
     # ✅ `employee` IS the profile — no `.profile`
     company = employee.company
-    shift = employee.shift if employee.shift else None
     user = employee.user
+
+    # ── Attendance (fetch early — needed for historical shift detection) ──
+    attendances = Attendance.objects.filter(
+        user=user,
+        company=company,
+        date__year=year,
+        date__month=month
+    ).select_related('shift')
+
+    # ── Detect the dominant shift for THIS month (historical) ──
+    # Uses the shift stored on attendance rows. Falls back to current profile shift.
+    _shift_ids = [a.shift_id for a in attendances if a.shift_id]
+    if _shift_ids:
+        _dominant_id = Counter(_shift_ids).most_common(1)[0][0]
+        shift = Shift.objects.filter(id=_dominant_id).first() or (employee.shift or None)
+    else:
+        shift = employee.shift if employee.shift else None
 
     # ── OT rate: auto-computed from basic × shift multiplier ──
     if shift and shift.overtime_allowed:
-        _monthly_hours = Decimal(208)
+        # Hours per day from shift's min_working_hours (break included)
+        if shift.min_working_hours:
+            _hours_per_day = Decimal(str(shift.min_working_hours)) / Decimal(60)
+        else:
+            _hours_per_day = Decimal('8')
+
+        # Count working days in this month from the shift flags
+        _flags = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+        _wd = 0
+        for _d in range(1, last_day_num + 1):
+            _dd = date(year, month, _d)
+            if getattr(shift, _flags[_dd.weekday()], False):
+                _wd += 1
+        _working_days = Decimal(str(_wd)) if _wd > 0 else Decimal('26')
+
+        _monthly_hours = _working_days * _hours_per_day
         _multiplier = Decimal(str(shift.overtime_multiplier or 1.50))
         ot_rate = (basic / _monthly_hours * _multiplier).quantize(Decimal('0.01'))
     else:
@@ -359,14 +413,6 @@ def calculate_monthly_payroll(employee, year, month, salary):
                 continue
         working_days += 1
 
-    # ── Attendance ──
-    attendances = Attendance.objects.filter(
-        user=user,
-        company=company,
-        date__year=year,
-        date__month=month
-    )
-
     # ═══════════════════════════════════════════════════════════════
     # FIX #2 — Present days (count all "worked" statuses)
     # ═══════════════════════════════════════════════════════════════
@@ -378,20 +424,24 @@ def calculate_monthly_payroll(employee, year, month, salary):
         elif att.status == 'Half-Day':
             present_days += Decimal('0.5')
 
-    # ── Late Coming Rule ──
+    # ── Late Coming Rule (uses per-day shift for accuracy) ──
     late_rule, _ = LateComingRule.objects.get_or_create(company=company)
 
     late_days          = 0
     late_halfday_days  = 0
     total_late_minutes = 0
 
-    if late_rule.is_enabled and shift:
-        grace_delta  = timedelta(minutes=shift.grace_period or 0)
+    if late_rule.is_enabled:
         cutoff_delta = timedelta(minutes=late_rule.half_day_cutoff_minutes)
 
         for att in attendances.filter(check_in_time__isnull=False):
+            day_shift = att.shift if att.shift else shift
+            if not day_shift:
+                continue
+
+            grace_delta = timedelta(minutes=day_shift.grace_period or 0)
             shift_start = timezone.make_aware(
-                datetime.combine(att.date, shift.start_time)
+                datetime.combine(att.date, day_shift.start_time)
             )
             check_in = att.check_in_time
 
@@ -406,21 +456,32 @@ def calculate_monthly_payroll(employee, year, month, salary):
             else:
                 late_days += 1
 
-    # ── Overtime (reuses existing calculation) ──
+    # ── Overtime (uses per-day shift for accuracy) ──
     overtime_minutes = 0
     for att in attendances:
-        if att.check_in_time and att.check_out_time and shift:
-            if not shift.overtime_allowed:
+        day_shift = att.shift if att.shift else shift
+        if att.check_in_time and att.check_out_time and day_shift:
+            if not day_shift.overtime_allowed:
                 continue
+
             shift_end = timezone.make_aware(
-                datetime.combine(att.date, shift.end_time)
+                datetime.combine(att.date, day_shift.end_time)
             )
+
             if att.check_out_time > shift_end:
                 ot_min = int((att.check_out_time - shift_end).total_seconds() // 60)
-                if shift.overtime_limit:
-                    limit_min = int(shift.overtime_limit * 60)
+
+                # Enforce minimum OT threshold — below this, ignore
+                _min_ot = int(getattr(day_shift, 'min_overtime_minutes', 0) or 0)
+                if ot_min < _min_ot:
+                    ot_min = 0
+
+                # Cap at daily OT limit
+                if day_shift.overtime_limit and ot_min > 0:
+                    limit_min = int(day_shift.overtime_limit * 60)
                     if ot_min > limit_min:
                         ot_min = limit_min
+
                 overtime_minutes += ot_min
 
     overtime_hours = Decimal(str(round(overtime_minutes / 60, 2)))
@@ -530,8 +591,7 @@ def calculate_monthly_payroll(employee, year, month, salary):
                 late_lop_days = late_penalty_days
 
         late_deduction = (per_day * late_lop_days).quantize(Decimal('0.01'))
-        late_halfday_deduction = (per_day * late_penalty_days).quantize(Decimal('0.01'))
-
+        late_halfday_deduction = (per_day * Decimal("0.5") * Decimal(str(late_halfday_days))).quantize(Decimal("0.01"))
     total_deduction = (
         absent_deduction
         + unpaid_leave_deduction
@@ -688,7 +748,7 @@ def get_leave_balance(user, leave_type, year=None):
                 year=year,
             ).aggregate(s=Sum('late_leave_days'))['s'] or Decimal('0')
 
-    available = total - used - late_used
+    available = total - used
 
     return {
         'total':     total,
@@ -711,3 +771,38 @@ def is_weekend_for_shift(date_obj, shift):
     day_attr = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'][date_obj.weekday()]
     return not getattr(shift, day_attr, False)
     
+
+def get_late_deduction_history(user, leave_type, year=None):
+    """
+    Return a list of {month, year, late_days, absorbed_days} for each payroll
+    where late penalty was absorbed by this leave type.
+    """
+    from datetime import date as _date
+    from .models import Payroll, LateComingRule
+
+    if year is None:
+        year = _date.today().year
+
+    profile = getattr(user, 'profile', None)
+    if not profile or not profile.company:
+        return []
+
+    rule = LateComingRule.objects.filter(company=profile.company).first()
+    if not rule or rule.target_leave_type_id != leave_type.id:
+        return []
+
+    rows = (
+        Payroll.objects
+        .filter(employee=profile, year=year, late_leave_days__gt=0)
+        .order_by('-month')
+    )
+    return [
+        {
+            'month': r.month,
+            'year': r.year,
+            'month_name': _date(r.year, r.month, 1).strftime('%b %Y'),
+            'late_days': r.late_days,
+            'absorbed_days': r.late_leave_days,
+        }
+        for r in rows
+    ]

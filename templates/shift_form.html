@@ -562,7 +562,7 @@
 
                             <div class="row g-3"> 
 
-                            <div class="col-md-6" id="overtime_limit_div"
+                            <div class="col-md-4" id="overtime_limit_div"
                                  style="{% if not shift.overtime_allowed %}display: none;{% endif %}; margin-top:32px;">
                                 <div class="shf-field">
                                     <label for="overtime_limit" class="shf-label">
@@ -577,8 +577,27 @@
                                     </div>
                                 </div>
                             </div>
+
+                            <!-- ─────────── Minimum OT (minutes) ─────────── -->
+                            <div class="col-md-4" id="min_overtime_minutes_div"
+                                 style="{% if not shift.overtime_allowed %}display: none;{% endif %}; margin-top:32px;">
+                                <div class="shf-field">
+                                    <label for="min_overtime_minutes" class="shf-label">
+                                        <i class="las la-hourglass-half"></i> Minimum OT
+                                        <span class="shf-optional">(minutes)</span>
+                                    </label>
+                                    <input type="number" name="min_overtime_minutes" id="min_overtime_minutes" class="shf-input"
+                                           value="{{ shift.min_overtime_minutes|default:0 }}"
+                                           min="0" max="120" step="5">
+                                    <div class="shf-hint">
+                                        <i class="las la-info-circle"></i>
+                                        <span>OT below this many minutes is ignored. E.g. 30 → 25m not counted, 35m counted.</span>
+                                    </div>
+                                </div>
+                            </div>
+
                             <!-- ─────────── OT Multiplier ─────────── -->
-                            <div class="col-md-6" id="overtime_multiplier_div"
+                            <div class="col-md-4" id="overtime_multiplier_div"
                                  style="{% if not shift.overtime_allowed %}display: none;{% endif %}; margin-top:32px;">
                                 <div class="shf-field">
                                     <label for="overtime_multiplier" class="shf-label">
@@ -671,16 +690,19 @@
 </div>
 
 <!-- ===== JavaScript (unchanged) ===== -->
+
 <script>
     
     function toggleOvertimeLimit() {
         const checkbox = document.getElementById('overtime_allowed');
         const limitDiv = document.getElementById('overtime_limit_div');
-        const multDiv  = document.getElementById('overtime_multiplier_div');   // ← NEW
+        const multDiv  = document.getElementById('overtime_multiplier_div');
+        const minOtDiv = document.getElementById('min_overtime_minutes_div');   // ← NEW
 
         const show = checkbox.checked;
         if (limitDiv) limitDiv.style.display = show ? 'block' : 'none';
-        if (multDiv)  multDiv.style.display  = show ? 'block' : 'none';       // ← NEW
+        if (multDiv)  multDiv.style.display  = show ? 'block' : 'none';
+        if (minOtDiv) minOtDiv.style.display = show ? 'block' : 'none';       // ← NEW
     }
 
     // Live preview of working days
@@ -716,6 +738,7 @@
         updateWorkingDaysPreview();
     });
 </script>
+
 
 
 <script>

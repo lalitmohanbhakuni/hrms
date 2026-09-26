@@ -2,6 +2,7 @@ import ipaddress
 import logging
 from .models import EmployeeProfile
 from django.http import HttpResponseForbidden
+from django.utils import timezone
 
 
 logger = logging.getLogger(__name__)
@@ -213,4 +214,27 @@ class URLGuardMiddleware:
                 break
 
         return self.get_response(request)
+
+class ApplyPendingShiftMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        user = getattr(request, 'user', None)
+        if user and user.is_authenticated:
+            profile = getattr(user, 'profile', None)
+            if (profile
+                    and profile.pending_shift
+                    and profile.pending_shift_effective_from
+                    and profile.pending_shift_effective_from <= timezone.localdate()):
+                profile.shift = profile.pending_shift
+                profile.shift_effective_from = profile.pending_shift_effective_from
+                profile.pending_shift = None
+                profile.pending_shift_effective_from = None
+                profile.save(update_fields=[
+                    'shift', 'shift_effective_from',
+                    'pending_shift', 'pending_shift_effective_from',
+                ])
+        return self.get_response(request)
+
         
