@@ -6483,13 +6483,12 @@ def _validate_password_fields(user, password1, password2, is_create):
 # ─────────────────────────────────────────
 # Regularization Categories (HR Admin CRUD)
 # ─────────────────────────────────────────
-
 @login_required
 @hr_admin_required
 @company_required
 def reg_category_create(request):
     from .utils import get_user_company
-    from .models import RegularizationCategory, RegularizationType
+    from .models import RegularizationCategory
 
     company = get_user_company(request)
     if not company:
@@ -6497,10 +6496,9 @@ def reg_category_create(request):
         return redirect('setup')
 
     if request.method == 'POST':
-        name           = (request.POST.get('name') or '').strip()
-        system_type_id = request.POST.get('system_type')
-        limit          = int(request.POST.get('monthly_limit') or 3)
-        order          = int(request.POST.get('order') or 0)
+        name  = (request.POST.get('name') or '').strip()
+        limit = int(request.POST.get('monthly_limit') or 3)
+        order = int(request.POST.get('order') or 0)
 
         if not name:
             messages.error(request, 'Category name is required.')
@@ -6510,17 +6508,9 @@ def reg_category_create(request):
             messages.error(request, f'A category named "{name}" already exists.')
             return redirect('reg_category_create')
 
-        # Resolve FK
-        system_type_obj = None
-        if system_type_id:
-            system_type_obj = RegularizationType.objects.filter(
-                id=system_type_id, company=company
-            ).first()
-
         RegularizationCategory.objects.create(
             company=company,
             name=name,
-            system_type=system_type_obj,
             monthly_limit=limit,
             order=order,
             is_active=True,
@@ -6528,15 +6518,10 @@ def reg_category_create(request):
         messages.success(request, f'Category "{name}" created.')
         return redirect('setup')
 
-    # GET — fetch HR-managed types for the dropdown
-    reg_types = RegularizationType.objects.filter(
-        company=company, is_active=True
-    ).order_by('order', 'id')
-
     return render(request, 'attendance/reg_category_form.html', {
-        'action':    'Create',
-        'reg_types': reg_types,
+        'action': 'Create',
     })
+
 
 
 
@@ -6545,17 +6530,16 @@ def reg_category_create(request):
 @company_required
 def reg_category_edit(request, pk):
     from .utils import get_user_company
-    from .models import RegularizationCategory, RegularizationType
+    from .models import RegularizationCategory
 
     company = get_user_company(request)
     cat = get_object_or_404(RegularizationCategory, id=pk, company=company)
 
     if request.method == 'POST':
-        name           = (request.POST.get('name') or '').strip()
-        system_type_id = request.POST.get('system_type')
-        limit          = int(request.POST.get('monthly_limit') or 3)
-        order          = int(request.POST.get('order') or 0)
-        is_active      = 'is_active' in request.POST
+        name      = (request.POST.get('name') or '').strip()
+        limit     = int(request.POST.get('monthly_limit') or 3)
+        order     = int(request.POST.get('order') or 0)
+        is_active = 'is_active' in request.POST
 
         if not name:
             messages.error(request, 'Category name is required.')
@@ -6564,15 +6548,7 @@ def reg_category_edit(request, pk):
         ).exclude(id=cat.id).exists():
             messages.error(request, f'Another category named "{name}" already exists.')
         else:
-            # Resolve the FK from the submitted ID
-            system_type_obj = None
-            if system_type_id:
-                system_type_obj = RegularizationType.objects.filter(
-                    id=system_type_id, company=company
-                ).first()
-
             cat.name          = name
-            cat.system_type   = system_type_obj
             cat.monthly_limit = limit
             cat.order         = order
             cat.is_active     = is_active
@@ -6580,18 +6556,12 @@ def reg_category_edit(request, pk):
             messages.success(request, f'Category "{name}" updated.')
             return redirect('setup')
 
-    # GET — fetch HR-managed types for the dropdown
-    reg_types = RegularizationType.objects.filter(
-        company=company, is_active=True
-    ).order_by('order', 'id')
-
     return render(request, 'attendance/reg_category_form.html', {
-        'action':    'Edit',
-        'category':  cat,
-        'reg_types': reg_types,
+        'action':   'Edit',
+        'category': cat,
     })
-    
 
+    
 
 @login_required
 @hr_admin_required
