@@ -1,4 +1,5 @@
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import User, Group
@@ -82,7 +83,8 @@ def notify_admins(message, notification_type='info', related_object=None):
         create_notification(admin, message, notification_type, related_object)
 
 
-@ratelimit(key='ip', rate='5/m', method='POST', block=False)
+@ratelimit(key='ip', rate='5/m', method='POST', block=True)
+@ratelimit(key='post:username', rate='5/m', method='POST', block=True)
 def login_view(request):
     if request.method == 'POST':
         if getattr(request, 'limited', False):
@@ -1914,10 +1916,10 @@ def holiday_delete(request, pk):
 
 # ---------- Employee Leave Dashboard ----------
 
-
 @login_required
 def employee_leaves(request):
     from .utils import get_leave_balance, get_late_deduction_history
+    from .models import LateDeduction
 
     user = request.user
     tab = request.GET.get('tab', 'status')
@@ -1946,15 +1948,25 @@ def employee_leaves(request):
 
     holidays = get_company_filtered(request, Holiday.objects.all()).order_by('date')
 
+    # ── Employee's own late deduction transactions ──
+    profile = getattr(user, 'profile', None)
+    if profile:
+        late_deductions = LateDeduction.objects.filter(
+            employee=profile,
+        ).select_related('leave_type', 'payroll').order_by('-attendance_date')[:100]
+    else:
+        late_deductions = LateDeduction.objects.none()
+
     context = {
         'tab': tab,
         'leave_balance': leave_balance,
         'requests': requests,
         'holidays': holidays,
         'filter_status': filter_status,
+        'late_deductions': late_deductions,   # ← NEW
     }
     return render(request, 'employee_leaves.html', context)
-
+    
 
 # ---------- Apply for Leave ----------
 @login_required
@@ -3312,7 +3324,10 @@ def attendance_view(request):
         current_date = date(year, month, day)
         att = att_dict.get(current_date)
         day_shift = att.shift if (att and att.shift) else employee_shift
-        
+
+        # Late detection defaults
+        is_late = False
+        late_minutes = 0
 
         if att:
             # ✅ Trust the DB status for flagged/flow states
@@ -3329,7 +3344,17 @@ def attendance_view(request):
             check_in = att.check_in_time
             check_out = att.check_out_time
             work_seconds = (check_out - check_in).total_seconds() if check_in and check_out else 0
-            # overtime_seconds = max(0, work_seconds - 8 * 3600) if work_seconds else 0
+
+            # ─── Late detection (respecting shift grace period) ───
+            if check_in and day_shift and day_shift.start_time:
+                _shift_start = timezone.make_aware(
+                    datetime.combine(current_date, day_shift.start_time)
+                )
+                _grace = timedelta(minutes=day_shift.grace_period or 0)
+                if check_in > _shift_start + _grace:
+                    is_late = True
+                    late_minutes = int((check_in - _shift_start).total_seconds() // 60)
+
             # Overtime — respects shift's end_time, min_overtime_minutes, and cap
             overtime_seconds = 0
             if check_in and check_out and employee_shift and employee_shift.overtime_allowed:
@@ -3389,6 +3414,8 @@ def attendance_view(request):
             'can_regularize': can_regularize,
             'attendance_id': att.id if att else None,
             'is_weekend': is_weekend_for_shift(current_date, employee_shift),
+            'is_late': is_late,              # ← NEW
+            'late_minutes': late_minutes,    # ← NEW
         })
 
     # ✅ Sort ONCE outside the loop
@@ -3454,6 +3481,7 @@ def leave_cancel(request, leave_id):
 # ---------- Regularization ----------
 
 
+
 @login_required
 def regularize_request(request):
     if request.method == 'POST':
@@ -3481,25 +3509,6 @@ def regularize_request(request):
             )
             return redirect('regularize_request_list')
 
-        # ─── Check the existing attendance record ───
-        existing_att = Attendance.objects.filter(
-            user=request.user,
-            date=date_str,
-        ).first()
-
-        if existing_att:
-            allowed_statuses = ('Missing Checkout', 'Under Review', 'Absent', 'Incomplete')
-            if existing_att.status not in allowed_statuses:
-                messages.error(
-                    request,
-                    'Attendance already exists for this date. '
-                    'Only missing checkouts can be regularized.'
-                )
-                return redirect('attendance_view')
-
-        # ─── Company check ───
-        
-        
         # ─── Company check ───
         company = get_user_company(request)
         if not company:
@@ -3527,6 +3536,11 @@ def regularize_request(request):
             reg_date_check = date.fromisoformat(date_str)
         except (ValueError, TypeError):
             messages.error(request, 'Invalid date format.')
+            return redirect('regularize_request')
+
+        # ─── Block future dates ───
+        if reg_date_check > date.today():
+            messages.error(request, 'Cannot regularize future dates.')
             return redirect('regularize_request')
 
         usage = get_category_usage(
@@ -3589,7 +3603,6 @@ def regularize_request(request):
                     return val
                 return _pt(str(val))
 
-            # ✅ FIX: parse date_str → real date (reg_req.date may still be a string)
             reg_date = parse_date(date_str) or reg_req.date
 
             ci_t = _to_time(reg_req.check_in_time)
@@ -3598,7 +3611,6 @@ def regularize_request(request):
             ci_dt = timezone.make_aware(_dt.combine(reg_date, ci_t)) if ci_t else None
             co_dt = timezone.make_aware(_dt.combine(reg_date, co_t)) if co_t else None
 
-            # Determine final status
             if ci_dt and co_dt and co_dt > ci_dt:
                 work = co_dt - ci_dt
                 hours = work.total_seconds() / 3600
@@ -3613,7 +3625,6 @@ def regularize_request(request):
                 final_status = 'Absent'
                 final_state = 'checked_out'
 
-            # ✅ Use reg_date (not reg_req.date) for consistency
             Attendance.objects.update_or_create(
                 user=request.user,
                 date=reg_date,
@@ -3627,6 +3638,17 @@ def regularize_request(request):
                 },
             )
 
+            # ─── Re-sync LateDeduction ───
+            try:
+                from .utils import sync_late_deductions
+                emp_profile = getattr(request.user, 'profile', None)
+                if emp_profile:
+                    n = sync_late_deductions(emp_profile, reg_date.year, reg_date.month)
+                    print(f"[reg-self-approve] LateDeduction re-synced for {emp_profile.employee_id} "
+                          f"{reg_date.month:02d}/{reg_date.year} — {n} transactions")
+            except Exception as e:
+                print(f"[reg-self-approve] sync ERROR: {e}")
+
             messages.success(
                 request,
                 f"Regularization auto-approved as Company Owner — {final_status}."
@@ -3636,8 +3658,7 @@ def regularize_request(request):
 
         return redirect('regularize_request_list')
 
-    # ─── GET: pre-fill form from ?date= query param ───
-    # ─── GET: pre-fill form from ?date= query param ───
+    # ─── GET: pre-fill form ───
     prefilled_date = request.GET.get('date', '')
 
     attendance = None
@@ -3676,7 +3697,6 @@ def regularize_request(request):
         'categories':     categories,
         'today':          today,
     })
-    
 
 
 
@@ -3913,6 +3933,20 @@ def regularize_approve(request, req_id):
             },
         )
 
+        # ═══════════════════════════════════════════════════
+        # Re-sync LateDeduction transactions after time change
+        # ═══════════════════════════════════════════════════
+        try:
+            from .utils import sync_late_deductions
+            emp_profile = getattr(reg_req.user, 'profile', None)
+            if emp_profile:
+                n = sync_late_deductions(emp_profile, reg_req.date.year, reg_req.date.month)
+                print(f"[reg-approve] LateDeduction re-synced for {emp_profile.employee_id} "
+                      f"{reg_req.date.month:02d}/{reg_req.date.year} — {n} transactions")
+        except Exception as e:
+            print(f"[reg-approve] sync ERROR: {e}")
+
+
         # ─── Mark related notification as read ───
         Notification.objects.filter(
             related_object_type='regularizationrequest',
@@ -3969,15 +4003,16 @@ def notification_list(request):
     
 
 # ---------- Profile ----------
+
 @login_required
 def profile(request):
     user = request.user
     profile, created = EmployeeProfile.objects.get_or_create(user=user)
-    
+
     if request.method == 'POST':
         # ⛔ Do NOT allow username change
         # user.username = request.POST.get('username')   <-- REMOVED
-        
+
         user.email = request.POST.get('email')
         password1 = request.POST.get('password1')
         password2 = request.POST.get('password2')
@@ -3999,7 +4034,7 @@ def profile(request):
             user.set_password(password1)
 
         user.save()
-        
+
         profile.full_name = request.POST.get('full_name')
         profile.date_of_birth = request.POST.get('date_of_birth') or None
         profile.date_of_joining = request.POST.get('date_of_joining') or None
@@ -4007,23 +4042,60 @@ def profile(request):
         profile.department = request.POST.get('department')
         profile.phone = request.POST.get('phone')
         profile.address = request.POST.get('address')
-        
+
         # ❌ REMOVED: attendance_type and office_location – employees cannot change these
         # profile.attendance_type = request.POST.get('attendance_type')
         # profile.office_location_id = request.POST.get('office_location') or None
-        
+
         profile.save()
-        
+
         messages.success(request, 'Profile updated successfully.')
         return redirect('profile')
-    
-    # GET request – no offices needed since we removed those fields
+
+    # ═══════════════════════════════════════════════════════════════
+    # GET request — build context
+    # ═══════════════════════════════════════════════════════════════
+
+    # Active tab (profile / policy)
+    active_tab = request.GET.get('tab', 'profile')
+    if active_tab not in ('profile', 'policy'):
+        active_tab = 'profile'
+
+    # ── Policy data for the Policy tab ──
+    from .models import LateComingRule, RegularizationCategory
+
+    company = getattr(profile, 'company', None)
+
+    # Active late coming rule (for this employee's company)
+    late_rule = None
+    late_slabs = []
+    if company:
+        late_rule = LateComingRule.objects.filter(
+            company=company, is_enabled=True
+        ).order_by('-effective_from', '-version').first()
+
+        if late_rule and late_rule.calculation_method == 'minutes':
+            late_slabs = list(
+                late_rule.minute_slabs.order_by('order', 'from_minutes')
+            )
+
+    # Regularization categories with limits
+    reg_categories = []
+    if company:
+        reg_categories = RegularizationCategory.objects.filter(
+            company=company, is_active=True
+        ).order_by('order', 'id')
+
     context = {
         'user': user,
         'profile': profile,
+        'active_tab': active_tab,
+        'late_rule': late_rule,
+        'late_slabs': late_slabs,
+        'reg_categories': reg_categories,
     }
     return render(request, 'profile.html', context)
-    
+
 
 
 # ---------- Attendance Overview Data ----------
@@ -4131,23 +4203,136 @@ def setup(request):
     company = get_user_company(request)
 
     # --- Late rule (single row per company) ---
+    from .utils import get_current_late_rule
+
     late_rule = None
     if company:
-        late_rule, _ = LateComingRule.objects.get_or_create(company=company)
+        late_rule = get_current_late_rule(company)
+        if not late_rule:
+            late_rule = LateComingRule.objects.filter(company=company).order_by('-effective_from', '-version').first()
 
     # --- Save late rule on POST ---
+    # --- Save late rule on POST (creates a NEW version, doesn't overwrite) ---
     if request.method == 'POST' and company:
         form_type = request.POST.get('form_type')
 
-        if form_type == 'late' and late_rule:
-            late_rule.is_enabled                 = 'is_enabled' in request.POST
-            late_rule.monthly_allowed_late_marks = int(request.POST.get('monthly_allowed_late_marks') or 3)
-            late_rule.penalty_type               = request.POST.get('penalty_type') or 'leave'
-            late_rule.penalty_amount             = Decimal(request.POST.get('penalty_amount') or '0.25')
-            late_rule.half_day_cutoff_minutes    = int(request.POST.get('half_day_cutoff_minutes') or 45)
-            late_rule.save()
-            messages.success(request, 'Late coming rules updated.')
+        if form_type == 'late':
+            from datetime import date as _date, timedelta as _td
+
+            # Effective date from the form (fallback: today)
+            _eff_raw = (request.POST.get('effective_from') or '').strip()
+            try:
+                eff_date = _date.fromisoformat(_eff_raw) if _eff_raw else _date.today()
+            except (ValueError, TypeError):
+                eff_date = _date.today()
+
+            # ═══════════════════════════════════════════════════
+            # VALIDATION #1: No duplicate rule for same effective_from
+            # ═══════════════════════════════════════════════════
+            _existing_same_date = LateComingRule.objects.filter(
+                company=company,
+                effective_from=eff_date,
+                is_enabled=True,
+            ).exists()
+
+            if _existing_same_date:
+                messages.error(
+                    request,
+                    f'A policy already exists with effective_from = '
+                    f'{eff_date.strftime("%d %b %Y")}. '
+                    f'Choose a different date or edit the existing policy.'
+                )
+                return redirect('setup')
+
+            # ═══════════════════════════════════════════════════
+            # VALIDATION #2: "Late Minutes" requires ≥1 slab
+            # ═══════════════════════════════════════════════════
+            _calc_method = (request.POST.get('calculation_method') or 'marks').strip()
+            if _calc_method == 'minutes':
+                _slab_froms     = request.POST.getlist('slab_from')
+                _slab_penalties = request.POST.getlist('slab_penalty')
+
+                _has_valid_slab = any(
+                    (f or '').strip() and (p or '').strip()
+                    for f, p in zip(_slab_froms, _slab_penalties)
+                )
+
+                if not _has_valid_slab:
+                    messages.error(
+                        request,
+                        'At least one minute slab is required when "Late Minutes" '
+                        'mode is selected. Please add From / Days and try again.'
+                    )
+                    return redirect('setup')
+
+            # ═══════════════════════════════════════════════════
+            # Snapshot: close any open rule that started BEFORE eff_date
+            #   (only after validations pass)
+            # ═══════════════════════════════════════════════════
+            LateComingRule.objects.filter(
+                company=company,
+                effective_to__isnull=True,
+                effective_from__lt=eff_date,
+            ).update(effective_to=eff_date - _td(days=1))
+
+            # Next version number
+            _next_ver = (LateComingRule.objects.filter(company=company).count() or 0) + 1
+
+            # Create the NEW rule row (do not overwrite history)
+            new_rule = LateComingRule.objects.create(
+                company=company,
+                is_enabled                 = 'is_enabled' in request.POST,
+                calculation_method         = request.POST.get('calculation_method') or 'marks',
+                monthly_allowed_late_marks = int(request.POST.get('monthly_allowed_late_marks') or 3),
+                penalty_type               = request.POST.get('penalty_type') or 'salary',
+                penalty_amount             = Decimal(request.POST.get('penalty_amount') or '0.25'),
+                half_day_cutoff_minutes    = int(request.POST.get('half_day_cutoff_minutes') or 120),
+                target_leave_type_id       = request.POST.get('target_leave_type') or None,
+                insufficient_balance_action= request.POST.get('insufficient_balance_action') or 'lop',
+                effective_from             = eff_date,
+                effective_to               = None,
+                version                    = _next_ver,
+            )
+
+            # ═══════════════════════════════════════════════════
+            # Save Minute Slabs (only if method = 'minutes')
+            # ═══════════════════════════════════════════════════
+            if (request.POST.get('calculation_method') or 'marks') == 'minutes':
+                from .models import LateMinuteSlab
+
+                slab_froms     = request.POST.getlist('slab_from')
+                slab_tos       = request.POST.getlist('slab_to')
+                slab_penalties = request.POST.getlist('slab_penalty')
+
+                order_idx = 0
+                for i in range(len(slab_froms)):
+                    _from = (slab_froms[i] or '').strip()
+                    _to   = (slab_tos[i] or '').strip() if i < len(slab_tos) else ''
+                    _pen  = (slab_penalties[i] or '').strip() if i < len(slab_penalties) else ''
+
+                    # Skip empty rows
+                    if not _from or not _pen:
+                        continue
+
+                    try:
+                        LateMinuteSlab.objects.create(
+                            rule=new_rule,
+                            from_minutes=int(_from),
+                            to_minutes=int(_to) if _to else None,
+                            penalty_days=Decimal(_pen),
+                            order=order_idx,
+                        )
+                        order_idx += 1
+                    except (ValueError, TypeError):
+                        continue
+
+            messages.success(
+                request,
+                f'New Late Coming Policy (v{_next_ver}) is effective from '
+                f'{eff_date.strftime("%d %b %Y")}. Previous policies are preserved.'
+            )
             return redirect('setup')
+
 
     # --- Existing lists ---
     shifts      = get_company_filtered(request, Shift.objects.all()).order_by('name')
@@ -4173,7 +4358,9 @@ def setup(request):
         'active_tab':     active_tab,
         'late_rule':      late_rule,
         'reg_categories': reg_categories,
+        'late_slabs': late_rule.minute_slabs.order_by('order', 'from_minutes') if late_rule else [],
     }
+    
     return render(request, 'setup.html', context)
 
 
@@ -5120,6 +5307,7 @@ def payroll_processing(request):
     return render(request, 'payroll/payroll_processing.html', context)
 
 
+
 @login_required
 @hr_admin_required
 @payroll_required
@@ -5148,9 +5336,20 @@ def payroll_generate(request):
         ).exists():
             continue
 
+        # ─── Step 1: Sync late deduction ledger FIRST ───
+        try:
+            from .utils import sync_late_deductions
+            n = sync_late_deductions(emp, year, month)
+            if n:
+                print(f"[late-deduction] {emp.employee_id} {month:02d}/{year}: {n} transaction(s)")
+        except Exception as e:
+            print(f"[late-deduction] ERROR for {emp.employee_id}: {e}")
+
+        # ─── Step 2: Calculate payroll (reads from LateDeduction) ───
         calc = calculate_monthly_payroll(emp, year, month, salary)
 
-        Payroll.objects.create(
+        # ─── Step 3: Save payroll row ───
+        payroll_row = Payroll.objects.create(
             company=company,
             employee=emp,
             month=month,
@@ -5188,9 +5387,66 @@ def payroll_generate(request):
         )
         created += 1
 
+        # ─── Step 4: Mark late deduction transactions as PROCESSED ───
+        try:
+            from datetime import date as _date
+            from .models import LateDeduction as _LD
+
+            _first = _date(year, month, 1)
+            if month == 12:
+                _last = _date(year + 1, 1, 1)
+            else:
+                _last = _date(year, month + 1, 1)
+
+            n_marked = _LD.objects.filter(
+                employee=emp,
+                attendance_date__gte=_first,
+                attendance_date__lt=_last,
+                status='PENDING_PAYROLL',
+            ).update(
+                status='PROCESSED',
+                payroll=payroll_row,
+            )
+            if n_marked:
+                print(f"[late-deduction] {emp.employee_id} {month:02d}/{year}: {n_marked} marked PROCESSED")
+        except Exception as e:
+            print(f"[late-deduction] mark-processed ERROR for {emp.employee_id}: {e}")
+
+        # ─── Step 5: Notify employee if LOP/salary deduction was applied ───
+        try:
+            _lop_days = Decimal(str(calc.get('late_lop_days', 0) or 0))
+            _lop_amt  = Decimal(str(calc.get('late_deduction', 0) or 0))
+
+            if _lop_amt > 0:
+                _mark_count = calc.get('late_days', 0)
+                _mark_word  = 'mark' if _mark_count == 1 else 'marks'
+
+                _msg = (
+                    f"Late arrival penalty applied for {month:02d}/{year}.\n"
+                    f"{_mark_count} late {_mark_word} resulted in "
+                    f"{_lop_days} day(s) salary deduction.\n"
+                    f"Amount: ₹{_lop_amt:.2f} will be deducted from your salary."
+                )
+
+                # Leave-absorption portion (if any) — separate info line
+                _leave_absorbed = Decimal(str(calc.get('late_leave_days', 0) or 0))
+                if _leave_absorbed > 0:
+                    _msg += (
+                        f"\nAdditionally, {_leave_absorbed} day(s) was absorbed "
+                        f"from your leave balance."
+                    )
+
+                create_notification(
+                    emp.user,
+                    _msg,
+                    notification_type='info',
+                )
+        except Exception as e:
+            print(f"[late-deduction] notify ERROR for {emp.employee_id}: {e}")
+                
+
     messages.success(request, f'Generated {created} payroll records for {month}/{year}')
     return redirect('payroll_processing')
-
 
 
 @login_required
@@ -5624,6 +5880,30 @@ def payslip_pdf(request, pk):
     elements.append(Paragraph("SALARY", section_label_style))
     elements.append(Spacer(1, 10))
 
+    # ── Late penalty display values (leave + LOP split) ──
+    _late_leave = d(payroll.late_leave_days)
+    _late_lop   = d(payroll.late_lop_days)
+    _late_amt   = d(payroll.late_deduction)
+
+    _mark_count = payroll.late_days or 0
+    _mark_word  = 'mark' if _mark_count == 1 else 'marks'
+    _late_title = f"Late Penalty ({_mark_count} {_mark_word})"
+
+    if _late_leave > 0 and _late_lop > 0:
+        _late_sub = f"{_late_leave:.2f} day leave · {_late_lop:.2f} day LOP"
+    elif _late_leave > 0:
+        _late_sub = f"{_late_leave:.2f} day absorbed by leave"
+    elif _late_lop > 0:
+        _late_sub = f"{_late_lop:.2f} day salary cut"
+    else:
+        _late_sub = "—"
+
+    _late_label_html = (
+        f"{_late_title}<br/>"
+        f"<font size='7' color='#64748b'>{_late_sub}</font>"
+    )
+
+
     salary_data = [
         # Header row
         [
@@ -5662,16 +5942,12 @@ def payslip_pdf(request, pk):
             Paragraph(f"Rs. {other_ded:,.2f}", cell_amount_style),
         ],
         # Late Penalty row (empty on earnings side, value on deductions side)
+        # Late Penalty row (leave + LOP split awareness)
         [
             Paragraph("", cell_style),
             Paragraph("", cell_amount_style),
-            Paragraph(
-                f"Late Penalty ({payroll.late_days} mark{'s' if payroll.late_days != 1 else ''})"
-                if payroll.late_deduction and payroll.late_deduction > 0
-                else "Late Penalty",
-                cell_style,
-            ),
-            Paragraph(f"Rs. {(payroll.late_deduction or 0):,.2f}", cell_amount_style),
+            Paragraph(_late_label_html, cell_style),
+            Paragraph(f"Rs. {_late_amt:,.2f}", cell_amount_style),
         ],
         # Total row
         [
@@ -6336,6 +6612,336 @@ def reg_category_delete(request, pk):
     return render(request, 'attendance/reg_category_confirm_delete.html', {
         'category': cat
     })
+
+
+@login_required
+@hr_admin_required
+@company_required
+def late_deductions_list(request):
+    """
+    HR view — all LateDeduction transactions with filters and tabs.
+    Handles inline cancellation and restore via POST.
+    """
+    from .models import LateDeduction, LateComingRule
+    from django.db.models import Sum
+    from datetime import date as _date
+
+    today = _date.today()
+    company = get_user_company(request)
+
+    # ═══ Rule disabled → block access ═══
+    rule_active = LateComingRule.objects.filter(
+        company=company, is_enabled=True
+    ).exists()
+    if not rule_active:
+        messages.warning(request, 'Late Coming Rules are disabled. Enable them in Setup to view this page.')
+        return redirect('dashboard')
+
+
+    # ═══ Handle inline cancel (POST) ═══
+    if request.method == 'POST' and request.POST.get('action') == 'cancel':
+        _id = request.POST.get('deduction_id')
+        _reason = request.POST.get('cancel_reason', '').strip()
+
+        try:
+            d = LateDeduction.objects.get(id=_id, company=company)
+
+            if d.status == 'CANCELLED':
+                messages.warning(request, 'Already cancelled.')
+            elif d.payroll and d.payroll.status in ('processed', 'paid'):
+                messages.error(
+                    request,
+                    f"Cannot cancel — payroll is {d.payroll.get_status_display()}. "
+                    "Adjust next month."
+                )
+            else:
+                snap = dict(d.policy_snapshot or {})
+                snap['cancelled_at'] = timezone.now().isoformat()
+                snap['cancelled_by'] = request.user.username
+                snap['cancel_reason'] = _reason or '(no reason given)'
+                snap['previous_status'] = d.status
+                snap['previous_leave_days'] = str(d.leave_days)
+                snap['previous_lop_days'] = str(d.lop_days)
+                snap['previous_salary_amount'] = str(d.salary_amount)
+
+                d.status = 'CANCELLED'
+                d.policy_snapshot = snap
+                d.save(update_fields=['status', 'policy_snapshot'])
+
+                try:
+                    create_notification(
+                        d.employee.user,
+                        (
+                            f"A late penalty from {d.attendance_date.strftime('%d %b %Y')} "
+                            f"was cancelled by HR.\n"
+                            f"Reason: {_reason or '(not specified)'}\n"
+                            f"Your leave balance and salary have been restored."
+                        ),
+                        notification_type='info',
+                    )
+                except Exception as e:
+                    print(f"[late-cancel] notify ERROR: {e}")
+
+                messages.success(
+                    request,
+                    f"Cancelled — {d.employee.employee_id} "
+                    f"({d.attendance_date.strftime('%d %b %Y')})"
+                )
+        except LateDeduction.DoesNotExist:
+            messages.error(request, 'Transaction not found.')
+
+        # Preserve tab + filters
+        tab = request.POST.get('tab', 'deductions')
+        month = request.POST.get('month') or today.month
+        year = request.POST.get('year') or today.year
+        return redirect(f"{reverse('late_deductions_list')}?tab={tab}&month={month}&year={year}")
+
+    # ═══ Handle inline restore (POST) ═══
+    if request.method == 'POST' and request.POST.get('action') == 'restore':
+        _id = request.POST.get('deduction_id')
+
+        try:
+            d = LateDeduction.objects.get(id=_id, company=company)
+
+            if d.status != 'CANCELLED':
+                messages.warning(request, 'Only cancelled transactions can be restored.')
+            else:
+                snap = dict(d.policy_snapshot or {})
+
+                # Determine target status from snapshot
+                prev = snap.get('previous_status', 'APPLIED')
+                # If LOP portion existed → PENDING_PAYROLL
+                if (d.lop_days or 0) > 0:
+                    prev = 'PENDING_PAYROLL'
+
+                snap['restored_at'] = timezone.now().isoformat()
+                snap['restored_by'] = request.user.username
+                snap['restored_from'] = 'CANCELLED'
+
+                d.status = prev
+                d.policy_snapshot = snap
+                d.save(update_fields=['status', 'policy_snapshot'])
+
+                try:
+                    create_notification(
+                        d.employee.user,
+                        (
+                            f"Cancellation of late penalty from "
+                            f"{d.attendance_date.strftime('%d %b %Y')} was reversed by HR. "
+                            f"The deduction is active again."
+                        ),
+                        notification_type='info',
+                    )
+                except Exception as e:
+                    print(f"[late-restore] notify ERROR: {e}")
+
+                messages.success(
+                    request,
+                    f"Restored — {d.employee.employee_id} "
+                    f"({d.attendance_date.strftime('%d %b %Y')})"
+                )
+        except LateDeduction.DoesNotExist:
+            messages.error(request, 'Transaction not found.')
+
+        # Preserve tab + filters
+        tab = request.POST.get('tab', 'cancelled')
+        month = request.POST.get('month') or today.month
+        year = request.POST.get('year') or today.year
+        return redirect(f"{reverse('late_deductions_list')}?tab={tab}&month={month}&year={year}")
+
+    # ═══ GET — show list ═══
+    tab = request.GET.get('tab', 'deductions')
+    if tab not in ('deductions', 'cancelled'):
+        tab = 'deductions'
+
+    month_str = request.GET.get('month', '')
+    year_str  = request.GET.get('year', '')
+    status_f  = request.GET.get('status', '')
+    type_f    = request.GET.get('type', '')
+    emp_f     = request.GET.get('employee', '')
+
+    # Smart default
+    if month_str.isdigit() and year_str.isdigit():
+        month = int(month_str)
+        year  = int(year_str)
+    else:
+        _latest = LateDeduction.objects.filter(company=company).order_by('-attendance_date').first()
+        if _latest:
+            month = _latest.attendance_date.month
+            year  = _latest.attendance_date.year
+        else:
+            month = today.month
+            year  = today.year
+
+    if month < 1 or month > 12: month = today.month
+    if year < 2000 or year > 2100: year = today.year
+
+    # Base queryset
+    qs = LateDeduction.objects.filter(company=company).select_related(
+        'employee', 'employee__user', 'leave_type', 'payroll'
+    ).filter(
+        attendance_date__year=year,
+        attendance_date__month=month,
+    )
+
+    # Tab filter
+    if tab == 'cancelled':
+        qs = qs.filter(status='CANCELLED')
+    else:
+        qs = qs.exclude(status='CANCELLED')
+
+    # Other filters
+    if status_f:
+        qs = qs.filter(status=status_f)
+    if type_f:
+        qs = qs.filter(deduction_type=type_f)
+    if emp_f:
+        qs = qs.filter(employee__employee_id__icontains=emp_f)
+
+    qs = qs.order_by('-attendance_date')
+
+    # Summary
+    summary = {
+        'total_count':  qs.count(),
+        'leave_days':   qs.aggregate(s=Sum('leave_days'))['s'] or 0,
+        'salary_total': qs.aggregate(s=Sum('salary_amount'))['s'] or 0,
+        'pending_count': qs.filter(status='PENDING_PAYROLL').count(),
+        'processed_count': qs.filter(status='PROCESSED').count(),
+        'applied_count': qs.filter(status='APPLIED').count(),
+    }
+
+    # Tab counts (for badges)
+    tab_counts = {
+        'active':    LateDeduction.objects.filter(
+            company=company,
+            attendance_date__year=year,
+            attendance_date__month=month,
+        ).exclude(status='CANCELLED').count(),
+        'cancelled': LateDeduction.objects.filter(
+            company=company,
+            attendance_date__year=year,
+            attendance_date__month=month,
+            status='CANCELLED',
+        ).count(),
+    }
+
+    # Month navigation
+    prev_month = month - 1 if month > 1 else 12
+    prev_year  = year if month > 1 else year - 1
+    next_month = month + 1 if month < 12 else 1
+    next_year  = year if month < 12 else year + 1
+    next_disabled = (year == today.year and month == today.month)
+
+    context = {
+        'deductions': qs,
+        'month': month,
+        'year': year,
+        'month_name': _date(year, month, 1).strftime('%B %Y'),
+        'prev_month': prev_month,
+        'prev_year': prev_year,
+        'next_month': next_month,
+        'next_year': next_year,
+        'next_disabled': next_disabled,
+        'status_f': status_f,
+        'type_f': type_f,
+        'emp_f': emp_f,
+        'summary': summary,
+        'tab': tab,
+        'tab_counts': tab_counts,
+        'today': today,
+    }
+    return render(request, 'late_deductions.html', context)
+
+
+@login_required
+@hr_admin_required
+@company_required
+def late_deduction_cancel(request, pk):
+    """
+    HR cancels a LateDeduction transaction.
+    Only allowed if payroll is None or Draft.
+    """
+    from .models import LateDeduction
+    from decimal import Decimal
+
+    company = get_user_company(request)
+    deduction = get_object_or_404(LateDeduction, id=pk, company=company)
+
+    # Ownership + status check
+    if deduction.status == 'CANCELLED':
+        messages.warning(request, 'This transaction is already cancelled.')
+        return redirect('late_deductions_list')
+
+    if deduction.payroll and deduction.payroll.status in ('processed', 'paid'):
+        messages.error(
+            request,
+            f"Cannot cancel — payroll for {deduction.payroll.month:02d}/{deduction.payroll.year} "
+            f"is {deduction.payroll.get_status_display()}. "
+            "Adjust next month or contact admin."
+        )
+        return redirect('late_deductions_list')
+
+    if request.method == 'POST':
+        reason = request.POST.get('cancel_reason', '').strip()
+
+        # Store snapshot before cancel
+        old_status = deduction.status
+        old_leave_days = deduction.leave_days
+        old_lop_days = deduction.lop_days
+        old_salary_amount = deduction.salary_amount
+
+        # Update snapshot with cancel info
+        snap = dict(deduction.policy_snapshot or {})
+        snap['cancelled_at'] = timezone.now().isoformat()
+        snap['cancelled_by'] = request.user.username
+        snap['cancel_reason'] = reason or '(no reason given)'
+        snap['previous_status'] = old_status
+        snap['previous_leave_days'] = str(old_leave_days)
+        snap['previous_lop_days'] = str(old_lop_days)
+        snap['previous_salary_amount'] = str(old_salary_amount)
+
+        deduction.status = 'CANCELLED'
+        deduction.policy_snapshot = snap
+        deduction.save(update_fields=['status', 'policy_snapshot'])
+
+        # Notify employee
+        try:
+            create_notification(
+                deduction.employee.user,
+                (
+                    f"A late penalty entry from {deduction.attendance_date.strftime('%d %b %Y')} "
+                    f"was cancelled by HR.\n"
+                    f"Reason: {reason or '(not specified)'}\n"
+                    f"Your leave balance and salary have been restored."
+                ),
+                notification_type='info',
+            )
+        except Exception as e:
+            print(f"[late-cancel] notify ERROR: {e}")
+
+        messages.success(
+            request,
+            f"Cancelled late penalty for {deduction.employee.employee_id} "
+            f"({deduction.attendance_date.strftime('%d %b %Y')})."
+        )
+        return redirect('late_deductions_list')
+
+    # GET — show confirmation page
+    context = {
+        'deduction': deduction,
+    }
+    return render(request, 'late_deduction_cancel.html', context)
+
+
+def health_check(request):
+    """Simple health check for Render / load balancers."""
+    from django.http import JsonResponse
+    from django.db import connection
+    try:
+        connection.ensure_connection()
+        return JsonResponse({'status': 'ok', 'db': 'connected'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'error': str(e)}, status=500)
 
 
     # **************texting 

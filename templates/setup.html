@@ -817,6 +817,7 @@
                         <!-- SUB-TAB 3: LATE COMING RULES -->
                         
                         <!-- SUB-TAB 3: LATE COMING RULES -->
+                        
                         <div class="tab-pane fade" id="sub-late" role="tabpanel">
 
                             <div class="stp-sec">
@@ -833,15 +834,45 @@
                                 {% csrf_token %}
                                 <input type="hidden" name="form_type" value="late">
 
-                                <!-- Enable toggle -->
-                                <div style="margin-bottom: 24px;">
-                                    <label class="stp-rule-lbl"><i class="las la-toggle-on"></i> Enable Late Policy</label>
-                                    <label class="stp-switch" style="margin-top: 8px;">
-                                        <input type="checkbox" name="is_enabled" {% if late_rule.is_enabled %}checked{% endif %}>
-                                        <span class="stp-switch-slider"></span>
-                                    </label>
-                                    <span class="stp-rule-hint" style="display: block; margin-top: 6px;">Turn late tracking on/off</span>
+                                <!-- ═══ Policy Version Banner ═══ -->
+                                {% if late_rule %}
+                                <div class="stp-note" style="margin-bottom: 20px; background: #eef2ff; border-left: 3px solid #4f46e5;">
+                                    <i class="las la-info-circle" style="color: #4f46e5;"></i>
+                                    <div>
+                                        <strong>Active policy: v{{ late_rule.version }}</strong>
+                                        — effective from
+                                        <strong>{{ late_rule.effective_from|date:"d M Y" }}</strong>.
+                                        <br>
+                                        Saving will create a <strong>new version</strong>. Previous policies and existing
+                                        late deductions will <strong>not be changed</strong>.
+                                    </div>
                                 </div>
+                                {% endif %}
+
+                                <!-- Enable toggle -->
+                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                    <div style="margin-bottom: 24px;">
+                                        <label class="stp-rule-lbl"><i class="las la-toggle-on"></i> Enable Late Policy</label>
+                                        <label class="stp-switch" style="margin-top: 8px;">
+                                            <input type="checkbox" name="is_enabled" {% if late_rule.is_enabled %}checked{% endif %}>
+                                            <span class="stp-switch-slider"></span>
+                                        </label>
+                                        <span class="stp-rule-hint" style="display: block; margin-top: 6px;">Turn late tracking on/off</span>
+                                    </div>
+                                    <div class="stp-rule-item" style="margin-bottom: 24px;">
+                                        <label class="stp-rule-lbl"><i class="las la-calendar-day"></i> Effective From</label>
+                                        <input type="date" name="effective_from" class="stp-input"
+                                            value="{{ late_rule.effective_from|date:'Y-m-d'|default:'' }}">
+                                        <span class="stp-rule-hint">
+                                            New policy will apply from this date. Existing late deductions stay as they are.
+                                        </span>
+                                    </div>
+                                    
+                                 </div>
+                                
+
+                                <!-- Effective From -->
+                                
 
                                 <!-- Method selection -->
                                 <div style="border-top: 1px solid var(--stp-border); padding-top: 20px; margin-bottom: 24px;">
@@ -870,43 +901,55 @@
                                     </div>
                                 </div>
 
-                                <!-- ═══ METHOD 1: LATE MARKS ═══ -->
+                                                                <!-- ═══ COMMON FIELDS (both modes) ═══ -->
+                                <div class="stp-rule-grid" style="margin-bottom: 20px;">
+
+                                    <div class="stp-rule-item">
+                                        <label class="stp-rule-lbl"><i class="las la-redo-alt"></i> Penalty-Free Marks / Month</label>
+                                        <input type="number" name="monthly_allowed_late_marks" min="0"
+                                            value="{{ late_rule.monthly_allowed_late_marks|default:3 }}"
+                                            class="stp-input">
+                                        <span class="stp-rule-hint">Free lates before penalty starts</span>
+                                    </div>
+
+                                    <div class="stp-rule-item">
+                                        <label class="stp-rule-lbl"><i class="las la-gavel"></i> Penalty Type</label>
+                                        <select name="penalty_type" class="stp-input">
+                                            <option value="leave"  {% if late_rule.penalty_type == 'leave'  %}selected{% endif %}>Deduct Leave</option>
+                                            <option value="salary" {% if late_rule.penalty_type == 'salary' %}selected{% endif %}>Deduct Salary</option>
+                                            <option value="none"   {% if late_rule.penalty_type == 'none'   %}selected{% endif %}>No Penalty</option>
+                                        </select>
+                                        <span class="stp-rule-hint">What gets deducted per late mark</span>
+                                    </div>
+
+                                    <div class="stp-rule-item" id="target-leave-wrap">
+                                        <label class="stp-rule-lbl"><i class="las la-calendar-check"></i> Target Leave Type</label>
+                                        <select name="target_leave_type" class="stp-input">
+                                            <option value="">— None (LOP from salary) —</option>
+                                            {% for lt in late_leave_types %}
+                                                <option value="{{ lt.id }}"
+                                                    {% if late_rule.target_leave_type_id == lt.id %}selected{% endif %}>
+                                                    {{ lt.name }}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                        <span class="stp-rule-hint">Which leave absorbs late penalties first</span>
+                                    </div>
+
+                                    <div class="stp-rule-item" id="insufficient-wrap">
+                                        <label class="stp-rule-lbl"><i class="las la-exclamation-circle"></i> If Leave Insufficient</label>
+                                        <select name="insufficient_balance_action" class="stp-input">
+                                            <option value="lop"  {% if late_rule.insufficient_balance_action == 'lop'  %}selected{% endif %}>Loss of Pay (LOP)</option>
+                                            <option value="skip" {% if late_rule.insufficient_balance_action == 'skip' %}selected{% endif %}>Skip Deduction</option>
+                                        </select>
+                                        <span class="stp-rule-hint">When no leave balance left</span>
+                                    </div>
+
+                                </div>
+
+                                <!-- ═══ METHOD 1: LATE MARKS — specific fields ═══ -->
                                 <div id="section-marks" style="{% if late_rule.calculation_method != 'marks' %}display:none;{% endif %}">
                                     <div class="stp-rule-grid">
-
-                                        <div class="stp-rule-item">
-                                            <label class="stp-rule-lbl"><i class="las la-redo-alt"></i> Penalty-Free Marks / Month</label>
-                                            <input type="number" name="monthly_allowed_late_marks" min="0"
-                                                value="{{ late_rule.monthly_allowed_late_marks|default:3 }}"
-                                                class="stp-input">
-                                            <span class="stp-rule-hint">Free lates before penalty starts</span>
-                                        </div>
-
-                                        
-                                        <div class="stp-rule-item">
-                                            <label class="stp-rule-lbl"><i class="las la-gavel"></i> Penalty Type</label>
-                                            <select name="penalty_type" class="stp-input">
-                                                <option value="leave"  {% if late_rule.penalty_type == 'leave'  %}selected{% endif %}>Deduct Leave</option>
-                                                <option value="salary" {% if late_rule.penalty_type == 'salary' %}selected{% endif %}>Deduct Salary</option>
-                                                <option value="none"   {% if late_rule.penalty_type == 'none'   %}selected{% endif %}>No Penalty</option>
-                                            </select>
-                                            <span class="stp-rule-hint">What gets deducted per late mark</span>
-                                        </div>
-
-                                        <div class="stp-rule-item" id="target-leave-wrap">
-                                            <label class="stp-rule-lbl"><i class="las la-calendar-check"></i> Target Leave Type</label>
-                                            <select name="target_leave_type" class="stp-input">
-                                                <option value="">— None (LOP from salary) —</option>
-                                                {% for lt in late_leave_types %}
-                                                    <option value="{{ lt.id }}"
-                                                        {% if late_rule.target_leave_type_id == lt.id %}selected{% endif %}>
-                                                        {{ lt.name }}
-                                                    </option>
-                                                {% endfor %}
-                                            </select>
-                                            <span class="stp-rule-hint">Which leave absorbs late penalties first</span>
-                                        </div>
-
 
                                         <div class="stp-rule-item">
                                             <label class="stp-rule-lbl"><i class="las la-balance-scale"></i> Deduction per Late</label>
@@ -922,15 +965,6 @@
                                                 value="{{ late_rule.half_day_cutoff_minutes|default:45 }}"
                                                 class="stp-input">
                                             <span class="stp-rule-hint">Late beyond this → Half-Day</span>
-                                        </div>
-
-                                        <div class="stp-rule-item">
-                                            <label class="stp-rule-lbl"><i class="las la-exclamation-circle"></i> If Leave Insufficient</label>
-                                            <select name="insufficient_balance_action" class="stp-input">
-                                                <option value="lop"  {% if late_rule.insufficient_balance_action == 'lop'  %}selected{% endif %}>Loss of Pay (LOP)</option>
-                                                <option value="skip" {% if late_rule.insufficient_balance_action == 'skip' %}selected{% endif %}>Skip Deduction</option>
-                                            </select>
-                                            <span class="stp-rule-hint">When no leave balance left</span>
                                         </div>
 
                                     </div>
@@ -986,14 +1020,16 @@
                                     </div>
                                 </div>
 
+
                                 <!-- Footer -->
                                 <div class="stp-rule-actions" style="margin-top: 24px;">
                                     <button type="submit" class="stp-btn stp-btn-primary">
-                                        <i class="fas fa-save"></i> Save Rules
+                                        <i class="fas fa-save"></i> Save as New Policy
                                     </button>
                                 </div>
                             </form>
                         </div>
+
 
                         <script>
                         document.addEventListener('DOMContentLoaded', function () {
@@ -1031,9 +1067,9 @@
                         }
 
                         function removeSlab(btn) {
-                            const rows = document.querySelectorAll('.stp-slab-row');
-                            if (rows.length > 1) btn.parentElement.remove();
-                        }
+                            const row = btn.closest('.stp-slab-row');
+                            if (row) row.remove();
+                        }  
                         </script>
 
 
@@ -1212,13 +1248,16 @@
         </div>
 
         <script>
-            // ── Show/hide Target Leave Type based on Penalty Type ──
+            // ── Show/hide leave-only fields based on Penalty Type ──
             const penaltySel = document.querySelector('select[name="penalty_type"]');
             const targetWrap = document.getElementById('target-leave-wrap');
+            const insufficientWrap = document.getElementById('insufficient-wrap');
 
             function updateTargetVisibility() {
-                if (!penaltySel || !targetWrap) return;
-                targetWrap.style.display = (penaltySel.value === 'leave') ? '' : 'none';
+                if (!penaltySel) return;
+                const isLeave = (penaltySel.value === 'leave');
+                if (targetWrap) targetWrap.style.display = isLeave ? '' : 'none';
+                if (insufficientWrap) insufficientWrap.style.display = isLeave ? '' : 'none';
             }
 
             if (penaltySel) {

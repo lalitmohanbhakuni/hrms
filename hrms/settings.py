@@ -176,6 +176,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'csp',
     'core',
 ]
 
@@ -186,6 +187,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'csp.middleware.CSPMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'core.middleware.ClientIPMiddleware',                 # ← ADD (before common)
@@ -197,6 +199,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'core.middleware.ApplyPendingShiftMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'core.middleware.PermissionsPolicyMiddleware',
 ]
 
 
@@ -220,6 +223,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'core.context_processors.notification_context',
                 'core.context_processors.company_context',
+                'core.context_processors.late_rule_status',
             ],
         },
     },
@@ -231,12 +235,15 @@ WSGI_APPLICATION = 'hrms.wsgi.application'
 # ═══════════════════════════════════════════════════════════
 #  DATABASE
 # ═══════════════════════════════════════════════════════════
+# Detect if using SQLite (local) vs PostgreSQL (production)
+_db_url = os.environ.get('DATABASE_URL', 'sqlite:///db.sqlite3')
+_is_sqlite = _db_url.startswith('sqlite')
 
 DATABASES = {
     'default': dj_database_url.config(
         default='sqlite:///db.sqlite3',
         conn_max_age=600,
-        ssl_require=IS_PRODUCTION,   # SSL only in prod
+        ssl_require=IS_PRODUCTION and not _is_sqlite,   # ← SQLite pe SSL skip
     )
 }
 
@@ -301,6 +308,7 @@ LOGOUT_REDIRECT_URL = '/login/'
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_BROWSER_XSS_FILTER = True   # No-op on modern browsers, harmless
 X_FRAME_OPTIONS = 'DENY'
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 
 # HTTPS enforcement
 SECURE_SSL_REDIRECT = env_bool('SECURE_SSL_REDIRECT', default=IS_PRODUCTION)
@@ -383,3 +391,87 @@ MAX_IMAGE_SIZE_MB = 2
 # Allowed attachment extensions
 ALLOWED_ATTACHMENT_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx']
 MAX_ATTACHMENT_SIZE_MB = 5
+
+
+# ═══════════════════════════════════════════════════════════════
+# CONTENT SECURITY POLICY (CSP)
+# ═══════════════════════════════════════════════════════════════
+
+CONTENT_SECURITY_POLICY = {
+    'DIRECTIVES': {
+        'default-src': ("'self'",),
+        'script-src': (
+            "'self'",
+            "'unsafe-inline'",           # needed for inline JS in templates
+            'cdn.jsdelivr.net',
+            'cdnjs.cloudflare.com',
+        ),
+        'style-src': (
+            "'self'",
+            "'unsafe-inline'",           # needed for inline <style>
+            'cdn.jsdelivr.net',
+            'cdnjs.cloudflare.com',
+            'fonts.googleapis.com',
+        ),
+        'img-src': (
+            "'self'",
+            'data:',                     # base64 images
+            'blob:',
+        ),
+        'font-src': (
+            "'self'",
+            'fonts.gstatic.com',
+            'cdnjs.cloudflare.com',
+        ),
+        'connect-src': (
+            "'self'",
+        ),
+        'frame-ancestors': ("'none'",),  # can't be iframed
+        'base-uri': ("'self'",),         # prevents base tag hijack
+        'form-action': ("'self'",),      # forms only submit to same origin
+    }
+}
+
+
+
+
+# ═══════════════════════════════════════════════════════════════
+# PERMISSIONS POLICY — restrict browser APIs
+# ═══════════════════════════════════════════════════════════════
+
+PERMISSIONS_POLICY = {
+    'geolocation': ['self'],
+    'camera': [],
+    'microphone': [],
+    'payment': [],
+    'usb': [],
+}
+
+
+
+# ═══════════════════════════════════════════════════════════════
+# PERMISSIONS POLICY MIDDLEWARE
+# Restricts browser APIs (geolocation, camera, mic, etc.)
+# ═══════════════════════════════════════════════════════════════
+
+class PermissionsPolicyMiddleware:
+    """
+    Adds Permissions-Policy header to every response.
+    Restricts browser features to safe defaults.
+    Geolocation is allowed for self (needed for GPS clock-in).
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+        self.policy = (
+            "geolocation=(self), "
+            "camera=(), "
+            "microphone=(), "
+            "payment=(), "
+            "usb=()"
+        )
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        response['Permissions-Policy'] = self.policy
+        return response

@@ -1,0 +1,605 @@
+{% extends 'base.html' %}
+{% load auth_extras %}
+
+{% block title %}Late Deductions — HRMS{% endblock %}
+{% block page_icon %}clock{% endblock %}
+{% block page_title %}Late Deductions{% endblock %}
+
+{% block content %}
+
+<style>
+    .ltd-wrap {
+        --ltd-bg:         #ffffff;
+        --ltd-bg-2:       #fafbfc;
+        --ltd-border:     #e8eaee;
+        --ltd-text:       #0f172a;
+        --ltd-text-muted: #64748b;
+        --ltd-text-faint: #94a3b8;
+        --ltd-primary:    #4f46e5;
+        --ltd-success:    #059669;
+        --ltd-success-bg: #ecfdf5;
+        --ltd-warning:    #d97706;
+        --ltd-warning-bg: #fffbeb;
+        --ltd-danger:     #dc2626;
+        --ltd-danger-bg:  #fef2f2;
+        --ltd-info:       #0284c7;
+        --ltd-info-bg:    #f0f9ff;
+        --ltd-r:          12px;
+        --ltd-r-sm:       8px;
+        --ltd-shadow:     0 1px 2px rgba(15,23,42,.04);
+    }
+
+    /* ─── Tabs ─── */
+    .ltd-tabs {
+        display: inline-flex;
+        gap: 4px;
+        padding: 4px;
+        background: #fff;
+        border: 1px solid var(--ltd-border);
+        border-radius: 10px;
+        margin-bottom: 20px;
+        box-shadow: var(--ltd-shadow);
+    }
+    .ltd-tab {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        border-radius: 7px;
+        font-size: .82rem;
+        font-weight: 500;
+        color: var(--ltd-text-muted);
+        text-decoration: none;
+        transition: all .15s ease;
+    }
+    .ltd-tab:hover { color: var(--ltd-text); background: var(--ltd-bg-2); }
+    .ltd-tab.active { background: var(--ltd-primary); color: #fff; }
+    .ltd-tab-count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 20px;
+        height: 20px;
+        padding: 0 7px;
+        border-radius: 999px;
+        background: var(--ltd-bg-2);
+        color: var(--ltd-text-muted);
+        font-size: .65rem;
+        font-weight: 700;
+    }
+    .ltd-tab.active .ltd-tab-count {
+        background: rgba(255,255,255,.22);
+        color: #fff;
+    }
+
+    /* ─── Summary ─── */
+    .ltd-summary {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        gap: 14px;
+        margin-bottom: 20px;
+    }
+    .ltd-stat {
+        background: #fff;
+        border: 1px solid var(--ltd-border);
+        border-radius: var(--ltd-r);
+        padding: 16px 18px;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        box-shadow: var(--ltd-shadow);
+    }
+    .ltd-stat-ico {
+        width: 40px; height: 40px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.1rem;
+        flex-shrink: 0;
+    }
+    .ltd-stat-ico.primary { background: #eef2ff; color: var(--ltd-primary); }
+    .ltd-stat-ico.success { background: var(--ltd-success-bg); color: var(--ltd-success); }
+    .ltd-stat-ico.warning { background: var(--ltd-warning-bg); color: var(--ltd-warning); }
+    .ltd-stat-ico.info    { background: var(--ltd-info-bg); color: var(--ltd-info); }
+    .ltd-stat-ico.danger  { background: var(--ltd-danger-bg); color: var(--ltd-danger); }
+    .ltd-stat-label {
+        font-size: .68rem;
+        font-weight: 500;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--ltd-text-muted);
+        margin-bottom: 2px;
+    }
+    .ltd-stat-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--ltd-text);
+        line-height: 1.1;
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* ─── Card ─── */
+    .ltd-card {
+        background: #fff;
+        border: 1px solid var(--ltd-border);
+        border-radius: var(--ltd-r);
+        box-shadow: var(--ltd-shadow);
+        margin-bottom: 20px;
+    }
+    .ltd-card-hd {
+        padding: 16px 22px 14px;
+        border-bottom: 1px solid var(--ltd-border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    .ltd-card-title {
+        font-size: .95rem;
+        font-weight: 600;
+        color: var(--ltd-text);
+        margin: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .ltd-card-title i { color: var(--ltd-text-faint); }
+    .ltd-card-bd { padding: 18px 22px; }
+
+    /* ─── Filters ─── */
+    .ltd-filters {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 12px;
+    }
+    .ltd-filter-lbl {
+        font-size: .68rem;
+        font-weight: 600;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+        color: var(--ltd-text-faint);
+        margin-bottom: 4px;
+        display: block;
+    }
+    .ltd-input {
+        width: 100%;
+        padding: 8px 11px;
+        border: 1px solid var(--ltd-border);
+        border-radius: var(--ltd-r-sm);
+        font-size: .85rem;
+        color: var(--ltd-text);
+        background: #fff;
+    }
+    .ltd-input:focus { outline: none; border-color: var(--ltd-primary); }
+    .ltd-btn-apply {
+        background: var(--ltd-primary);
+        color: #fff;
+        border: none;
+        cursor: pointer;
+        padding: 8px 18px;
+        font-weight: 500;
+        border-radius: var(--ltd-r-sm);
+        font-size: .85rem;
+    }
+    .ltd-btn-reset {
+        text-decoration: none;
+        text-align: center;
+        padding: 8px 18px;
+        background: var(--ltd-bg-2);
+        color: var(--ltd-text-muted);
+        font-weight: 500;
+        border-radius: var(--ltd-r-sm);
+        font-size: .85rem;
+        border: 1px solid var(--ltd-border);
+    }
+    .ltd-btn-row {
+        display: flex;
+        gap: 8px;
+        align-items: flex-end;
+    }
+
+    /* ─── Month nav ─── */
+    .ltd-nav { display: inline-flex; align-items: center; gap: 10px; }
+    .ltd-nav-btn {
+        width: 32px; height: 32px;
+        border-radius: 50%;
+        border: 1px solid var(--ltd-border);
+        background: #fff;
+        color: var(--ltd-text);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+        font-size: .8rem;
+    }
+    .ltd-nav-btn:hover { background: var(--ltd-bg-2); }
+    .ltd-nav-btn.disabled { opacity: .4; pointer-events: none; }
+    .ltd-nav-month {
+        font-weight: 600;
+        color: var(--ltd-text);
+        min-width: 130px;
+        text-align: center;
+    }
+
+    /* ─── Table ─── */
+    .ltd-table-wrap { overflow-x: auto; }
+    .ltd-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    .ltd-table thead th {
+        background: var(--ltd-bg-2);
+        font-size: .68rem;
+        font-weight: 600;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+        color: var(--ltd-text-faint);
+        padding: 10px 14px;
+        text-align: left;
+        border-bottom: 1px solid var(--ltd-border);
+        white-space: nowrap;
+    }
+    .ltd-table thead th.center { text-align: center; }
+    .ltd-table thead th.right  { text-align: right; }
+    .ltd-table tbody td {
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--ltd-border);
+        color: var(--ltd-text);
+        vertical-align: middle;
+    }
+    .ltd-table tbody tr:last-child td { border-bottom: none; }
+    .ltd-table tbody tr:hover { background: var(--ltd-bg-2); }
+
+    .ltd-emp-cell { display: flex; align-items: center; gap: 10px; }
+    .ltd-avatar {
+        width: 32px; height: 32px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        color: #fff;
+        font-weight: 600;
+        font-size: .72rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .ltd-emp-name { font-weight: 600; color: var(--ltd-text); line-height: 1.2; }
+    .ltd-emp-id { font-size: .72rem; color: var(--ltd-text-muted); }
+
+    /* ─── Badges ─── */
+    .ltd-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 3px 10px;
+        border-radius: 999px;
+        font-size: .72rem;
+        font-weight: 600;
+    }
+    .ltd-badge.leave     { background: var(--ltd-warning-bg); color: var(--ltd-warning); }
+    .ltd-badge.salary    { background: var(--ltd-info-bg);    color: var(--ltd-info); }
+    .ltd-badge.applied   { background: var(--ltd-success-bg); color: var(--ltd-success); }
+    .ltd-badge.pending   { background: var(--ltd-warning-bg); color: var(--ltd-warning); }
+    .ltd-badge.processed { background: #eef2ff;               color: var(--ltd-primary); }
+    .ltd-badge.cancelled { background: var(--ltd-danger-bg);  color: var(--ltd-danger); }
+
+    /* ─── Amounts ─── */
+    .ltd-amount { font-variant-numeric: tabular-nums; font-weight: 600; }
+    .ltd-amount.danger { color: var(--ltd-danger); }
+    .ltd-amount.muted  { color: var(--ltd-text-faint); font-weight: 400; }
+    .ltd-penalty { font-weight: 600; text-align: center; }
+
+    /* ─── Cancel button ─── */
+    .ltd-cancel-form { display: inline; }
+    .ltd-cancel-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        background: var(--ltd-danger-bg);
+        color: var(--ltd-danger);
+        border: none;
+        cursor: pointer;
+        font-size: .8rem;
+        transition: background .15s ease;
+    }
+    .ltd-cancel-btn:hover { background: #fee2e2; color: #b91c1c; }
+    .ltd-locked {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        color: var(--ltd-text-faint);
+        font-size: .8rem;
+    }
+
+    /* ─── Empty ─── */
+    .ltd-empty {
+        padding: 60px 20px;
+        text-align: center;
+        color: var(--ltd-text-muted);
+    }
+    .ltd-empty-ico { font-size: 2rem; color: var(--ltd-text-faint); margin-bottom: 8px; }
+    .ltd-empty-title {
+        font-size: .95rem;
+        font-weight: 600;
+        color: var(--ltd-text);
+        margin: 0 0 4px;
+    }
+    .ltd-empty-sub { font-size: .82rem; margin: 0; }
+
+    .ltd-snap { font-size: .72rem; color: var(--ltd-text-muted); line-height: 1.4; }
+    .ltd-snap strong { color: var(--ltd-text); }
+    .ltd-restore-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;background:#ecfdf5;color:#059669;border:none;cursor:pointer;font-size:.8rem;transition:background .15s}.ltd-restore-btn:hover{background:#d1fae5;color:#047857}
+    
+</style>
+
+<div class="ltd-wrap">
+
+    <!-- ═══════════ Tabs ═══════════ -->
+    <div class="ltd-tabs">
+        <a href="?tab=deductions&month={{ month }}&year={{ year }}"
+           class="ltd-tab {% if tab == 'deductions' %}active{% endif %}">
+            <i class="las la-clock"></i> Deductions
+            <span class="ltd-tab-count">{{ tab_counts.active }}</span>
+        </a>
+        <a href="?tab=cancelled&month={{ month }}&year={{ year }}"
+           class="ltd-tab {% if tab == 'cancelled' %}active{% endif %}">
+            <i class="las la-ban"></i> Cancelled
+            <span class="ltd-tab-count">{{ tab_counts.cancelled }}</span>
+        </a>
+    </div>
+
+    <!-- ═══════════ Summary ═══════════ -->
+    <div class="ltd-summary">
+        <div class="ltd-stat">
+            <div class="ltd-stat-ico primary"><i class="las la-list-ol"></i></div>
+            <div>
+                <div class="ltd-stat-label">Transactions</div>
+                <div class="ltd-stat-value">{{ summary.total_count }}</div>
+            </div>
+        </div>
+        <div class="ltd-stat">
+            <div class="ltd-stat-ico warning"><i class="las la-calendar-minus"></i></div>
+            <div>
+                <div class="ltd-stat-label">Leave Days</div>
+                <div class="ltd-stat-value">{{ summary.leave_days|floatformat:2 }}</div>
+            </div>
+        </div>
+        <div class="ltd-stat">
+            <div class="ltd-stat-ico danger"><i class="las la-rupee-sign"></i></div>
+            <div>
+                <div class="ltd-stat-label">Salary Cut</div>
+                <div class="ltd-stat-value">₹{{ summary.salary_total|floatformat:2 }}</div>
+            </div>
+        </div>
+        <div class="ltd-stat">
+            <div class="ltd-stat-ico info"><i class="las la-hourglass-half"></i></div>
+            <div>
+                <div class="ltd-stat-label">Pending</div>
+                <div class="ltd-stat-value">{{ summary.pending_count }}</div>
+            </div>
+        </div>
+        <div class="ltd-stat">
+            <div class="ltd-stat-ico success"><i class="las la-check-circle"></i></div>
+            <div>
+                <div class="ltd-stat-label">Processed</div>
+                <div class="ltd-stat-value">{{ summary.processed_count }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════ Filters ═══════════ -->
+    <div class="ltd-card">
+        <div class="ltd-card-hd">
+            <h6 class="ltd-card-title"><i class="las la-filter"></i> Filters</h6>
+            <div class="ltd-nav">
+                <a href="?tab={{ tab }}&month={{ prev_month }}&year={{ prev_year }}&status={{ status_f }}&type={{ type_f }}&employee={{ emp_f }}"
+                   class="ltd-nav-btn"><i class="fas fa-chevron-left"></i></a>
+                <span class="ltd-nav-month">{{ month_name }}</span>
+                {% if next_disabled %}
+                    <span class="ltd-nav-btn disabled"><i class="fas fa-chevron-right"></i></span>
+                {% else %}
+                    <a href="?tab={{ tab }}&month={{ next_month }}&year={{ next_year }}&status={{ status_f }}&type={{ type_f }}&employee={{ emp_f }}"
+                       class="ltd-nav-btn"><i class="fas fa-chevron-right"></i></a>
+                {% endif %}
+            </div>
+        </div>
+        <div class="ltd-card-bd">
+            <form method="get">
+                <input type="hidden" name="tab" value="{{ tab }}">
+                <input type="hidden" name="month" value="{{ month }}">
+                <input type="hidden" name="year" value="{{ year }}">
+                <div class="ltd-filters">
+                    <div>
+                        <label class="ltd-filter-lbl">Employee ID</label>
+                        <input type="text" name="employee" value="{{ emp_f }}" class="ltd-input" placeholder="e.g. COM0015">
+                    </div>
+                    <div>
+                        <label class="ltd-filter-lbl">Type</label>
+                        <select name="type" class="ltd-input">
+                            <option value="">All types</option>
+                            <option value="LEAVE"  {% if type_f == 'LEAVE' %}selected{% endif %}>Leave</option>
+                            <option value="SALARY" {% if type_f == 'SALARY' %}selected{% endif %}>Salary</option>
+                        </select>
+                    </div>
+                    {% if tab == 'deductions' %}
+                    <div>
+                        <label class="ltd-filter-lbl">Status</label>
+                        <select name="status" class="ltd-input">
+                            <option value="">All statuses</option>
+                            <option value="APPLIED"         {% if status_f == 'APPLIED' %}selected{% endif %}>Applied</option>
+                            <option value="PENDING_PAYROLL" {% if status_f == 'PENDING_PAYROLL' %}selected{% endif %}>Pending Payroll</option>
+                            <option value="PROCESSED"       {% if status_f == 'PROCESSED' %}selected{% endif %}>Processed</option>
+                        </select>
+                    </div>
+                    {% endif %}
+                    <div class="ltd-btn-row">
+                        <button type="submit" class="ltd-btn-apply"><i class="fas fa-search"></i> Apply</button>
+                        <a href="?tab={{ tab }}&month={{ month }}&year={{ year }}" class="ltd-btn-reset">Reset</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ═══════════ Table ═══════════ -->
+    <div class="ltd-card">
+        <div class="ltd-card-hd">
+            <h6 class="ltd-card-title">
+                <i class="las {% if tab == 'cancelled' %}la-ban{% else %}la-clock{% endif %}"></i>
+                {% if tab == 'cancelled' %}Cancelled Transactions{% else %}Active Transactions{% endif %}
+            </h6>
+            <span style="font-size:.78rem; color:#64748b;">
+                {{ summary.total_count }} record{{ summary.total_count|pluralize }}
+            </span>
+        </div>
+
+        {% if deductions %}
+        <div class="ltd-table-wrap">
+            <table class="ltd-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Employee</th>
+                        <th>Type</th>
+                        <th class="center">Penalty</th>
+                        <th>Details</th>
+                        <th class="right">Amount</th>
+                        <th>Status</th>
+                        <th>Policy</th>
+                        {% if tab == 'deductions' %}<th class="center">Action</th>{% endif %}
+                        {% if tab == 'cancelled' %}<th class="center">Action</th>{% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in deductions %}
+                    <tr>
+                        <td><strong>{{ d.attendance_date|date:"d M Y" }}</strong></td>
+                        <td>
+                            <div class="ltd-emp-cell">
+                                <div class="ltd-avatar">{{ d.employee.full_name|default:d.employee.user.username|slice:":1"|upper }}</div>
+                                <div>
+                                    <div class="ltd-emp-name">{{ d.employee.full_name|default:d.employee.user.username }}</div>
+                                    <div class="ltd-emp-id">{{ d.employee.employee_id }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            {% if d.deduction_type == 'LEAVE' %}
+                                {% if d.lop_days > 0 and d.leave_days > 0 %}
+                                    <span class="ltd-badge leave"><i class="las la-calendar-minus"></i> Leave + LOP</span>
+                                {% elif d.lop_days > 0 %}
+                                    <span class="ltd-badge salary"><i class="las la-rupee-sign"></i> LOP</span>
+                                {% else %}
+                                    <span class="ltd-badge leave"><i class="las la-calendar-minus"></i> Leave</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="ltd-badge salary"><i class="las la-rupee-sign"></i> Salary</span>
+                            {% endif %}
+                        </td>
+                        <td class="ltd-penalty">{{ d.penalty_days|floatformat:"-2" }} day</td>
+                        <td>
+                            {% if d.deduction_type == 'LEAVE' %}
+                                {% if d.leave_days > 0 and d.lop_days > 0 %}
+                                    {{ d.leave_days|floatformat:"-2" }}d from {{ d.leave_type.name|default:"leave" }} + {{ d.lop_days|floatformat:"-2" }}d LOP
+                                {% elif d.leave_days > 0 %}
+                                    → {{ d.leave_type.name|default:"Leave" }}
+                                {% elif d.lop_days > 0 %}
+                                    LOP from salary
+                                {% else %}
+                                    —
+                                {% endif %}
+                            {% else %}
+                                {% if d.payroll %}Payslip {{ d.payroll.month|stringformat:"02d" }}/{{ d.payroll.year }}{% else %}<span style="color:#d97706;">Pending payroll</span>{% endif %}
+                            {% endif %}
+                        </td>
+                        <td class="ltd-amount {% if not d.salary_amount %}muted{% endif %}" style="text-align:right;">
+                            {% if d.salary_amount > 0 %}−₹{{ d.salary_amount|floatformat:2 }}{% else %}—{% endif %}
+                        </td>
+                        <td>
+                            {% if d.status == 'APPLIED' %}
+                                <span class="ltd-badge applied"><i class="las la-check"></i> Applied</span>
+                            {% elif d.status == 'PENDING_PAYROLL' %}
+                                <span class="ltd-badge pending"><i class="las fa-hourglass-half"></i> Pending</span>
+                            {% elif d.status == 'PROCESSED' %}
+                                <span class="ltd-badge processed"><i class="las la-check-double"></i> Processed</span>
+                            {% elif d.status == 'CANCELLED' %}
+                                <span class="ltd-badge cancelled"><i class="las la-ban"></i> Cancelled</span>
+                            {% else %}
+                                <span class="ltd-badge">{{ d.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="ltd-snap">
+                                {% if d.policy_snapshot %}
+                                    <strong>v{{ d.policy_snapshot.version|default:"?" }}</strong> ·
+                                    {{ d.policy_snapshot.billable_lates_in_month|default:"?" }}/
+                                    {{ d.policy_snapshot.total_lates_in_month|default:"?" }} billable
+                                {% else %}—{% endif %}
+                            </div>
+                        </td>
+
+                        {% if tab == 'deductions' %}
+                        <td class="text-center">
+                            {% if not d.payroll or d.payroll.status == 'draft' %}
+                                <form method="post" class="ltd-cancel-form"
+                                      onsubmit="return confirm('Cancel this late penalty?\n\nEmployee: {{ d.employee.full_name|default:d.employee.user.username|escapejs }}\nDate: {{ d.attendance_date|date:"d M Y"|escapejs }}\n\nLeave balance and salary will be restored.');">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="cancel">
+                                    <input type="hidden" name="deduction_id" value="{{ d.id }}">
+                                    <input type="hidden" name="tab" value="{{ tab }}">
+                                    <input type="hidden" name="month" value="{{ month }}">
+                                    <input type="hidden" name="year" value="{{ year }}">
+                                    <button type="submit" class="ltd-cancel-btn" title="Cancel this transaction">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </form>
+                            {% else %}
+                                <span class="ltd-locked" title="Payroll is {{ d.payroll.get_status_display }} — cannot cancel">
+                                    <i class="fas fa-lock"></i>
+                                </span>
+                            {% endif %}
+                        </td>
+                        {% endif %}
+
+                        {% if tab == 'cancelled' %}
+                        <td class="text-center">
+                            <form method="post" class="ltd-cancel-form"
+                                  onsubmit="return confirm('Restore this cancelled penalty?\n\nEmployee: {{ d.employee.full_name|default:d.employee.user.username|escapejs }}\nDate: {{ d.attendance_date|date:"d M Y"|escapejs }}\n\nThe deduction will be applied again.');">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="restore">
+                                <input type="hidden" name="deduction_id" value="{{ d.id }}">
+                                <input type="hidden" name="tab" value="{{ tab }}">
+                                <input type="hidden" name="month" value="{{ month }}">
+                                <input type="hidden" name="year" value="{{ year }}">
+                                <button type="submit" class="ltd-restore-btn" title="Restore this transaction">
+                                    <i class="fas fa-undo"></i>
+                                </button>
+                            </form>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+
+
+        <div class="ltd-empty">
+            <div class="ltd-empty-ico"><i class="las la-inbox"></i></div>
+            <p class="ltd-empty-title">
+                {% if tab == 'cancelled' %}No cancelled transactions{% else %}No late deductions{% endif %}
+            </p>
+            <p class="ltd-empty-sub">
+                {% if tab == 'cancelled' %}Nothing was cancelled in {{ month_name }}.{% else %}Nothing matched the filters for {{ month_name }}.{% endif %}
+            </p>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

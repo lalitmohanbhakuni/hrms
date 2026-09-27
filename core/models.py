@@ -716,6 +716,7 @@ class PasswordResetRequest(models.Model):
 # Late Coming Rules (per company)
 # ─────────────────────────────────────────
 
+
 class LateComingRule(models.Model):
     METHOD_CHOICES = [
         ('marks',   'Late Marks (simple)'),
@@ -731,8 +732,8 @@ class LateComingRule(models.Model):
         ('skip', 'Skip Deduction'),
     ]
 
-    company = models.OneToOneField(
-        Company, on_delete=models.CASCADE, related_name='late_coming_rule'
+    company = models.ForeignKey(
+        Company, on_delete=models.CASCADE, related_name='late_coming_rules'
     )
     is_enabled = models.BooleanField(default=True)
     calculation_method = models.CharField(
@@ -763,9 +764,23 @@ class LateComingRule(models.Model):
 
     updated_at = models.DateTimeField(auto_now=True)
 
+    # ── Policy versioning ──
+    effective_from = models.DateField(
+        null=True, blank=True,
+        help_text="Policy applies from this date onwards",
+    )
+    effective_to = models.DateField(
+        null=True, blank=True,
+        help_text="Policy applies up to this date (inclusive). Null = still active.",
+    )
+    version = models.PositiveIntegerField(
+        default=1,
+        help_text="Auto-incremented when a new version is created",
+    )
+
     def __str__(self):
         return f"Late Coming Rules — {self.company.name}"
-
+        
 
 class LateMinuteSlab(models.Model):
     """
@@ -883,3 +898,102 @@ class Payroll(models.Model):
     def total_deductions(self):
         return self.total_deduction
 
+
+
+# ═══════════════════════════════════════════════════════════════
+#  LATE DEDUCTION LEDGER
+#  Every late penalty creates ONE immutable transaction.
+#  Stores the exact policy that was applied at that time.
+# ═══════════════════════════════════════════════════════════════
+class LateDeduction(models.Model):
+    DEDUCTION_TYPE = [
+        ('LEAVE',  'Deduct Leave'),
+        ('SALARY', 'Deduct Salary'),
+    ]
+    STATUS_CHOICES = [
+        ('APPLIED',          'Applied'),            # Leave consumed immediately
+        ('PENDING_PAYROLL',  'Pending Payroll'),    # Salary cut awaited
+        ('PROCESSED',        'Processed'),          # Salary cut done
+        ('CANCELLED',        'Cancelled'),          # Reversed by HR
+    ]
+    SOURCE_CHOICES = [
+        ('LATE_COMING', 'Late Coming'),
+    ]
+
+    employee = models.ForeignKey(
+        EmployeeProfile,
+        on_delete=models.CASCADE,
+        related_name='late_deductions',
+    )
+    company = models.ForeignKey(
+        Company,
+        on_delete=models.CASCADE,
+        related_name='late_deductions',
+    )
+    attendance_date = models.DateField(
+        help_text="Date the employee was late (the attendance date)",
+    )
+
+    # ── What happened ──
+    deduction_type = models.CharField(max_length=10, choices=DEDUCTION_TYPE)
+    penalty_days   = models.DecimalField(max_digits=6, decimal_places=2)
+
+    # ── If LEAVE ──
+    leave_type = models.ForeignKey(
+        LeaveType,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='late_deductions',
+    )
+    leave_days  = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    lop_days    = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+
+    # ── If SALARY ──
+    salary_amount = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+    )
+
+    # ── Snapshot of the rule used (for history) ──
+    #   { "policy_version": 1, "deduction_per_late": "0.25",
+    #     "free_marks": 3, "half_day_cutoff": 120,
+    #     "late_days": 5, "billable_lates": 2 }
+    policy_snapshot = models.JSONField(default=dict, blank=True)
+
+    # ── Reference to the policy row (if kept) ──
+    policy_ref_id = models.PositiveIntegerField(null=True, blank=True)
+
+    # ── State ──
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='LATE_COMING')
+
+    # ── Payroll link (once processed) ──
+    payroll = models.ForeignKey(
+        'Payroll',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='late_deductions',
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-attendance_date']
+        indexes = [
+            models.Index(fields=['company', 'attendance_date']),
+            models.Index(fields=['employee', 'status']),
+            models.Index(fields=['status', 'deduction_type']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['employee', 'attendance_date', 'source'],
+                name='unique_late_deduction_per_day',
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.employee.employee_id} | {self.attendance_date} | "
+            f"{self.deduction_type} | {self.penalty_days} | {self.status}"
+        )
+        

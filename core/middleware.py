@@ -166,7 +166,6 @@ class URLGuardMiddleware:
         '/admin-leaves/',
         '/leave-approve/',
         '/leave-reject/',
-        '/attendance/regularize-list/',
         '/attendance/regularize-approve/',
         '/attendance/regularize-reject/',
     )
@@ -237,4 +236,28 @@ class ApplyPendingShiftMiddleware:
                 ])
         return self.get_response(request)
 
+        
+
+
+class PermissionsPolicyMiddleware:
+    """
+    Adds Permissions-Policy header to every response.
+    Restricts browser features to safe defaults.
+    Geolocation is allowed for self (needed for GPS clock-in).
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+        self.policy = (
+            "geolocation=(self), "
+            "camera=(), "
+            "microphone=(), "
+            "payment=(), "
+            "usb=()"
+        )
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        response['Permissions-Policy'] = self.policy
+        return response
         

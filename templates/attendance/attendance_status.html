@@ -127,10 +127,13 @@
 
                                 <td>
                                     {% if item.overtime and item.overtime != '--:--' %}
-                                        <span class="db-badge-soft warning">{{ item.overtime }}</span>
+                                        <span class="db-badge-soft warning" style="color: #4f46e5; background-color: #eee;"> <i class="las la-business-time" style="color: #4f46e5;"></i> &nbsp; {{ item.overtime }}</span>
                                     {% else %}
                                         <span class="muted">--</span>
                                     {% endif %}
+
+                                    
+
                                 </td>
 
                                 <td class="num">
@@ -169,6 +172,13 @@
 
                                     {% else %}
                                         <span class="db-status" style="background:#f4f6f8;color:#64748b;">{{ item.status|default:"—" }}</span>
+                                    {% endif %}
+
+                                    {% if item.is_late and item.late_minutes > 0 %}
+                                    <span style="display:inline-flex;align-items:center;gap:3px;margin-left:6px;padding:2px 8px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:.68rem;font-weight:600;"
+                                        title="Late by {{ item.late_minutes }} minutes">
+                                        <i class="las la-clock"></i> +{{ item.late_minutes }}m
+                                    </span>
                                     {% endif %}
                                 </td>
                                 {# ─── ACTION ─── #}

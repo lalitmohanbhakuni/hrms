@@ -234,13 +234,32 @@
                                     {% endif %}
 
                                     {# ─── NEW: Late Penalty — shown when > 0 ─── #}
-                                    {% if payroll.late_deduction and payroll.late_deduction > 0 %}
+                                    <!-- {# ─── Late Penalty — shown when any late deduction exists ─── #} -->
+                                    {% if payroll.late_deduction > 0 or payroll.late_leave_days > 0 or payroll.late_lop_days > 0 %}
                                     <div class="psl-item is-notable-warning">
                                         <span class="psl-item-label">
                                             Late Penalty
-                                            <small>{{ payroll.late_days }} late mark{{ payroll.late_days|pluralize }} × {{ payroll.late_penalty_days|floatformat:"-2" }} day deduction</small>
+                                            <small>{{ payroll.late_days }} late mark{{ payroll.late_days|pluralize }} · {{ payroll.late_penalty_days|floatformat:"-2" }} day</small>
+                                            {% if payroll.late_leave_days > 0 and payroll.late_lop_days > 0 %}
+                                            <small style="display:block;color:#64748b;font-size:.7rem;margin-top:2px;">
+                                                {{ payroll.late_leave_days|floatformat:"-2" }} day absorbed by leave ·
+                                                {{ payroll.late_lop_days|floatformat:"-2" }} day LOP
+                                            </small>
+                                            {% elif payroll.late_leave_days > 0 %}
+                                            <small style="display:block;color:#64748b;font-size:.7rem;margin-top:2px;">
+                                                {{ payroll.late_leave_days|floatformat:"-2" }} day absorbed by leave
+                                            </small>
+                                            {% elif payroll.late_lop_days > 0 %}
+                                            <small style="display:block;color:#64748b;font-size:.7rem;margin-top:2px;">
+                                                {{ payroll.late_lop_days|floatformat:"-2" }} day salary cut
+                                            </small>
+                                            {% endif %}
                                         </span>
+                                        {% if payroll.late_deduction > 0 %}
                                         <span class="psl-item-value danger">₹{{ payroll.late_deduction|floatformat:2 }}</span>
+                                        {% else %}
+                                        <span class="psl-item-value empty">₹0.00</span>
+                                        {% endif %}
                                     </div>
                                     {% endif %}
 
@@ -264,7 +283,7 @@
                                     {% endif %}
 
                                     {# Zero-deduction case — show all rows muted #}
-                                    {% if not payroll.absent_deduction and not payroll.unpaid_leave_deduction and not payroll.other_deduction and not payroll.late_deduction %}
+                                    {% if not payroll.absent_deduction and not payroll.unpaid_leave_deduction and not payroll.other_deduction and not payroll.late_deduction and not payroll.late_leave_days %}
                                     <div class="psl-item">
                                         <span class="psl-item-label">Absent Deduction</span>
                                         <span class="psl-item-value empty">₹0.00</span>
@@ -331,6 +350,7 @@
             </div>
         </div>
     </div>
+</div>
 
 
     {% endblock %}

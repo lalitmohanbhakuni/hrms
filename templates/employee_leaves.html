@@ -11,6 +11,10 @@
 
 
 </style>
+<style>
+    .mlv-lt-penalty,.mlv-lt-table thead th.center{text-align:center}.mlv-lt-amount,.mlv-lt-badge,.mlv-lt-date,.mlv-lt-empty-title,.mlv-lt-penalty,.mlv-lt-title{font-weight:600}.mlv-lt-card{margin-top:18px;background:#fff;border:1px solid #e8eaee;border-radius:12px;overflow:hidden}.mlv-lt-hd{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid #e8eaee}.mlv-lt-title{margin:0;display:flex;align-items:center;gap:8px;font-size:.95rem;color:#0f172a}.mlv-lt-title i{color:#94a3b8}.mlv-lt-count{font-size:.78rem;color:#64748b}.mlv-lt-table-wrap{overflow-x:auto}.mlv-lt-table{width:100%;border-collapse:collapse;font-size:.85rem}.mlv-lt-table thead th{background:#fafbfc;padding:10px 14px;font-size:.68rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#94a3b8;border-bottom:1px solid #e8eaee;text-align:left;white-space:nowrap}.mlv-lt-table thead th.right{text-align:right}.mlv-lt-table tbody td{padding:12px 14px;border-bottom:1px solid #f1f3f5;color:#0f172a;vertical-align:middle}.mlv-lt-table tbody tr:last-child td{border-bottom:none}.mlv-lt-table tbody tr:hover{background:#fafbfc}.mlv-lt-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:999px;font-size:.72rem}.mlv-lt-badge.leave,.mlv-lt-badge.pending{background:#fffbeb;color:#d97706}.mlv-lt-badge.salary{background:#f0f9ff;color:#0284c7}.mlv-lt-badge.applied{background:#ecfdf5;color:#059669}.mlv-lt-badge.processed{background:#eef2ff;color:#4f46e5}.mlv-lt-details{color:#475569;font-size:.82rem}.mlv-lt-amount{text-align:right;font-variant-numeric:tabular-nums;color:#dc2626}.mlv-lt-amount.empty{color:#94a3b8;font-weight:400}.mlv-lt-empty{padding:60px 20px;text-align:center;color:#64748b}.mlv-lt-empty-ico{font-size:2rem;color:#cbd5e1;margin-bottom:8px}.mlv-lt-empty-title{font-size:.95rem;color:#0f172a;margin:0 0 4px}.mlv-lt-empty-sub{font-size:.82rem;margin:0}
+</style>
+
 
 <div class="mlv-wrap">
 
@@ -23,6 +27,7 @@
     </div>
 
     <!-- ═══════════ Tabs ═══════════ -->
+    
     <ul class="nav mlv-tabs" id="leaveTabs" role="tablist">
         <li class="nav-item" role="presentation">
             <a class="nav-link {% if tab == 'status' %}active{% endif %}" href="?tab=status">
@@ -35,11 +40,18 @@
             </a>
         </li>
         <li class="nav-item" role="presentation">
+            <a class="nav-link {% if tab == 'late-deductions' %}active{% endif %}" href="?tab=late-deductions">
+                <i class="las la-clock"></i> Late Deductions
+            </a>
+        </li>
+        <li class="nav-item" role="presentation">
             <a class="nav-link {% if tab == 'holidays' %}active{% endif %}" href="?tab=holidays">
                 <i class="las la-calendar-alt"></i> Holidays
             </a>
         </li>
+        
     </ul>
+
 
     <div class="tab-content">
 
@@ -69,12 +81,12 @@
                                     {% if item.available <= 2 %}danger
                                     {% elif item.available <= 5 %}warning
                                     {% else %}ok{% endif %}">
-                                    <span class="num">{{ item.available }}</span> left
+                                    <span class="num">{{ item.available|floatformat:2 }}</span> left
                                 </span>
                             </div>
 
                             <div class="mlv-balance-visual">
-                                <span class="mlv-balance-big">{{ item.available }}</span>
+                                <span class="mlv-balance-big">{{ item.available|floatformat:2 }}</span>
                                 <span class="mlv-balance-of">of {{ item.total }} days</span>
                             </div>
 
@@ -296,7 +308,116 @@
             </div>
         </div>
 
+
+        {# ═══════════ Late Deductions tab ═══════════ #}
+        {% if tab == 'late-deductions' %}
+        <div class="mlv-lt-card">
+
+            <div class="mlv-lt-hd">
+                <h6 class="mlv-lt-title">
+                    <i class="las la-clock"></i>
+                    My Late Deduction History
+                </h6>
+                <span class="mlv-lt-count">
+                    {{ late_deductions|length }} transaction{{ late_deductions|length|pluralize }}
+                </span>
+            </div>
+
+            {% if late_deductions %}
+            <div class="mlv-lt-table-wrap">
+                <table class="mlv-lt-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Type</th>
+                            <th class="center">Penalty</th>
+                            <th>Details</th>
+                            <th class="right">Amount</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for d in late_deductions %}
+                        <tr>
+                            <td class="mlv-lt-date">{{ d.attendance_date|date:"d M Y" }}</td>
+
+                            <td>
+                                {% if d.deduction_type == 'LEAVE' %}
+                                    <span class="mlv-lt-badge leave">
+                                        <i class="las la-calendar-minus"></i> Leave
+                                    </span>
+                                {% else %}
+                                    <span class="mlv-lt-badge salary">
+                                        <i class="las la-rupee-sign"></i> Salary
+                                    </span>
+                                {% endif %}
+                            </td>
+
+                            <td class="mlv-lt-penalty">
+                                {{ d.penalty_days|floatformat:"-2" }} day
+                            </td>
+
+                            <td class="mlv-lt-details">
+                                {% if d.deduction_type == 'LEAVE' %}
+                                    {% if d.leave_type %}
+                                        Deducted from <strong>{{ d.leave_type.name }}</strong>
+                                    {% else %}
+                                        Leave deduction
+                                    {% endif %}
+                                {% else %}
+                                    {% if d.payroll %}
+                                        Included in payslip {{ d.payroll.month|stringformat:"02d" }}/{{ d.payroll.year }}
+                                    {% else %}
+                                        Pending in payroll
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+
+                            <td class="mlv-lt-amount {% if not d.salary_amount %}empty{% endif %}">
+                                {% if d.salary_amount > 0 %}
+                                    −₹{{ d.salary_amount|floatformat:2 }}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+
+                            <td>
+                                {% if d.status == 'APPLIED' %}
+                                    <span class="mlv-lt-badge applied">
+                                        <i class="las la-check"></i> Applied
+                                    </span>
+                                {% elif d.status == 'PENDING_PAYROLL' %}
+                                    <span class="mlv-lt-badge pending">
+                                        <i class="las la-hourglass-half"></i> Pending
+                                    </span>
+                                {% elif d.status == 'PROCESSED' %}
+                                    <span class="mlv-lt-badge processed">
+                                        <i class="las la-check-double"></i> Processed
+                                    </span>
+                                {% else %}
+                                    <span style="color:#94a3b8;">{{ d.status }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="mlv-lt-empty">
+                <div class="mlv-lt-empty-ico"><i class="las la-inbox"></i></div>
+                <p class="mlv-lt-empty-title">No late deductions</p>
+                <p class="mlv-lt-empty-sub">You have no late penalty deductions yet.</p>
+            </div>
+            {% endif %}
+
+        </div>
+        {% endif %}
+
+
     </div>
 </div>
+
+
 
 {% endblock %}

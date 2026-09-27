@@ -321,7 +321,7 @@ def calculate_monthly_payroll(employee, year, month, salary):
     from datetime import date, datetime, timedelta
     from calendar import monthrange
     from django.utils import timezone
-    from django.db.models import Q
+    from django.db.models import Q, Sum
     from decimal import Decimal
     from collections import Counter
     from .models import Attendance, LeaveRequest, Holiday, LateComingRule, Shift
@@ -419,42 +419,23 @@ def calculate_monthly_payroll(employee, year, month, salary):
     present_days = Decimal('0')
     for att in attendances:
         if att.status in ('Present', 'Under Review', 'Missing Checkout',
-                          'Weekend Work', 'Holiday Work'):
+                        'Weekend Work', 'Holiday Work'):
             present_days += Decimal('1')
         elif att.status == 'Half-Day':
             present_days += Decimal('0.5')
 
-    # ── Late Coming Rule (uses per-day shift for accuracy) ──
-    late_rule, _ = LateComingRule.objects.get_or_create(company=company)
+    # ── Late Coming — read from LateDeduction ledger (Phase 4) ──
+    from .models import LateDeduction
 
-    late_days          = 0
+    late_deductions = LateDeduction.objects.filter(
+        employee=employee,
+        attendance_date__year=year,
+        attendance_date__month=month,
+    ).exclude(status='CANCELLED')
+
+    late_days          = late_deductions.count()
     late_halfday_days  = 0
     total_late_minutes = 0
-
-    if late_rule.is_enabled:
-        cutoff_delta = timedelta(minutes=late_rule.half_day_cutoff_minutes)
-
-        for att in attendances.filter(check_in_time__isnull=False):
-            day_shift = att.shift if att.shift else shift
-            if not day_shift:
-                continue
-
-            grace_delta = timedelta(minutes=day_shift.grace_period or 0)
-            shift_start = timezone.make_aware(
-                datetime.combine(att.date, day_shift.start_time)
-            )
-            check_in = att.check_in_time
-
-            if check_in <= shift_start + grace_delta:
-                continue
-
-            minutes_late = int((check_in - shift_start).total_seconds() // 60)
-            total_late_minutes += minutes_late
-
-            if check_in > shift_start + cutoff_delta:
-                late_halfday_days += 1
-            else:
-                late_days += 1
 
     # ── Overtime (uses per-day shift for accuracy) ──
     overtime_minutes = 0
@@ -554,51 +535,30 @@ def calculate_monthly_payroll(employee, year, month, salary):
     late_deduction         = Decimal('0')
     late_halfday_deduction = Decimal('0')
 
-    if late_rule.is_enabled and late_rule.penalty_type != 'none':
+    late_leave_deductions  = late_deductions.filter(deduction_type='LEAVE')
+    late_salary_deductions = late_deductions.filter(deduction_type='SALARY')
 
-        if late_rule.calculation_method == 'marks':
-            billable_marks = max(0, late_days - late_rule.monthly_allowed_late_marks)
-            marks_penalty  = Decimal(str(billable_marks)) * Decimal(str(late_rule.penalty_amount))
-            half_penalty   = Decimal(str(late_halfday_days)) * Decimal('0.5')
-            late_penalty_days = marks_penalty + half_penalty
-
-        elif late_rule.calculation_method == 'minutes':
-            slab = late_rule.minute_slabs.filter(
-                from_minutes__lte=total_late_minutes
-            ).filter(
-                Q(to_minutes__isnull=True) | Q(to_minutes__gte=total_late_minutes)
-            ).first()
-            if slab and slab.penalty_days:
-                late_penalty_days = slab.penalty_days
-
-        if late_penalty_days > 0:
-            can_use_leave = (
-                late_rule.penalty_type == 'leave'
-                and late_rule.target_leave_type is not None
-            )
-
-            if can_use_leave:
-                balance   = get_leave_balance(user, late_rule.target_leave_type)
-                available = max(Decimal('0'), balance['available'])
-
-                late_leave_days = min(late_penalty_days, available)
-                remainder       = late_penalty_days - late_leave_days
-
-                if remainder > 0:
-                    if late_rule.insufficient_balance_action == 'lop':
-                        late_lop_days = remainder
-            else:
-                late_lop_days = late_penalty_days
-
-        late_deduction = (per_day * late_lop_days).quantize(Decimal('0.01'))
-        late_halfday_deduction = (per_day * Decimal("0.5") * Decimal(str(late_halfday_days))).quantize(Decimal("0.01"))
+    late_leave_days = (
+        late_leave_deductions.aggregate(s=Sum('leave_days'))['s'] or Decimal('0')
+    ).quantize(Decimal('0.01'))
+    late_lop_days = (
+        (late_salary_deductions.aggregate(s=Sum('penalty_days'))['s'] or Decimal('0'))
+        + (late_leave_deductions.aggregate(s=Sum('lop_days'))['s'] or Decimal('0'))
+    ).quantize(Decimal('0.01'))
+    late_deduction = (
+        (late_salary_deductions.aggregate(s=Sum('salary_amount'))['s'] or Decimal('0'))
+        + (late_leave_deductions.aggregate(s=Sum('salary_amount'))['s'] or Decimal('0'))
+    ).quantize(Decimal('0.01'))
+    
+    late_halfday_deduction = Decimal('0')
+    late_penalty_days = late_leave_days + late_lop_days
     total_deduction = (
         absent_deduction
         + unpaid_leave_deduction
         + other_deduction
         + late_deduction
     )
-    net_payable = gross + overtime_amount - total_deduction
+    net_payable = (gross + overtime_amount - total_deduction).quantize(Decimal('0.01'))
 
     return {
         'basic_salary': basic,
@@ -698,6 +658,7 @@ def get_category_usage(user, company, category, year, month):
     
 
 
+
 def get_leave_balance(user, leave_type, year=None):
     """
     Compute leave balance for one user + leave_type.
@@ -706,7 +667,7 @@ def get_leave_balance(user, leave_type, year=None):
       - Total days allowed
       - Days used by approved LeaveRequests
       - Days pending approval
-      - Days absorbed by late-arrival penalties (YTD)
+      - Days absorbed by late-arrival penalties (from LateDeduction ledger)
 
     Returns dict:
         total       — days_allowed
@@ -718,7 +679,7 @@ def get_leave_balance(user, leave_type, year=None):
     from datetime import date as _date
     from decimal import Decimal
     from django.db.models import Sum
-    from .models import LeaveRequest, Payroll, LateComingRule
+    from .models import LeaveRequest, LateDeduction
 
     if year is None:
         year = _date.today().year
@@ -737,18 +698,31 @@ def get_leave_balance(user, leave_type, year=None):
     )
     pending_days = sum((Decimal(str(req.get_duration())) for req in pending), Decimal('0'))
 
-    # ── Late penalty absorbed into this leave type ──
+    # ── Late penalty absorbed (from LateDeduction ledger) ──
+    # Count leave_days from ANY status EXCEPT CANCELLED.
+    #   APPLIED          → full leave deduction
+    #   PENDING_PAYROLL  → partial leave deduction (remainder going to LOP/salary)
+    #   PROCESSED        → permanent
+    #   CANCELLED        → reversed, do NOT count
+    
     late_used = Decimal('0')
     profile = getattr(user, 'profile', None)
-    if profile and getattr(profile, 'company', None):
-        rule = LateComingRule.objects.filter(company=profile.company).first()
-        if rule and rule.target_leave_type_id == leave_type.id:
-            late_used = Payroll.objects.filter(
+    if profile:
+        late_used = (
+            LateDeduction.objects
+            .filter(
                 employee=profile,
-                year=year,
-            ).aggregate(s=Sum('late_leave_days'))['s'] or Decimal('0')
+                leave_type=leave_type,
+                deduction_type='LEAVE',
+                attendance_date__year=year,
+            )
+            .exclude(status='CANCELLED')
+            .aggregate(s=Sum('leave_days'))['s']
+            or Decimal('0')
+        )
+        late_used = Decimal(str(late_used)).quantize(Decimal('0.01'))
 
-    available = total - used
+    available = (total - used - late_used).quantize(Decimal('0.01'))
 
     return {
         'total':     total,
@@ -757,7 +731,6 @@ def get_leave_balance(user, leave_type, year=None):
         'late_used': late_used,
         'available': available,
     }
-
 
 
 def is_weekend_for_shift(date_obj, shift):
@@ -806,3 +779,273 @@ def get_late_deduction_history(user, leave_type, year=None):
         }
         for r in rows
     ]
+
+def get_late_rule_for_date(company, target_date):
+    """
+    Return the LateComingRule that was effective on `target_date`.
+    Picks the most recent rule whose effective_from <= target_date
+    and (effective_to is null OR effective_to >= target_date).
+    """
+    from datetime import date as _date
+    from django.db.models import Q
+    from .models import LateComingRule
+
+    if not company or not target_date:
+        return None
+
+    if hasattr(target_date, 'date'):
+        target_date = target_date.date()
+
+    return (
+        LateComingRule.objects
+        .filter(
+            company=company,
+            is_enabled=True,
+            effective_from__lte=target_date,
+        )
+        .filter(
+            Q(effective_to__isnull=True) | Q(effective_to__gte=target_date)
+        )
+        .order_by('-effective_from', '-version')
+        .first()
+    )
+
+
+def get_current_late_rule(company):
+    """Return the rule effective today."""
+    from datetime import date as _date
+    return get_late_rule_for_date(company, _date.today())
+
+
+
+
+def sync_late_deductions(employee, year, month, calc=None):
+    """
+    Create/refresh LateDeduction transactions for one employee-month.
+    Idempotent: deletes existing rows for that month first.
+    """
+    from datetime import date as _date, datetime, timedelta
+    from calendar import monthrange
+    from decimal import Decimal
+    from django.utils import timezone
+    from django.db.models import Q
+    from .models import LateDeduction, Attendance, LateComingRule
+    from django.db.models import Q
+
+    first = _date(year, month, 1)
+    _, last_day_num = monthrange(year, month)
+    last = _date(year, month, last_day_num)
+
+    # Idempotency: clear existing rows for this month
+    # Idempotency: clear existing rows for this month
+    # BUT preserve CANCELLED (HR manually cancelled) and PROCESSED (payroll already ran)
+    LateDeduction.objects.filter(
+        employee=employee,
+        attendance_date__gte=first,
+        attendance_date__lte=last,
+        source='LATE_COMING',
+    ).exclude(status__in=['CANCELLED', 'PROCESSED']).delete()
+
+
+    # Collect lates with minutes
+    lates = []
+    for att in Attendance.objects.filter(
+        user=employee.user,
+        date__gte=first,
+        date__lte=last,
+    ).select_related('shift'):
+        if not (att.check_in_time and att.shift):
+            continue
+
+        shift_start = timezone.make_aware(
+            datetime.combine(att.date, att.shift.start_time)
+        )
+        grace = timedelta(minutes=att.shift.grace_period or 0)
+        if att.check_in_time <= shift_start + grace:
+            continue
+
+        minutes_late = int((att.check_in_time - shift_start).total_seconds() // 60)
+
+        rule = get_late_rule_for_date(employee.company, att.date)
+        if not rule or not rule.is_enabled or rule.penalty_type == 'none':
+            continue
+
+        lates.append({
+            'date': att.date,
+            'minutes': minutes_late,
+            'rule': rule,
+        })
+
+    if not lates:
+        return 0
+
+    lates.sort(key=lambda x: x['date'])
+
+    # Free marks from earliest rule
+    free_marks = lates[0]['rule'].monthly_allowed_late_marks or 0
+    billable = lates[free_marks:]
+
+    if not billable:
+        return 0
+
+    # ── Per-day rate for salary mode ──
+    # Prefer calc if provided; otherwise compute from EmployeeSalary + shift weekdays.
+    per_day = Decimal('0')
+    _gross = Decimal('0')
+    _wd = 0
+
+    if calc:
+        _gross = Decimal(str(calc.get('gross_salary', 0) or 0))
+        _wd    = int(calc.get('working_days', 0) or 0)
+    else:
+        # Look up active salary for this employee
+        try:
+            from .models import EmployeeSalary
+            _sal = EmployeeSalary.objects.filter(
+                employee=employee,
+                status='active',
+            ).order_by('-effective_from').first()
+            if _sal:
+                _gross = Decimal(str(
+                    (_sal.basic_salary or 0)
+                    + (_sal.hra or 0)
+                    + (_sal.allowance or 0)
+                ))
+        except Exception:
+            _sal = None
+
+        # Working days this month (respecting shift weekdays)
+        if employee.shift:
+            _flags = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+            for _d in range(1, last_day_num + 1):
+                _dd = _date(year, month, _d)
+                if getattr(employee.shift, _flags[_dd.weekday()], False):
+                    _wd += 1
+        else:
+            _wd = 26   # fallback
+
+    if _wd > 0 and _gross > 0:
+        per_day = (_gross / Decimal(str(_wd))).quantize(Decimal('0.01'))
+
+    created = 0
+    
+    for late in billable:
+        rule = late['rule']
+
+        # ═══════════════════════════════════════════════════════
+        # Penalty — depends on calculation_method
+        # ═══════════════════════════════════════════════════════
+        if rule.calculation_method == 'minutes':
+            # Safety: no slabs configured → skip + warn
+            if not rule.minute_slabs.exists():
+                print(
+                    f"[late-deduction] WARNING: Rule v{rule.version} is in "
+                    f"'minutes' mode but has NO slabs. Skipping lates for "
+                    f"{employee.employee_id} {month:02d}/{year}."
+                )
+                return 0
+
+            # Slab lookup for this day's minutes
+            slab = rule.minute_slabs.filter(
+                from_minutes__lte=late['minutes']
+            ).filter(
+                Q(to_minutes__isnull=True) | Q(to_minutes__gte=late['minutes'])
+            ).order_by('order', 'from_minutes').first()
+
+            if slab and slab.penalty_days and slab.penalty_days > 0:
+                penalty_days = Decimal(str(slab.penalty_days))
+            else:
+                # No slab matched → skip this day
+                continue
+        else:
+            # ── Marks mode (existing) ──
+            if rule.half_day_cutoff_minutes and late['minutes'] > rule.half_day_cutoff_minutes:
+                penalty_days = Decimal('0.5')
+            else:
+                penalty_days = Decimal(str(rule.penalty_amount or 0))
+
+        if penalty_days <= 0:
+            continue
+
+
+        is_leave = (rule.penalty_type == 'leave')
+
+        # ── Split between LEAVE and LOP ──
+        leave_days_value = Decimal('0')
+        lop_days_value = Decimal('0')
+        salary_amount_value = Decimal('0')
+        available_at_creation = None
+
+        if is_leave:
+            # Check current available balance for the target leave type
+            available = Decimal('0')
+            if rule.target_leave_type:
+                try:
+                    _bal = get_leave_balance(employee.user, rule.target_leave_type, year=year)
+                    available = max(Decimal('0'), _bal.get('available', Decimal('0')))
+                except Exception:
+                    available = Decimal('0')
+            available_at_creation = available
+
+            if available >= penalty_days:
+                # Full penalty covered by leave
+                leave_days_value = penalty_days
+            else:
+                # Partial leave + remainder handling
+                leave_days_value = available
+                remainder = penalty_days - available
+
+                if rule.insufficient_balance_action == 'lop':
+                    # Remainder becomes salary cut
+                    lop_days_value = remainder
+                    if per_day > 0:
+                        salary_amount_value = (per_day * remainder).quantize(Decimal('0.01'))
+                # else: 'skip' → remainder is waived (lop stays 0)
+        else:
+            # SALARY mode — full salary cut
+            if per_day > 0:
+                salary_amount_value = (per_day * penalty_days).quantize(Decimal('0.01'))
+
+        # ── Determine status ──
+        if is_leave:
+            # If any LOP portion exists, it's pending until payroll runs
+            status_value = 'PENDING_PAYROLL' if lop_days_value > 0 else 'APPLIED'
+        else:
+            status_value = 'PENDING_PAYROLL'
+
+        # ── Skip if nothing to record (e.g., skip mode with 0 balance) ──
+        if leave_days_value <= 0 and lop_days_value <= 0 and salary_amount_value <= 0:
+            continue
+
+        LateDeduction.objects.create(
+            employee=employee,
+            company=employee.company,
+            attendance_date=late['date'],
+            deduction_type='LEAVE' if is_leave else 'SALARY',
+            penalty_days=penalty_days,
+            leave_type=rule.target_leave_type if is_leave else None,
+            leave_days=leave_days_value,
+            lop_days=lop_days_value,
+            salary_amount=salary_amount_value,
+            status=status_value,
+            policy_snapshot={
+                'rule_id': rule.id,
+                'version': rule.version,
+                'free_marks': rule.monthly_allowed_late_marks,
+                'deduction_per_late': str(rule.penalty_amount),
+                'half_day_cutoff': rule.half_day_cutoff_minutes,
+                'total_lates_in_month': len(lates),
+                'billable_lates_in_month': len(billable),
+                'minutes_late': late['minutes'],
+                'penalty_type': rule.penalty_type,
+                'available_at_creation': str(available_at_creation) if available_at_creation is not None else None,
+                'insufficient_action': rule.insufficient_balance_action if is_leave else None,
+            },
+            policy_ref_id=rule.id,
+            source='LATE_COMING',
+        )
+        created += 1
+
+    return created
+
+    

@@ -12,419 +12,8 @@
        My Profile — refined design system
        Prefix: .prf-
        ═══════════════════════════════════════════════════ */
-    .prf-wrap {
-        --prf-surface:       #ffffff;
-        --prf-surface-2:     #fafbfc;
-        --prf-surface-3:     #f4f6f8;
-        --prf-border:        #e8eaee;
-        --prf-border-hover:  #d5d9e0;
-        --prf-text:          #0f172a;
-        --prf-text-muted:    #64748b;
-        --prf-text-faint:    #94a3b8;
-        --prf-primary:       #4f46e5;
-        --prf-primary-soft:  #eef2ff;
-        --prf-primary-hover: #4338ca;
-        --prf-danger:        #dc2626;
-        --prf-info:          #0284c7;
-        --prf-info-soft:     #f0f9ff;
-        --prf-pill:          999px;
-        --prf-shadow-xs:     0 1px 2px rgba(15,23,42,.04);
-        --prf-ease:          cubic-bezier(.4, 0, .2, 1);
-    }
-
-    /* ─── Page header ─── */
-    .prf-hd {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin-bottom: 22px;
-    }
-    .prf-hd-ico {
-        width: 40px;
-        height: 40px;
-        border-radius: 11px;
-        background: var(--prf-primary-soft);
-        color: var(--prf-primary);
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.05rem;
-        flex-shrink: 0;
-    }
-    .prf-hd-title {
-        font-size: 1.15rem;
-        font-weight: 600;
-        letter-spacing: -.015em;
-        color: var(--prf-text);
-        margin: 0 0 2px;
-        line-height: 1.2;
-    }
-    .prf-hd-sub {
-        font-size: .82rem;
-        color: var(--prf-text-muted);
-        margin: 0;
-    }
-
-    /* ─── Card ─── */
-    .prf-card {
-        background: var(--prf-surface);
-        border: 1px solid var(--prf-border);
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow: var(--prf-shadow-xs);
-        transition: border-color .2s var(--prf-ease);
-    }
-    .prf-card:hover { border-color: var(--prf-border-hover); }
-    .prf-card-bd { padding: 28px 32px; }
-
-    /* ─── Avatar panel (left column) ─── */
-    .prf-avatar-panel {
-        background: var(--prf-surface-2);
-        border: 1px solid var(--prf-border);
-        border-radius: 12px;
-        padding: 24px 20px;
-        text-align: center;
-        height: 100%;
-    }
-    .prf-avatar-wrap {
-        position: relative;
-        display: inline-block;
-        margin-bottom: 14px;
-    }
-    .prf-avatar-img {
-        width: 120px;
-        height: 120px;
-        object-fit: cover;
-        border-radius: 50%;
-        border: 3px solid #fff;
-        box-shadow: 0 0 0 3px var(--prf-primary-soft), 0 8px 24px rgba(79,70,229,.15);
-        display: block;
-    }
-    .prf-avatar-fallback {
-        width: 120px;
-        height: 120px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-        color: #fff;
-        font-size: 2.6rem;
-        font-weight: 600;
-        letter-spacing: -.03em;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border: 3px solid #fff;
-        box-shadow: 0 0 0 3px var(--prf-primary-soft), 0 8px 24px rgba(79,70,229,.2);
-    }
-    .prf-avatar-change {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 6px 14px;
-        background: var(--prf-surface);
-        border: 1px solid var(--prf-border);
-        border-radius: var(--prf-pill);
-        font-size: .72rem;
-        font-weight: 500;
-        color: var(--prf-text-muted);
-        cursor: pointer;
-        transition: all .15s var(--prf-ease);
-        margin-top: 12px;
-    }
-    .prf-avatar-change:hover {
-        background: var(--prf-primary-soft);
-        color: var(--prf-primary);
-        border-color: transparent;
-    }
-    .prf-avatar-change i { font-size: .78rem; }
-
-    .prf-avatar-name {
-        font-size: 1rem;
-        font-weight: 600;
-        color: var(--prf-text);
-        letter-spacing: -.01em;
-        margin: 4px 0 6px;
-    }
-    .prf-role-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 4px 11px;
-        border-radius: var(--prf-pill);
-        background: var(--prf-primary-soft);
-        color: var(--prf-primary);
-        font-size: .68rem;
-        font-weight: 600;
-        letter-spacing: .04em;
-        text-transform: uppercase;
-    }
-    .prf-role-pill::before {
-        content: "";
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        background: currentColor;
-    }
-
-    /* ─── Quick info block ─── */
-    .prf-quickinfo {
-        margin-top: 18px;
-        padding-top: 18px;
-        border-top: 1px solid var(--prf-border);
-        text-align: left;
-    }
-    .prf-quickinfo-item {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 8px 0;
-        font-size: .8rem;
-        color: var(--prf-text-muted);
-    }
-    .prf-quickinfo-item:not(:last-child) {
-        border-bottom: 1px solid var(--prf-border);
-    }
-    .prf-quickinfo-item i {
-        width: 26px;
-        height: 26px;
-        border-radius: 8px;
-        background: var(--prf-surface);
-        border: 1px solid var(--prf-border);
-        color: var(--prf-primary);
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: .78rem;
-        flex-shrink: 0;
-    }
-    .prf-quickinfo-item .value {
-        flex: 1;
-        min-width: 0;
-        font-weight: 500;
-        color: var(--prf-text);
-        word-break: break-word;
-    }
-    .prf-quickinfo-item .value.muted {
-        color: var(--prf-text-faint);
-        font-weight: 400;
-        font-style: italic;
-    }
-
-    /* ─── Section ─── */
-    .prf-section {
-        margin-bottom: 26px;
-    }
-    .prf-section:last-of-type { margin-bottom: 0; }
-    .prf-section-hd {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin-bottom: 16px;
-    }
-    .prf-section-ico {
-        width: 28px;
-        height: 28px;
-        border-radius: 8px;
-        background: var(--prf-primary-soft);
-        color: var(--prf-primary);
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: .78rem;
-        flex-shrink: 0;
-    }
-    .prf-section-title {
-        font-size: .78rem;
-        font-weight: 600;
-        letter-spacing: .06em;
-        text-transform: uppercase;
-        color: var(--prf-text-muted);
-        margin: 0;
-    }
-
-    /* ─── Info note (admin-controlled) ─── */
-    .prf-note {
-        display: flex;
-        gap: 10px;
-        padding: 12px 14px;
-        background: var(--prf-info-soft);
-        border-radius: 10px;
-        font-size: .78rem;
-        color: #075985;
-        line-height: 1.5;
-        margin-bottom: 22px;
-    }
-    .prf-note > i {
-        flex-shrink: 0;
-        font-size: .95rem;
-        margin-top: 1px;
-        color: var(--prf-info);
-    }
-    .prf-note strong { color: #0c4a6e; font-weight: 600; }
-
-    /* ─── Fields ─── */
-    .prf-field { min-width: 0; }
-    .prf-label {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        font-size: .78rem;
-        font-weight: 600;
-        letter-spacing: .02em;
-        color: var(--prf-text);
-        margin-bottom: 8px;
-    }
-    .prf-label i {
-        color: var(--prf-text-faint);
-        font-size: .85rem;
-    }
-
-    .prf-input,
-    .prf-textarea {
-        width: 100%;
-        padding: 11px 14px;
-        font-size: .875rem;
-        font-family: inherit;
-        color: var(--prf-text);
-        background: var(--prf-surface);
-        border: 1px solid var(--prf-border);
-        border-radius: 10px;
-        outline: none;
-        transition: border-color .15s var(--prf-ease), box-shadow .15s var(--prf-ease);
-        font-variant-numeric: tabular-nums;
-    }
-    .prf-textarea {
-        resize: vertical;
-        min-height: 68px;
-        line-height: 1.5;
-        font-variant-numeric: normal;
-    }
-    .prf-input::placeholder,
-    .prf-textarea::placeholder { color: var(--prf-text-faint); }
-    .prf-input:hover:not(:disabled),
-    .prf-textarea:hover { border-color: var(--prf-border-hover); }
-    .prf-input:focus:not(:disabled),
-    .prf-textarea:focus {
-        border-color: var(--prf-primary);
-        box-shadow: 0 0 0 3px rgba(79,70,229,.12);
-    }
-    .prf-input[type="date"]::-webkit-calendar-picker-indicator {
-        cursor: pointer;
-        opacity: .55;
-        transition: opacity .15s var(--prf-ease);
-    }
-    .prf-input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
-    .prf-input[type="password"] { letter-spacing: .04em; }
-
-    /* ─── Read-only fields ─── */
-    .prf-input[disabled],
-    .prf-input[readonly] {
-        background: var(--prf-surface-3);
-        color: var(--prf-text-muted);
-        cursor: not-allowed;
-        border-style: dashed;
-        border-color: var(--prf-border);
-    }
-    .prf-readonly-hint {
-        font-size: .7rem;
-        color: var(--prf-text-faint);
-        margin-top: 6px;
-        display: flex;
-        align-items: flex-start;
-        gap: 4px;
-        line-height: 1.45;
-    }
-    .prf-readonly-hint i {
-        font-size: .72rem;
-        margin-top: 1px;
-        flex-shrink: 0;
-    }
-
-    /* ─── Footer ─── */
-    .prf-foot {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        justify-content: flex-end;
-        padding-top: 22px;
-        border-top: 1px solid var(--prf-border);
-        margin-top: 24px;
-    }
-    .prf-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 10px 22px;
-        font-size: .82rem;
-        font-weight: 500;
-        border-radius: var(--prf-pill);
-        border: 1px solid transparent;
-        text-decoration: none;
-        cursor: pointer;
-        transition: all .15s var(--prf-ease);
-        line-height: 1.3;
-    }
-    .prf-btn i { font-size: .85rem; }
-    .prf-btn-primary {
-        background: var(--prf-primary);
-        color: #fff;
-    }
-    .prf-btn-primary:hover {
-        background: var(--prf-primary-hover);
-        color: #fff;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(79,70,229,.25);
-    }
-    .prf-btn-ghost {
-        background: transparent;
-        color: var(--prf-text-muted);
-        border-color: var(--prf-border);
-    }
-    .prf-btn-ghost:hover {
-        background: var(--prf-surface-2);
-        color: var(--prf-text);
-        border-color: var(--prf-border-hover);
-    }
-    .prf-password-cta {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-        padding: 14px 18px;
-        background: var(--prf-surface-2);
-        border: 1px solid var(--prf-border);
-        border-radius: 10px;
-        flex-wrap: wrap;
-    }
-    .prf-password-cta-left {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        min-width: 0;
-    }
-    .prf-password-cta-ico {
-        width: 36px;
-        height: 36px;
-        border-radius: 10px;
-        background: var(--prf-primary-soft);
-        color: var(--prf-primary);
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: .9rem;
-        flex-shrink: 0;
-    }
-    .prf-password-cta-title {
-        font-size: .82rem;
-        font-weight: 600;
-        color: var(--prf-text);
-        margin-bottom: 1px;
-    }
-    .prf-password-cta-sub {
-        font-size: .72rem;
-        color: var(--prf-text-faint);
-    }
-
-
+    .prf-wrap{--prf-surface:#ffffff;--prf-surface-2:#fafbfc;--prf-surface-3:#f4f6f8;--prf-border:#e8eaee;--prf-border-hover:#d5d9e0;--prf-text:#0f172a;--prf-text-muted:#64748b;--prf-text-faint:#94a3b8;--prf-primary:#4f46e5;--prf-primary-soft:#eef2ff;--prf-primary-hover:#4338ca;--prf-danger:#dc2626;--prf-info:#0284c7;--prf-info-soft:#f0f9ff;--prf-pill:999px;--prf-shadow-xs:0 1px 2px rgba(15,23,42,.04);--prf-ease:cubic-bezier(.4, 0, .2, 1)}.prf-hd{display:flex;align-items:center;gap:12px;margin-bottom:22px}.prf-hd-ico{width:40px;height:40px;border-radius:11px;background:var(--prf-primary-soft);color:var(--prf-primary);display:inline-flex;align-items:center;justify-content:center;font-size:1.05rem;flex-shrink:0}.prf-hd-title{font-size:1.15rem;font-weight:600;letter-spacing:-.015em;color:var(--prf-text);margin:0 0 2px;line-height:1.2}.prf-hd-sub{font-size:.82rem;color:var(--prf-text-muted);margin:0}.prf-card{background:var(--prf-surface);border:1px solid var(--prf-border);border-radius:12px;overflow:hidden;box-shadow:var(--prf-shadow-xs);transition:border-color .2s var(--prf-ease)}.prf-card:hover,.prf-input:hover:not(:disabled),.prf-textarea:hover{border-color:var(--prf-border-hover)}.prf-card-bd{padding:28px 32px}.prf-avatar-panel{background:var(--prf-surface-2);border:1px solid var(--prf-border);border-radius:12px;padding:24px 20px;text-align:center;height:100%}.prf-avatar-wrap{position:relative;display:inline-block;margin-bottom:14px}.prf-avatar-img{width:120px;height:120px;object-fit:cover;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 3px var(--prf-primary-soft),0 8px 24px rgba(79,70,229,.15);display:block}.prf-avatar-fallback{width:120px;height:120px;border-radius:50%;background:linear-gradient(135deg,#6366f1 0,#8b5cf6 100%);color:#fff;font-size:2.6rem;font-weight:600;letter-spacing:-.03em;display:flex;align-items:center;justify-content:center;border:3px solid #fff;box-shadow:0 0 0 3px var(--prf-primary-soft),0 8px 24px rgba(79,70,229,.2)}.prf-avatar-change,.prf-quickinfo-item i{background:var(--prf-surface);display:inline-flex}.prf-avatar-change{align-items:center;gap:6px;padding:6px 14px;border:1px solid var(--prf-border);border-radius:var(--prf-pill);font-size:.72rem;font-weight:500;color:var(--prf-text-muted);cursor:pointer;transition:all .15s var(--prf-ease);margin-top:12px}.prf-avatar-change:hover,.prf-role-pill,.prf-section-ico{background:var(--prf-primary-soft)}.prf-avatar-change:hover{color:var(--prf-primary);border-color:transparent}.prf-avatar-change i{font-size:.78rem}.prf-avatar-name{font-size:1rem;font-weight:600;color:var(--prf-text);letter-spacing:-.01em;margin:4px 0 6px}.prf-input[type=password],.prf-role-pill{letter-spacing:.04em}.prf-role-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:var(--prf-pill);color:var(--prf-primary);font-size:.68rem;font-weight:600;text-transform:uppercase}.prf-role-pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}.prf-quickinfo{margin-top:18px;padding-top:18px;border-top:1px solid var(--prf-border);text-align:left}.prf-quickinfo-item{display:flex;align-items:center;gap:10px;padding:8px 0;font-size:.8rem;color:var(--prf-text-muted)}.prf-quickinfo-item i,.prf-section-ico{color:var(--prf-primary);font-size:.78rem}.prf-quickinfo-item:not(:last-child){border-bottom:1px solid var(--prf-border)}.prf-quickinfo-item i{width:26px;height:26px;border-radius:8px;border:1px solid var(--prf-border);align-items:center;justify-content:center;flex-shrink:0}.prf-quickinfo-item .value{flex:1;min-width:0;font-weight:500;color:var(--prf-text);word-break:break-word}.prf-quickinfo-item .value.muted{color:var(--prf-text-faint);font-weight:400;font-style:italic}.prf-section{margin-bottom:26px}.prf-section:last-of-type{margin-bottom:0}.prf-section-hd{display:flex;align-items:center;gap:10px;margin-bottom:16px}.prf-section-ico{width:28px;height:28px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}.prf-section-title{font-size:.78rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--prf-text-muted);margin:0}.prf-note{display:flex;gap:10px;padding:12px 14px;background:var(--prf-info-soft);border-radius:10px;font-size:.78rem;color:#075985;line-height:1.5;margin-bottom:22px}.prf-note>i{flex-shrink:0;font-size:.95rem;margin-top:1px;color:var(--prf-info)}.prf-note strong{color:#0c4a6e;font-weight:600}.prf-field{min-width:0}.prf-label{display:flex;align-items:center;gap:6px;font-size:.78rem;font-weight:600;letter-spacing:.02em;color:var(--prf-text);margin-bottom:8px}.prf-label i{color:var(--prf-text-faint);font-size:.85rem}.prf-input,.prf-textarea{width:100%;padding:11px 14px;font-size:.875rem;font-family:inherit;color:var(--prf-text);background:var(--prf-surface);border:1px solid var(--prf-border);border-radius:10px;outline:0;transition:border-color .15s var(--prf-ease),box-shadow .15s var(--prf-ease);font-variant-numeric:tabular-nums}.prf-textarea{resize:vertical;min-height:68px;line-height:1.5;font-variant-numeric:normal}.prf-input::placeholder,.prf-textarea::placeholder{color:var(--prf-text-faint)}.prf-input:focus:not(:disabled),.prf-textarea:focus{border-color:var(--prf-primary);box-shadow:0 0 0 3px rgba(79,70,229,.12)}.prf-input[type=date]::-webkit-calendar-picker-indicator{cursor:pointer;opacity:.55;transition:opacity .15s var(--prf-ease)}.prf-input[type=date]::-webkit-calendar-picker-indicator:hover{opacity:1}.prf-input[disabled],.prf-input[readonly]{background:var(--prf-surface-3);color:var(--prf-text-muted);cursor:not-allowed;border-style:dashed;border-color:var(--prf-border)}.prf-readonly-hint{font-size:.7rem;color:var(--prf-text-faint);margin-top:6px;display:flex;align-items:flex-start;gap:4px;line-height:1.45}.prf-readonly-hint i{font-size:.72rem;margin-top:1px;flex-shrink:0}.prf-foot{display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end;padding-top:22px;border-top:1px solid var(--prf-border);margin-top:24px}.prf-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 22px;font-size:.82rem;font-weight:500;border-radius:var(--prf-pill);border:1px solid transparent;text-decoration:none;cursor:pointer;transition:all .15s var(--prf-ease);line-height:1.3}.prf-btn i{font-size:.85rem}.prf-btn-primary{background:var(--prf-primary);color:#fff}.prf-btn-primary:hover{background:var(--prf-primary-hover);color:#fff;transform:translateY(-1px);box-shadow:0 4px 12px rgba(79,70,229,.25)}.prf-btn-ghost{background:0 0;color:var(--prf-text-muted);border-color:var(--prf-border)}.prf-btn-ghost:hover{background:var(--prf-surface-2);color:var(--prf-text);border-color:var(--prf-border-hover)}.prf-password-cta{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 18px;background:var(--prf-surface-2);border:1px solid var(--prf-border);border-radius:10px;flex-wrap:wrap}.prf-password-cta-left{display:flex;align-items:center;gap:12px;min-width:0}.prf-password-cta-ico{width:36px;height:36px;border-radius:10px;background:var(--prf-primary-soft);color:var(--prf-primary);display:inline-flex;align-items:center;justify-content:center;font-size:.9rem;flex-shrink:0}.prf-password-cta-title{font-size:.82rem;font-weight:600;color:var(--prf-text);margin-bottom:1px}.prf-password-cta-sub{font-size:.72rem;color:var(--prf-text-faint)}
+    .prf-tab,.prf-tabs{display:inline-flex}.prf-policy-card,.prf-tabs{box-shadow:var(--prf-shadow-xs)}.prf-tabs{gap:4px;padding:4px;background:var(--prf-surface);border:1px solid var(--prf-border);border-radius:10px;margin-bottom:20px}.prf-tab{align-items:center;gap:8px;padding:9px 18px;border-radius:7px;font-size:.82rem;font-weight:500;color:var(--prf-text-muted);cursor:pointer;border:none;background:0 0;transition:all .15s var(--prf-ease);text-decoration:none}.prf-policy-hd,.prf-slab-table tbody td,.prf-slab-table thead th{border-bottom:1px solid var(--prf-border)}.prf-tab:hover{color:var(--prf-text);background:var(--prf-surface-2)}.prf-tab.active{background:var(--prf-primary);color:#fff}.prf-policy-card{background:var(--prf-surface);border:1px solid var(--prf-border);border-radius:12px;padding:22px 26px;margin-bottom:18px}.prf-policy-hd{display:flex;align-items:center;gap:10px;margin-bottom:16px;padding-bottom:14px}.prf-policy-ico{width:36px;height:36px;border-radius:10px;background:var(--prf-primary-soft);color:var(--prf-primary);display:inline-flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0}.prf-policy-title{font-size:.95rem;font-weight:600;color:var(--prf-text);margin:0}.prf-policy-lbl,.prf-slab-table thead th{font-size:.68rem;letter-spacing:.05em;text-transform:uppercase;font-weight:600}.prf-policy-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}.prf-policy-item{padding:12px 14px;background:var(--prf-surface-2);border:1px solid var(--prf-border);border-radius:8px}.prf-policy-lbl{color:var(--prf-text-faint);margin-bottom:4px}.prf-policy-val{font-size:.9rem;font-weight:600;color:var(--prf-text)}.prf-policy-val.muted{color:var(--prf-text-faint);font-weight:400;font-style:italic}.prf-slab-table{width:100%;border-collapse:collapse;font-size:.82rem;margin-top:8px}.prf-slab-table thead th{background:var(--prf-surface-2);padding:8px 12px;color:var(--prf-text-faint);text-align:left}.prf-slab-table tbody td{padding:10px 12px;color:var(--prf-text)}.prf-slab-table tbody tr:last-child td{border-bottom:none}.prf-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:999px;font-size:.72rem;font-weight:600}.prf-badge.yes{background:#ecfdf5;color:#059669}.prf-badge.no{background:#fef2f2;color:#dc2626}
     /* ─── Responsive ─── */
     @media (max-width: 767.98px) {
         .prf-card-bd { padding: 22px 20px; }
@@ -439,18 +28,215 @@
 
 <div class="prf-wrap">
     <div class="row">
-        <div class="col-lg-10 mx-auto">
-
+        <div class="col-lg-12 mx-auto">
             <!-- Page header -->
             <div class="prf-hd">
                 <span class="prf-hd-ico"><i class="las la-user-edit"></i></span>
                 <div>
-                    <h1 class="prf-hd-title">Edit Profile</h1>
-                    <p class="prf-hd-sub">Update your personal information</p>
+                    <h1 class="prf-hd-title">My Profile</h1>
+                    <p class="prf-hd-sub">Manage your info and view your policy</p>
                 </div>
             </div>
 
-            <!-- Card -->
+            <!-- Tabs -->
+            <div class="prf-tabs">
+                <a href="?tab=profile" class="prf-tab {% if active_tab != 'policy' %}active{% endif %}">
+                    <i class="las la-user"></i> Profile
+                </a>
+                <a href="?tab=policy" class="prf-tab {% if active_tab == 'policy' %}active{% endif %}">
+                    <i class="las la-shield-alt"></i> Policy
+                </a>
+            </div>
+
+            {% if active_tab == 'policy' %}
+            <!-- ═══════════ POLICY TAB ═══════════ -->
+
+            <!-- Shift + OT -->
+            {% if profile.shift %}
+            <div class="prf-policy-card">
+                <div class="prf-policy-hd">
+                    <span class="prf-policy-ico"><i class="las la-clock"></i></span>
+                    <h5 class="prf-policy-title">Shift & Timing</h5>
+                </div>
+
+                <div class="prf-policy-grid">
+                    <div class="prf-policy-item">
+                        <div class="prf-policy-lbl">Shift Name</div>
+                        <div class="prf-policy-val">{{ profile.shift.name }}</div>
+                    </div>
+                    <div class="prf-policy-item">
+                        <div class="prf-policy-lbl">Working Hours</div>
+                        <div class="prf-policy-val">
+                            {{ profile.shift.start_time|time:"h:i A" }} – {{ profile.shift.end_time|time:"h:i A" }}
+                        </div>
+                    </div>
+                    <div class="prf-policy-item">
+                        <div class="prf-policy-lbl">Grace Period</div>
+                        <div class="prf-policy-val">{{ profile.shift.grace_period }} minutes</div>
+                    </div>
+                    <div class="prf-policy-item">
+                        <div class="prf-policy-lbl">Min Working Hours</div>
+                        <div class="prf-policy-val">
+                            {% widthratio profile.shift.min_working_hours 60 1 %}h ({{ profile.shift.min_working_hours }} min)
+                        </div>
+                    </div>
+                    <div class="prf-policy-item" style="grid-column: 1 / -1;">
+                        <div class="prf-policy-lbl">Working Days</div>
+                        <div class="prf-policy-val">
+                            {% if profile.shift.mon %}Mon{% endif %}
+                            {% if profile.shift.tue %}, Tue{% endif %}
+                            {% if profile.shift.wed %}, Wed{% endif %}
+                            {% if profile.shift.thu %}, Thu{% endif %}
+                            {% if profile.shift.fri %}, Fri{% endif %}
+                            {% if profile.shift.sat %}, Sat{% endif %}
+                            {% if profile.shift.sun %}, Sun{% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Overtime -->
+            <div class="prf-policy-card">
+                <div class="prf-policy-hd">
+                    <span class="prf-policy-ico"><i class="las la-business-time"></i></span>
+                    <h5 class="prf-policy-title">Overtime Policy</h5>
+                </div>
+
+                <div class="prf-policy-grid">
+                    <div class="prf-policy-item">
+                        <div class="prf-policy-lbl">OT Allowed</div>
+                        <div class="prf-policy-val">
+                            {% if profile.shift.overtime_allowed %}
+                                <span class="prf-badge yes">Yes</span>
+                            {% else %}
+                                <span class="prf-badge no">No</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if profile.shift.overtime_allowed %}
+                    <div class="prf-policy-item">
+                        <div class="prf-policy-lbl">Max OT / Day</div>
+                        <div class="prf-policy-val">{{ profile.shift.overtime_limit }} hours</div>
+                    </div>
+                    <div class="prf-policy-item">
+                        <div class="prf-policy-lbl">OT Multiplier</div>
+                        <div class="prf-policy-val">{{ profile.shift.overtime_multiplier }}×</div>
+                    </div>
+                    <div class="prf-policy-item">
+                        <div class="prf-policy-lbl">Min OT Threshold</div>
+                        <div class="prf-policy-val">{{ profile.shift.min_overtime_minutes|default:0 }} minutes</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Late Coming Rule -->
+            {% if late_rule %}
+            <div class="prf-policy-card">
+                <div class="prf-policy-hd">
+                    <span class="prf-policy-ico"><i class="las la-hourglass-half"></i></span>
+                    <h5 class="prf-policy-title">Late Coming Rule</h5>
+                </div>
+
+                <div class="prf-policy-grid">
+                    <div class="prf-policy-item">
+                        <div class="prf-policy-lbl">Free Lates / Month</div>
+                        <div class="prf-policy-val">{{ late_rule.monthly_allowed_late_marks }}</div>
+                    </div>
+                    <div class="prf-policy-item">
+                        <div class="prf-policy-lbl">Penalty Type</div>
+                        <div class="prf-policy-val">{{ late_rule.get_penalty_type_display }}</div>
+                    </div>
+                    {% if late_rule.calculation_method == 'marks' %}
+                    <div class="prf-policy-item">
+                        <div class="prf-policy-lbl">Deduction per Late</div>
+                        <div class="prf-policy-val">{{ late_rule.penalty_amount }} day</div>
+                    </div>
+                    {% endif %}
+                    <div class="prf-policy-item">
+                        <div class="prf-policy-lbl">Half-Day Cutoff</div>
+                        <div class="prf-policy-val">{{ late_rule.half_day_cutoff_minutes }} minutes</div>
+                    </div>
+                    {% if late_rule.target_leave_type %}
+                    <div class="prf-policy-item">
+                        <div class="prf-policy-lbl">Target Leave Type</div>
+                        <div class="prf-policy-val">{{ late_rule.target_leave_type.name }}</div>
+                    </div>
+                    {% endif %}
+                    {% if late_rule.penalty_type == 'leave' %}
+                    <div class="prf-policy-item">
+                        <div class="prf-policy-lbl">If Leave Insufficient</div>
+                        <div class="prf-policy-val">
+                            {% if late_rule.insufficient_balance_action == 'lop' %}Loss of Pay{% else %}Skip Deduction{% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                {% if late_slabs %}
+                <div style="margin-top:18px;">
+                    <div class="prf-policy-lbl" style="margin-bottom:8px;">Minute Slabs</div>
+                    <table class="prf-slab-table">
+                        <thead>
+                            <tr>
+                                <th>Late Minutes</th>
+                                <th>Penalty</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for slab in late_slabs %}
+                            <tr>
+                                <td>
+                                    {{ slab.from_minutes }} –
+                                    {% if slab.to_minutes %}{{ slab.to_minutes }}{% else %}∞{% endif %} min
+                                </td>
+                                <td><strong>{{ slab.penalty_days }}</strong> day</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Regularization Categories -->
+            {% if reg_categories %}
+            <div class="prf-policy-card">
+                <div class="prf-policy-hd">
+                    <span class="prf-policy-ico"><i class="las la-edit"></i></span>
+                    <h5 class="prf-policy-title">Regularization Limits</h5>
+                </div>
+
+                <table class="prf-slab-table">
+                    <thead>
+                        <tr>
+                            <th>Category</th>
+                            <th>Monthly Limit</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cat in reg_categories %}
+                        <tr>
+                            <td>{{ cat.name }}</td>
+                            <td><strong>{{ cat.monthly_limit }}</strong> per month</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            {% if not profile.shift and not late_rule and not reg_categories %}
+            <div class="prf-policy-card" style="text-align:center;padding:50px 20px;">
+                <i class="las la-info-circle" style="font-size:2rem;color:#94a3b8;"></i>
+                <p style="margin-top:12px;color:#64748b;">No policy configured yet. Contact HR for details.</p>
+            </div>
+            {% endif %}
+
+            {% else %}
+            <!-- ═══════════ PROFILE TAB (existing) ═══════════ -->
             <div class="prf-card">
                 <div class="prf-card-bd">
                     <form method="post" enctype="multipart/form-data">
@@ -755,6 +541,7 @@
                     </form>
                 </div>
             </div>
+            {% endif %}
         </div>
     </div>
 </div>

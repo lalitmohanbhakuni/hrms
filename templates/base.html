@@ -108,6 +108,15 @@
                     <a href="{% url 'admin_leaves' %}" class="nav-item {% if 'admin-leaves' in request.path %}active{% endif %}">
                         <i class="las la-check-double"></i><span>Leave Approvals</span>
                     </a>
+                    {# ── Late Deductions (HR view) ── #}
+                    {% if late_rule_enabled %}
+                        {% if user.is_superuser or user.profile.role == 'hr_admin' %}
+                            <a href="{% url 'late_deductions_list' %}" class="nav-item {% if 'late-deductions' in request.path %}active{% endif %}">
+                                <i class="las la-clock"></i><span>Late Deductions</span>
+                            </a>
+                        {% endif %}
+                    {% endif %}
+                    
 
                     {# ── Payroll ── #}
                     {% if user|can_see_payroll %}
@@ -117,6 +126,7 @@
                             </a>
                         {% endif %}
                     {% endif %}
+
 
                     {% if user.is_superuser or user|has_group:"HR Admin" %}
                         <!-- <a href="{% url 'leave_type_list' %}" class="nav-item {% if 'leave-types' in request.path %}active{% endif %}">

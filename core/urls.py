@@ -2,8 +2,10 @@ from django.urls import path
 from django.contrib.auth import views as auth_views
 from . import views
 from django.conf.urls import handler404, handler500, handler403, handler400
+from core.views import health_check
 
 urlpatterns = [
+    path('health/', health_check, name='health_check'),
     # Auth & Dashboard
     path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
@@ -36,6 +38,8 @@ urlpatterns = [
     
     # Employee Leave Dashboard
     path('employee-leaves/', views.employee_leaves, name='employee_leaves'),
+    path('late-deductions/', views.late_deductions_list, name='late_deductions_list'),
+    path('late-deductions/<int:pk>/cancel/', views.late_deduction_cancel, name='late_deduction_cancel'),
     path('leaves/', views.employee_leaves, name='leave_list'),  # alias for templates
     
     # Leave Apply
