@@ -475,3 +475,4 @@ class PermissionsPolicyMiddleware:
         response = self.get_response(request)
         response['Permissions-Policy'] = self.policy
         return response
+    
