@@ -196,6 +196,19 @@
 }
 
 
+@media (max-width: 768px) {
+
+.text-end.sm-timmer {
+    margin-top: 0px !important;
+    text-align: center !important;
+}
+.sm-flex-col {
+    flex-direction: column !important;
+}
+
+}
+
+
 </style>
 
 
@@ -459,7 +472,7 @@
                             {% endif %}
                         </div>
                     </div>
-                    <div class="col-md-5 text-end">
+                    <div class="col-12 col-md-5 text-end sm-timmer">
                         <div class="db-time-label">Timer</div>
                         <div id="timerDisplay" class="db-timer">
                             <span id="liveTimer">
@@ -473,7 +486,7 @@
                     </div>
                 </div>
 
-                <div class="mt-4 d-flex flex-wrap align-items-center gap-3">
+                <div class="mt-4 d-flex flex-wrap align-items-center gap-3 sm-flex-col">
                     {% if not today_attendance %}
                         {# No check-in yet → show Clock In #}
                         <button id="clock-in-btn" class="btn btn-success btn-lg db-btn-pill px-5" onclick="getLocationAndClockIn()">
@@ -1341,6 +1354,11 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <script>
+function isMobileDevice() {
+    return /android|iphone|ipad|ipod|mobile|webos|blackberry|opera mini|iemobile/i
+           .test(navigator.userAgent);
+}
+
 function getLocationAndClockIn() {
     var btn = document.getElementById('clock-in-btn');
     if (!btn) return;
@@ -1349,71 +1367,84 @@ function getLocationAndClockIn() {
     btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Checking in...';
 
     // ═══════════════════════════════════════════════════
-    //  ATTEMPT 1 — Submit instantly (backend checks IP)
-    //  If office IP matches → done in <1 second.
-    //  If not → backend rejects → fall back to GPS.
+    //  MOBILE — straight to GPS (no IP check)
+    // ═══════════════════════════════════════════════════
+    if (isMobileDevice()) {
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Getting GPS...';
+        tryGPS();
+        return;
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  DESKTOP — try IP first, fall back to GPS
     // ═══════════════════════════════════════════════════
     submitCheckIn(null, null, null, function (responseText) {
         if (responseText.indexOf('Clocked in') !== -1) {
-            // ✅ Success via IP — go to dashboard
             window.location.href = '/dashboard/';
             return;
         }
-
-        // ❌ IP didn't match — now try GPS
         btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Getting GPS...';
         tryGPS();
     });
 
-    // ═══════════════════════════════════════════════════
-    //  ATTEMPT 2 — GPS with 5 second timeout
-    // ═══════════════════════════════════════════════════
     function tryGPS() {
         if (!navigator.geolocation) {
-            alert('Geolocation not supported. Please connect to office WiFi.');
+            alert('Your browser does not support GPS. Please use Chrome or Safari.');
             resetButton(btn);
             return;
         }
 
         navigator.geolocation.getCurrentPosition(
             function (position) {
-                console.log('GPS:', position.coords.latitude, position.coords.longitude, '±' + position.coords.accuracy + 'm');
+                console.log('GPS:', position.coords.latitude, position.coords.longitude,
+                            '±' + position.coords.accuracy + 'm');
                 submitCheckIn(
                     position.coords.latitude,
                     position.coords.longitude,
                     position.coords.accuracy,
-                    function () { window.location.href = '/dashboard/'; }
+                    function (responseText) {
+                        if (responseText.indexOf('Clocked in') !== -1 ||
+                            responseText.indexOf('"success": true') !== -1) {
+                            window.location.href = '/dashboard/';
+                        } else {
+                            // Backend ne error diya — usko dikhao
+                            try {
+                                var json = JSON.parse(responseText);
+                                alert(json.error || 'Check-in failed.');
+                            } catch (e) {
+                                alert('Check-in failed. Please try again.');
+                            }
+                            resetButton(btn);
+                        }
+                    }
                 );
             },
             function (error) {
                 var msg = '';
                 switch (error.code) {
                     case error.PERMISSION_DENIED:
-                        msg = 'Location access denied. Please connect to office WiFi.';
+                        msg = 'Location permission denied.\n\nPlease enable location access for this site in your browser settings.';
                         break;
                     case error.POSITION_UNAVAILABLE:
-                        msg = 'Location unavailable. Please connect to office WiFi.';
+                        msg = 'Location unavailable.\n\nPlease turn ON GPS (Location) in your phone settings and try again.';
                         break;
                     case error.TIMEOUT:
-                        msg = 'Please connect to office WiFi.';
+                        msg = 'GPS signal is weak.\n\nPlease move near a window / open area and try again.';
                         break;
                     default:
-                        msg = 'Location error. Please connect to office WiFi.';
+                        msg = 'Location error. Please check your GPS settings and try again.';
                 }
                 alert(msg);
                 resetButton(btn);
             },
             {
                 enableHighAccuracy: true,
-                timeout: 5000,       // ← 5 seconds, not 30
-                maximumAge: 60000,   // ← accept recent cache
+                timeout: 30000,      // ← 30 seconds (mobile GPS needs time)
+                maximumAge: 0,       // ← always fresh
             }
         );
     }
 
-    // ═══════════════════════════════════════════════════
-    //  Submit to /clock-in/
-    // ═══════════════════════════════════════════════════
     function submitCheckIn(lat, lng, acc, onDone) {
         var formData = new FormData();
         formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
@@ -1440,10 +1471,7 @@ function resetButton(btn) {
     btn.disabled = false;
     btn.innerHTML = '<i class="las la-sign-in-alt me-2"></i> Clock In';
 }
-</script>
 
-
-<script>
 function getLocationAndClockOut() {
     var btn = document.getElementById('clock-out-btn');
     if (!btn) return;
@@ -1451,26 +1479,38 @@ function getLocationAndClockOut() {
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Checking out...';
 
-    // ─── Attempt 1: submit with no GPS (backend checks IP) ───
+    // ═══════════════════════════════════════════════════
+    //  MOBILE — straight to GPS (no IP check)
+    // ═══════════════════════════════════════════════════
+    if (isMobileDevice()) {
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Getting GPS...';
+        tryGPSOut();
+        return;
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  DESKTOP — try IP first, fall back to GPS
+    // ═══════════════════════════════════════════════════
     submitClockOut(null, null, null, function (data) {
         if (data.success) {
             window.location.href = '/dashboard/';
             return;
         }
-        // IP failed → try GPS
         btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Getting GPS...';
         tryGPSOut();
     });
 
     function tryGPSOut() {
         if (!navigator.geolocation) {
-            alert('Location not supported. Please connect to office WiFi.');
+            alert('Your browser does not support GPS. Please use Chrome or Safari.');
             resetOutButton(btn);
             return;
         }
 
         navigator.geolocation.getCurrentPosition(
             function (position) {
+                console.log('GPS OUT:', position.coords.latitude, position.coords.longitude,
+                            '±' + position.coords.accuracy + 'm');
                 submitClockOut(
                     position.coords.latitude,
                     position.coords.longitude,
@@ -1479,20 +1519,35 @@ function getLocationAndClockOut() {
                         if (data.success) {
                             window.location.href = '/dashboard/';
                         } else {
-                            alert(data.error || 'Check-out failed.');
+                            alert(data.error || 'Check-out failed. Please try again.');
                             resetOutButton(btn);
                         }
                     }
                 );
             },
             function (error) {
-                var msg = 'GPS failed. Please connect to office WiFi.';
-                if (error.code === error.TIMEOUT) msg = 'GPS took too long. Please connect to office WiFi.';
-                if (error.code === error.PERMISSION_DENIED) msg = 'Location denied. Please connect to office WiFi.';
+                var msg = '';
+                switch (error.code) {
+                    case error.PERMISSION_DENIED:
+                        msg = 'Location permission denied.\n\nPlease enable location access for this site in your browser settings.';
+                        break;
+                    case error.POSITION_UNAVAILABLE:
+                        msg = 'Location unavailable.\n\nPlease turn ON GPS (Location) in your phone settings and try again.';
+                        break;
+                    case error.TIMEOUT:
+                        msg = 'GPS signal is weak.\n\nPlease move near a window / open area and try again.';
+                        break;
+                    default:
+                        msg = 'Location error. Please check your GPS settings and try again.';
+                }
                 alert(msg);
                 resetOutButton(btn);
             },
-            { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
+            {
+                enableHighAccuracy: true,
+                timeout: 30000,      // ← 30 seconds
+                maximumAge: 0,
+            }
         );
     }
 }
@@ -1509,7 +1564,25 @@ function submitClockOut(lat, lng, acc, onData) {
         body: formData,
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
     })
-    .then(function (r) { return r.json(); })
+    .then(function (r) {
+        // Handle both JSON and text responses
+        var ct = r.headers.get('content-type') || '';
+        if (ct.indexOf('application/json') !== -1) {
+            return r.json();
+        }
+        return r.text().then(function (text) {
+            // Try to extract JSON from response
+            try {
+                return JSON.parse(text);
+            } catch (e) {
+                // Not JSON — check if it's a success redirect
+                if (text.indexOf('Clocked out') !== -1) {
+                    return { success: true };
+                }
+                return { success: false, error: 'Unexpected response. Please try again.' };
+            }
+        });
+    })
     .then(onData)
     .catch(function (err) {
         console.error('Clock-out error:', err);
@@ -1524,6 +1597,8 @@ function resetOutButton(btn) {
     btn.innerHTML = '<i class="las la-sign-out-alt me-2"></i> Clock Out';
 }
 </script>
+
+
 
 
 <script>
