@@ -1325,7 +1325,7 @@
                                     </div>
 
                                     <div class="stp-rule-grid">
-                                        <div class="stp-rule-item">
+                                        <div class="stp-rule-item col-md-6">
                                             <label class="stp-rule-lbl" for="max_mobile">
                                                 <i class="las la-mobile-alt"></i>
                                                 Max Mobile Devices
@@ -1336,7 +1336,7 @@
                                                 class="stp-input"
                                                 min="1"
                                                 max="5"
-                                                value="{{ device_policy.max_mobile_devices|default:1 }}">
+                                                value="{{ device_policy.max_mobile_devices|default_if_none:1 }}">
                                             <div class="stp-rule-hint">
                                                 Allow 1–5 phones per employee
                                             </div>
@@ -1353,7 +1353,7 @@
                                                 class="stp-input"
                                                 min="0"
                                                 max="5"
-                                                value="{{ device_policy.max_laptop_devices|default:1 }}">
+                                                value="{{ device_policy.max_laptop_devices|default_if_none:1 }}">
                                             <div class="stp-rule-hint">
                                                 Allow 1–5 laptops/desktops per employee
                                             </div>

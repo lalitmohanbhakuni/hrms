@@ -4408,7 +4408,7 @@ def setup(request):
             except (ValueError, TypeError):
                 device_policy.max_mobile_devices = 1
             try:
-                device_policy.max_laptop_devices = int(request.POST.get('max_laptop', 1))
+                device_policy.max_laptop_devices = int(request.POST.get('max_laptop', 0))
             except (ValueError, TypeError):
                 device_policy.max_laptop_devices = 1
             device_policy.notify_hr_on_new_device = request.POST.get('notify_hr') == 'on'

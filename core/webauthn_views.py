@@ -118,7 +118,6 @@ def webauthn_check(request):
         except (ValueError, TypeError):
             is_recent = False
 
-    # ⬇️ CHANGE #1: registration_status='approved' add kiya
     if device_verified and is_recent and verified_device_id:
         exists = EmployeeDevice.objects.filter(
             id=verified_device_id,
@@ -132,7 +131,34 @@ def webauthn_check(request):
     # Not verified → tell frontend what to do
     device_type = _device_type_from_request(request)
 
-    # ⬇️ CHANGE #2: Naya block (pending/rejected/approved check)
+    # ⬇️⬇️⬇️ NEW: Check if this device type is allowed by policy ⬇️⬇️⬇️
+    max_allowed = (
+        policy.max_mobile_devices if device_type == 'mobile'
+        else policy.max_laptop_devices
+    )
+
+    if max_allowed == 0:
+        if device_type == 'laptop':
+            _webauthn_logger.error(f"❌ LAPTOP_NOT_ALLOWED for {request.user.username}")
+            return JsonResponse({
+                'success': False,
+                'verified': False,
+                'required': True,
+                'code': 'LAPTOP_NOT_ALLOWED',
+                'error': 'Laptop check-in is not allowed. '
+                         'Please use your mobile device to clock in/out.'
+            })
+        elif device_type == 'mobile':
+            _webauthn_logger.error(f"❌ MOBILE_NOT_ALLOWED for {request.user.username}")
+            return JsonResponse({
+                'success': False,
+                'verified': False,
+                'required': True,
+                'code': 'MOBILE_NOT_ALLOWED',
+                'error': 'Mobile check-in is not allowed. Please contact HR.'
+            })
+    # ⬆️⬆️⬆️ NEW BLOCK END ⬆️⬆️⬆️
+
     all_devices = EmployeeDevice.objects.filter(
         user=request.user,
         device_type=device_type,
@@ -182,8 +208,6 @@ def webauthn_check(request):
         'code': 'DEVICE_REGISTRATION_REQUIRED',
         'error': 'No device registered. Please register this device first.'
     })
-
-
 
 # ─── 2. REGISTER — BEGIN ───────────────────────────────────
 
@@ -272,7 +296,9 @@ def webauthn_register_begin(request):
 @login_required
 def webauthn_register_complete(request):
     """Verify and save new device credential."""
-    # ⬇️ YEH ADD KAREIN (function entry logging)
+    # ═══════════════════════════════════════════════════════
+    #  FUNCTION ENTRY LOGGING
+    # ═══════════════════════════════════════════════════════
     _webauthn_logger.error("=" * 70)
     _webauthn_logger.error("REGISTER COMPLETE ENTERED")
     _webauthn_logger.error(f"Method: {request.method}")
@@ -287,19 +313,50 @@ def webauthn_register_complete(request):
     challenge_b64 = request.session.pop('webauthn_register_challenge', None)
     device_type = request.session.pop('webauthn_register_device_type', 'mobile')
 
-    # ⬇️ YEH ADD KAREIN (challenge logging)
     _webauthn_logger.error(f"challenge_b64: {challenge_b64[:30] if challenge_b64 else 'NONE'}")
     _webauthn_logger.error(f"device_type: {device_type}")
 
     if not challenge_b64:
-        _webauthn_logger.error("CHALLENGE MISSING - returning 400")
+        _webauthn_logger.error("❌ CHALLENGE MISSING - returning 400")
         return _error('Challenge expired. Please retry.')
 
+    # ═══════════════════════════════════════════════════════
+    #  DECODE CHALLENGE
+    # ═══════════════════════════════════════════════════════
     try:
         challenge = base64url_to_bytes(challenge_b64)
+    except Exception as e:
+        _webauthn_logger.error("=" * 70)
+        _webauthn_logger.error(f"❌ CHALLENGE DECODE FAILED: {type(e).__name__}: {e}")
+        _webauthn_logger.error(f"challenge_b64 was: {challenge_b64}")
+        _webauthn_logger.error("=" * 70)
+        return _error('Invalid challenge.')
+
+    # ═══════════════════════════════════════════════════════
+    #  PARSE ATTESTATION
+    # ═══════════════════════════════════════════════════════
+    try:
+        _webauthn_logger.error(f"request.content_type: {request.content_type}")
+        _webauthn_logger.error(f"request.body length: {len(request.body)}")
+        _webauthn_logger.error(f"request.body (first 200): {request.body[:200]}")
         attestation = json.loads(request.body)
-    except (ValueError, json.JSONDecodeError):
+        _webauthn_logger.error(f"✅ Attestation parsed OK: {list(attestation.keys())}")
+    except Exception as e:
+        _webauthn_logger.error("=" * 70)
+        _webauthn_logger.error(f"❌ JSON PARSE FAILED: {type(e).__name__}: {e}")
+        _webauthn_logger.error(f"Content-Type: {request.content_type}")
+        _webauthn_logger.error(f"Body: {request.body[:500]}")
+        _webauthn_logger.error("=" * 70)
         return _error('Invalid request data.')
+
+    # ═══════════════════════════════════════════════════════
+    #  VERIFY REGISTRATION RESPONSE
+    # ═══════════════════════════════════════════════════════
+    _webauthn_logger.error("🔵 About to call verify_registration_response")
+    _webauthn_logger.error(f"   origin: {_get_origin()}")
+    _webauthn_logger.error(f"   rp_id: {_get_rp_id()}")
+    _webauthn_logger.error(f"   challenge length: {len(challenge) if challenge else 0}")
+    _webauthn_logger.error(f"   attestation keys: {list(attestation.keys())}")
 
     try:
         verification = verify_registration_response(
@@ -308,9 +365,12 @@ def webauthn_register_complete(request):
             expected_origin=_get_origin(),
             expected_rp_id=_get_rp_id(),
         )
+        _webauthn_logger.error("✅ VERIFY SUCCESS!")
+        _webauthn_logger.error(f"   credential_id length: {len(verification.credential_id)}")
+        _webauthn_logger.error(f"   sign_count: {verification.sign_count}")
     except Exception as e:
         _webauthn_logger.error("=" * 70)
-        _webauthn_logger.error(f"REGISTRATION FAILED: {type(e).__name__}: {e}")
+        _webauthn_logger.error(f"❌ REGISTRATION FAILED: {type(e).__name__}: {e}")
         _webauthn_logger.error(f"Expected Origin: {_get_origin()}")
         _webauthn_logger.error(f"Expected RP_ID: {_get_rp_id()}")
         _webauthn_logger.error(f"Challenge (first 30): {challenge[:30] if challenge else 'None'}")
@@ -321,11 +381,22 @@ def webauthn_register_complete(request):
         _webauthn_logger.error("=" * 70)
         return _error(f'Registration failed: {str(e)}')
 
+    # ═══════════════════════════════════════════════════════
+    #  POLICY CHECK
+    # ═══════════════════════════════════════════════════════
     policy = _get_policy(request.user)
+    _webauthn_logger.error(f"🔵 Policy: {policy}, enabled={policy.enabled if policy else 'N/A'}")
+
     if not policy or not policy.enabled:
+        _webauthn_logger.error("❌ Policy disabled or missing - returning 400")
         return _error('Device verification is disabled')
 
-    device_name = request.META.get('HTTP_USER_AGENT', '')[:150]
+    _webauthn_logger.error("🔵 Policy OK, proceeding to create device")
+
+    # ═══════════════════════════════════════════════════════
+    #  PREPARE DEVICE DATA
+    # ═══════════════════════════════════════════════════════
+    device_name = request.META.get('HTTP_USER_AGENT', '')[:95]
 
     # Capture IP
     xff = request.META.get('HTTP_X_FORWARDED_FOR')
@@ -333,6 +404,11 @@ def webauthn_register_complete(request):
 
     # Check if HR approval required
     requires_approval = policy.require_hr_approval
+
+    # ═══════════════════════════════════════════════════════
+    #  CREATE DEVICE
+    # ═══════════════════════════════════════════════════════
+    _webauthn_logger.error("🔵 About to create EmployeeDevice")
 
     try:
         device = EmployeeDevice.objects.create(
@@ -352,15 +428,25 @@ def webauthn_register_complete(request):
             ).exists(),
             registration_status='pending' if requires_approval else 'approved',
         )
+        _webauthn_logger.error(f"✅ Device created: id={device.id}")
     except Exception as e:
+        _webauthn_logger.error("=" * 70)
+        _webauthn_logger.error(f"❌ DEVICE CREATE FAILED: {type(e).__name__}: {e}")
+        _webauthn_logger.error(traceback.format_exc())
+        _webauthn_logger.error("=" * 70)
         return _error(f'Could not save device: {str(e)}')
 
-    # Set approved_at if auto-approved
+    # ═══════════════════════════════════════════════════════
+    #  SET APPROVED_AT IF AUTO-APPROVED
+    # ═══════════════════════════════════════════════════════
     if not requires_approval:
         device.approved_at = timezone.now()
         device.save(update_fields=['approved_at'])
+        _webauthn_logger.error("✅ Auto-approved (approved_at set)")
 
-    # Notify HR
+    # ═══════════════════════════════════════════════════════
+    #  NOTIFY HR
+    # ═══════════════════════════════════════════════════════
     if policy.notify_hr_on_new_device:
         try:
             from core.utils import create_notification
@@ -373,11 +459,15 @@ def webauthn_register_complete(request):
                 ),
                 notification_type='action',
             )
-        except Exception:
-            pass
+            _webauthn_logger.error("✅ HR notified")
+        except Exception as e:
+            _webauthn_logger.error(f"⚠️ HR notification failed: {e}")
 
-    # ALAG RESPONSE — pending vs approved
+    # ═══════════════════════════════════════════════════════
+    #  RETURN RESPONSE
+    # ═══════════════════════════════════════════════════════
     if requires_approval:
+        _webauthn_logger.error("🔵 Returning PENDING_HR_APPROVAL")
         return JsonResponse({
             'success': False,
             'device_id': device.id,
@@ -389,13 +479,13 @@ def webauthn_register_complete(request):
         request.session['device_verified_at'] = timezone.now().isoformat()
         request.session['verified_device_id'] = device.id
 
+        _webauthn_logger.error("🔵 Returning SUCCESS")
         return JsonResponse({
             'success': True,
             'device_id': device.id,
             'message': 'Device registered successfully'
         })
         
-
 
 # ─── 4. AUTHENTICATE — BEGIN ───────────────────────────────
 

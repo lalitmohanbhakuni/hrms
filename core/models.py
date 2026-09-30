@@ -1024,7 +1024,7 @@ class EmployeeDevice(models.Model):
     transports = models.CharField(max_length=100, blank=True)         # usb, nfc, ble, internal
     
     # Metadata
-    device_name = models.CharField(max_length=100, blank=True)
+    device_name = models.CharField(max_length=255, blank=True)
     user_agent = models.TextField(blank=True)
     ip_address = models.GenericIPAddressField(null=True, blank=True)  # ⬅️ NEW (optional)
     
