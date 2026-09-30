@@ -3,6 +3,8 @@
 WebAuthn device verification endpoints for NitoHR
 """
 import json
+import logging
+import traceback
 from datetime import datetime
 
 from django.http import JsonResponse
@@ -24,6 +26,26 @@ from webauthn.helpers import base64url_to_bytes, bytes_to_base64url
 
 from core.models import EmployeeDevice, AttendanceDevicePolicy
 
+
+# ═══════════════════════════════════════════════════════════
+#  DEBUG LOGGER (file-based)
+# ═══════════════════════════════════════════════════════════
+_webauthn_logger = logging.getLogger('webauthn_debug')
+_webauthn_logger.setLevel(logging.DEBUG)
+_webauthn_logger.propagate = False  # Don't send to console (avoid duplication)
+
+if not _webauthn_logger.handlers:
+    try:
+        _handler = logging.FileHandler('/tmp/webauthn_debug.log')
+        _handler.setLevel(logging.DEBUG)
+        _formatter = logging.Formatter(
+            '%(asctime)s - %(levelname)s - %(message)s'
+        )
+        _handler.setFormatter(_formatter)
+        _webauthn_logger.addHandler(_handler)
+    except Exception:
+        # Fallback to NullHandler if file can't be created
+        _webauthn_logger.addHandler(logging.NullHandler())
 
 # ─── Config Helpers (lazy read from settings) ──────────────
 
@@ -245,16 +267,32 @@ def webauthn_register_begin(request):
     return JsonResponse(json.loads(options_to_json(options)))
 
 # ─── 3. REGISTER — COMPLETE ────────────────────────────────
+
+
 @login_required
 def webauthn_register_complete(request):
     """Verify and save new device credential."""
+    # ⬇️ YEH ADD KAREIN (function entry logging)
+    _webauthn_logger.error("=" * 70)
+    _webauthn_logger.error("REGISTER COMPLETE ENTERED")
+    _webauthn_logger.error(f"Method: {request.method}")
+    _webauthn_logger.error(f"User: {getattr(request.user, 'username', 'NO USER')}")
+    _webauthn_logger.error(f"Session keys: {list(request.session.keys())}")
+    _webauthn_logger.error(f"Challenge in session: {'webauthn_register_challenge' in request.session}")
+    _webauthn_logger.error("=" * 70)
+
     if request.method != 'POST':
         return _error('POST required', status=405)
 
     challenge_b64 = request.session.pop('webauthn_register_challenge', None)
     device_type = request.session.pop('webauthn_register_device_type', 'mobile')
 
+    # ⬇️ YEH ADD KAREIN (challenge logging)
+    _webauthn_logger.error(f"challenge_b64: {challenge_b64[:30] if challenge_b64 else 'NONE'}")
+    _webauthn_logger.error(f"device_type: {device_type}")
+
     if not challenge_b64:
+        _webauthn_logger.error("CHALLENGE MISSING - returning 400")
         return _error('Challenge expired. Please retry.')
 
     try:
@@ -271,7 +309,16 @@ def webauthn_register_complete(request):
             expected_rp_id=_get_rp_id(),
         )
     except Exception as e:
-        print(f"❌ WebAuthn register failed: {type(e).__name__}: {e}")
+        _webauthn_logger.error("=" * 70)
+        _webauthn_logger.error(f"REGISTRATION FAILED: {type(e).__name__}: {e}")
+        _webauthn_logger.error(f"Expected Origin: {_get_origin()}")
+        _webauthn_logger.error(f"Expected RP_ID: {_get_rp_id()}")
+        _webauthn_logger.error(f"Challenge (first 30): {challenge[:30] if challenge else 'None'}")
+        _webauthn_logger.error(f"Attestation ID: {attestation.get('id', 'N/A')[:40]}")
+        _webauthn_logger.error(f"Attestation Type: {attestation.get('type', 'N/A')}")
+        _webauthn_logger.error("Full traceback:")
+        _webauthn_logger.error(traceback.format_exc())
+        _webauthn_logger.error("=" * 70)
         return _error(f'Registration failed: {str(e)}')
 
     policy = _get_policy(request.user)
@@ -280,11 +327,11 @@ def webauthn_register_complete(request):
 
     device_name = request.META.get('HTTP_USER_AGENT', '')[:150]
 
-    # ⬇️ Capture IP
+    # Capture IP
     xff = request.META.get('HTTP_X_FORWARDED_FOR')
     client_ip = xff.split(',')[0].strip() if xff else request.META.get('REMOTE_ADDR')
 
-    # ⬇️ Check if HR approval required
+    # Check if HR approval required
     requires_approval = policy.require_hr_approval
 
     try:
@@ -308,12 +355,12 @@ def webauthn_register_complete(request):
     except Exception as e:
         return _error(f'Could not save device: {str(e)}')
 
-    # ⬇️ Set approved_at if auto-approved
+    # Set approved_at if auto-approved
     if not requires_approval:
         device.approved_at = timezone.now()
         device.save(update_fields=['approved_at'])
 
-    # ⬇️ Notify HR
+    # Notify HR
     if policy.notify_hr_on_new_device:
         try:
             from core.utils import create_notification
@@ -329,7 +376,7 @@ def webauthn_register_complete(request):
         except Exception:
             pass
 
-    # ⬇️ ALAG RESPONSE — pending vs approved
+    # ALAG RESPONSE — pending vs approved
     if requires_approval:
         return JsonResponse({
             'success': False,
@@ -338,7 +385,6 @@ def webauthn_register_complete(request):
             'message': 'Device registered. Waiting for HR approval.'
         })
     else:
-        # Mark session verified (only if auto-approved)
         request.session['device_verified'] = True
         request.session['device_verified_at'] = timezone.now().isoformat()
         request.session['verified_device_id'] = device.id
@@ -348,7 +394,7 @@ def webauthn_register_complete(request):
             'device_id': device.id,
             'message': 'Device registered successfully'
         })
-
+        
 
 
 # ─── 4. AUTHENTICATE — BEGIN ───────────────────────────────
