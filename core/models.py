@@ -997,3 +997,117 @@ class LateDeduction(models.Model):
             f"{self.deduction_type} | {self.penalty_days} | {self.status}"
         )
         
+
+# core/models.py
+class EmployeeDevice(models.Model):
+    """WebAuthn credentials for attendance verification"""
+    
+    DEVICE_TYPES = [
+        ('mobile', 'Mobile'),
+        ('laptop', 'Laptop/Desktop'),
+    ]
+    
+    REGISTRATION_STATUS = [
+        ('pending', 'Pending HR Approval'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='attendance_devices')
+    company = models.ForeignKey(Company, on_delete=models.CASCADE)
+    
+    # WebAuthn data
+    device_type = models.CharField(max_length=10, choices=DEVICE_TYPES)
+    credential_id = models.BinaryField(max_length=255, unique=True)  # WebAuthn credential ID
+    public_key = models.BinaryField()                                 # Public key
+    sign_count = models.PositiveIntegerField(default=0)               # Replay prevention
+    transports = models.CharField(max_length=100, blank=True)         # usb, nfc, ble, internal
+    
+    # Metadata
+    device_name = models.CharField(max_length=100, blank=True)
+    user_agent = models.TextField(blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)  # ⬅️ NEW (optional)
+    
+    # Status
+    is_active = models.BooleanField(default=True)
+    is_primary = models.BooleanField(default=False)
+    
+    # ⬇️⬇️⬇️ HR APPROVAL (NEW) ⬇️⬇️⬇️
+    registration_status = models.CharField(
+        max_length=20,
+        choices=REGISTRATION_STATUS,
+        default='approved',
+        db_index=True,
+        help_text="HR approval status for this device"
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+    approved_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='approved_attendance_devices'
+    )
+    rejection_reason = models.CharField(max_length=200, blank=True)
+    # ⬆️⬆️⬆️ HR APPROVAL END ⬆️⬆️⬆️
+    
+    # Timestamps
+    registered_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    disabled_at = models.DateTimeField(null=True, blank=True)
+    disabled_by = models.ForeignKey(User, null=True, blank=True, 
+                                     on_delete=models.SET_NULL, 
+                                     related_name='disabled_attendance_devices')
+    disabled_reason = models.CharField(max_length=200, blank=True)  # ⬅️ NEW (optional)
+    
+    class Meta:
+        ordering = ['-last_used_at']
+        indexes = [
+            models.Index(fields=['user', 'device_type', 'is_active']),
+            models.Index(fields=['company', 'registration_status']),  # ⬅️ NEW
+        ]
+    
+    def __str__(self):
+        return f"{self.user.username} — {self.device_type} ({self.registration_status})"
+
+
+
+class AttendanceDevicePolicy(models.Model):
+    """HR-controlled settings"""
+    
+    company = models.OneToOneField(Company, on_delete=models.CASCADE)
+    
+    # Master switch
+    enabled = models.BooleanField(default=False, 
+        help_text="Require device verification for Clock In/Out")
+    
+    # Limits
+    max_mobile_devices = models.PositiveIntegerField(default=1)
+    max_laptop_devices = models.PositiveIntegerField(default=1)
+    
+    # Behavior
+    allow_hr_override = models.BooleanField(default=True)
+    notify_hr_on_new_device = models.BooleanField(default=True)
+    allow_employee_self_remove = models.BooleanField(default=False)
+    allow_ip_fallback = models.BooleanField(default=True, 
+        help_text="If device fails, allow office IP as fallback")
+    
+    # ⬇️ HR APPROVAL
+    require_hr_approval = models.BooleanField(
+        default=False,
+        help_text="New devices require HR approval before activation"
+    )
+    
+    # Timestamps
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='device_policy_updates'
+    )
+    
+    def __str__(self):
+        status = "ON" if self.enabled else "OFF"
+        return f"{self.company.name} — Device Verification {status}"

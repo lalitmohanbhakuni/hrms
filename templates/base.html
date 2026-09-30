@@ -145,6 +145,16 @@
                             <i class="las la-chart-bar"></i><span>Reports</span>
                         </a>
                     {% endif %}
+
+                    <a href="{% url 'pending_device_approvals' %}" class="nav-item {% if 'device-approvals' in request.path %}active{% endif %}">
+                        <i class="las la-user-shield"></i>
+                        <span>Device Approvals</span>
+                        {% if pending_device_count > 0 %}
+                        <span class="badge">{{ pending_device_count }}</span>
+                        {% endif %}
+                    </a>
+
+
                 {% endif %}
             {% endif %}
         </nav>

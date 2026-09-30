@@ -3,6 +3,7 @@ from django.contrib.auth import views as auth_views
 from . import views
 from django.conf.urls import handler404, handler500, handler403, handler400
 from core.views import health_check
+from core import webauthn_views
 
 urlpatterns = [
     path('health/', health_check, name='health_check'),
@@ -136,6 +137,15 @@ urlpatterns = [
     path('payroll/payslip/<int:pk>/', views.payslip_view, name='payslip_view'),
     path('payroll/payslip/<int:pk>/pdf/', views.payslip_pdf, name='payslip_pdf'),
 
+    # HR Manage Devices
+    path('employees/<int:user_id>/devices/', views.manage_employee_devices, name='manage_employee_devices'),
+    path(
+        'hr/device-approvals/',
+        views.pending_device_approvals,
+        name='pending_device_approvals',
+    ),
+
+
 
     
     # ---------- Password Reset ----------
@@ -163,6 +173,20 @@ path('password-reset-complete/',
      ),
      name='password_reset_complete'),
      
+    
+    # WebAuthn device verification
+    path('attendance/webauthn/check/',
+         webauthn_views.webauthn_check, name='webauthn_check'),
+    path('attendance/webauthn/register/begin/',
+         webauthn_views.webauthn_register_begin, name='webauthn_register_begin'),
+    path('attendance/webauthn/register/complete/',
+         webauthn_views.webauthn_register_complete, name='webauthn_register_complete'),
+    path('attendance/webauthn/authenticate/begin/',
+         webauthn_views.webauthn_authenticate_begin, name='webauthn_authenticate_begin'),
+    path('attendance/webauthn/authenticate/complete/',
+         webauthn_views.webauthn_authenticate_complete, name='webauthn_authenticate_complete'),
+
+
     
     # Test
     path('test/', views.test_view, name='test'),

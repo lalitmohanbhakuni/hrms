@@ -634,7 +634,7 @@
                                         {{ emp.profile.full_name|slice:":1"|upper|default:emp.username|slice:":1"|upper }}
                                     </div>
                                     <span class="emp-name">
-                                       <a style="color: #0f172a; text-decoration: none ;"  href="{% url 'employee_edit' emp.id %}">  {{ emp.profile.full_name|default:emp.username }} </a>
+                                       <a style="color: #0f172a; text-decoration: none ;"  href="{% url 'employee_detail' emp.id %}">  {{ emp.profile.full_name|default:emp.username }} </a>
                                     </span>
                                 </div>
                             </td>

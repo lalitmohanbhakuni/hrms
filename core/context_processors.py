@@ -30,7 +30,6 @@ def company_context(request):
     return {}
 
 
-
 def late_rule_status(request):
     """
     Provides `late_rule_enabled` to all templates.
@@ -57,4 +56,43 @@ def late_rule_status(request):
     ).exists()
 
     return {'late_rule_enabled': exists}
-    
+
+
+# ⬇️⬇️⬇️ YEH NAYA FUNCTION ADD KAREIN ⬇️⬇️⬇️
+
+def pending_device_count(request):
+    """
+    Adds pending device approval count to template context
+    for HR Admin / Superuser users only.
+    Used in sidebar badge.
+    """
+    if not request.user.is_authenticated:
+        return {'pending_device_count': 0}
+
+    # Only for HR Admin / Superuser
+    if not request.user.is_superuser:
+        profile = getattr(request.user, 'profile', None)
+        if not profile:
+            return {'pending_device_count': 0}
+        role = (getattr(profile, 'role', '') or '').lower()
+        if role != 'hr_admin':
+            return {'pending_device_count': 0}
+        company = getattr(profile, 'company', None)
+    else:
+        # Superuser: any company (use first, or query all)
+        from .models import Company
+        company = Company.objects.first()
+
+    if not company:
+        return {'pending_device_count': 0}
+
+    try:
+        from .models import EmployeeDevice
+        count = EmployeeDevice.objects.filter(
+            company=company,
+            registration_status='pending',
+        ).count()
+    except Exception:
+        count = 0
+
+    return {'pending_device_count': count}

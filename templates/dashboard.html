@@ -1359,13 +1359,295 @@ function isMobileDevice() {
            .test(navigator.userAgent);
 }
 
+// ═══════════════════════════════════════════════════
+//  WebAuthn Helpers
+// ═══════════════════════════════════════════════════
+
+function base64UrlToBuffer(base64url) {
+    var base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
+    var pad = base64.length % 4;
+    if (pad) base64 += '='.repeat(4 - pad);
+    var binary = atob(base64);
+    var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes.buffer;
+}
+
+function bufferToBase64Url(buffer) {
+    var bytes = new Uint8Array(buffer);
+    var binary = '';
+    for (var i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+function getCsrfToken() {
+    var el = document.querySelector('[name=csrfmiddlewaretoken]');
+    return el ? el.value : '{{ csrf_token }}';
+}
+
+function getDeviceType() {
+    return isMobileDevice() ? 'mobile' : 'laptop';
+}
+
+/**
+ * Ensure device is verified before clock in/out.
+ * Returns Promise<{verified: bool, error: string|null}>
+ */
+function ensureDeviceVerified() {
+    return fetch('/attendance/webauthn/check/', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCsrfToken(),
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ device_type: getDeviceType() })
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+        if (data.verified) {
+            return { verified: true, error: null };
+        }
+
+        // ⬇️ MOBILE-ONLY ENFORCEMENT HANDLERS (NEW)
+        if (data.code === 'LAPTOP_NOT_ALLOWED') {
+            return {
+                verified: false,
+                error: 'Laptop check-in is not allowed.\n\nPlease use your mobile device to clock in/out.'
+            };
+        }
+
+        if (data.code === 'MOBILE_NOT_ALLOWED') {
+            return {
+                verified: false,
+                error: 'Mobile check-in is not allowed. Please contact HR.'
+            };
+        }
+
+        if (data.code === 'MAX_DEVICES_REACHED') {
+            return {
+                verified: false,
+                error: data.error || 'Maximum devices reached. Please contact HR.'
+            };
+        }
+        // ⬆️ END NEW
+
+        if (data.code === 'PENDING_HR_APPROVAL') {
+            return {
+                verified: false,
+                error: 'Your device is waiting for HR approval. Please wait.'
+            };
+        }
+
+        if (data.code === 'DEVICE_REJECTED') {
+            return {
+                verified: false,
+                error: data.error || 'Your device registration was rejected. Contact HR.'
+            };
+        }
+
+        if (data.code === 'DEVICE_REGISTRATION_REQUIRED') {
+            return registerDevice().then(function (result) {
+                // Handle registration result codes
+                if (result && result.code === 'PENDING_HR_APPROVAL') {
+                    return {
+                        verified: false,
+                        error: 'Your device registration is pending HR approval. Please wait.'
+                    };
+                }
+                if (result && result.code === 'LAPTOP_NOT_ALLOWED') {
+                    return {
+                        verified: false,
+                        error: 'Laptop check-in is not allowed.\n\nPlease use your mobile device to clock in/out.'
+                    };
+                }
+                if (result && result.code === 'MAX_DEVICES_REACHED') {
+                    return {
+                        verified: false,
+                        error: result.message || 'Maximum devices reached. Please contact HR.'
+                    };
+                }
+                return { verified: true, error: null };
+            });
+        }
+
+        if (data.code === 'DEVICE_VERIFICATION_REQUIRED') {
+            return verifyDevice().then(function () {
+                return { verified: true, error: null };
+            });
+        }
+
+        return { verified: false, error: data.error || 'Device check failed.' };
+    })
+    .catch(function (err) {
+        console.error('Device check error:', err);
+        // Fail-open if endpoint error — let backend handle
+        return { verified: true, error: null };
+    });
+}
+
+function registerDevice() {
+    return fetch('/attendance/webauthn/register/begin/', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCsrfToken(),
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ device_type: getDeviceType() })
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (options) {
+        // ⬇️ NEW: Handle backend error codes (LAPTOP_NOT_ALLOWED, etc.)
+        if (options.error || options.success === false) {
+            var err = new Error(options.error || 'Registration not allowed.');
+            err.code = options.code;
+            err.message = options.error;
+            throw err;
+        }
+        // ⬆️ END NEW
+
+        options.challenge = base64UrlToBuffer(options.challenge);
+        options.user.id = base64UrlToBuffer(options.user.id);
+        if (options.excludeCredentials) {
+            options.excludeCredentials = options.excludeCredentials.map(function (c) {
+                return Object.assign({}, c, { id: base64UrlToBuffer(c.id) });
+            });
+        }
+
+        return navigator.credentials.create({ publicKey: options });
+    })
+    .then(function (credential) {
+        var attestation = {
+            id: credential.id,
+            rawId: bufferToBase64Url(credential.rawId),
+            type: credential.type,
+            response: {
+                clientDataJSON: bufferToBase64Url(credential.response.clientDataJSON),
+                attestationObject: bufferToBase64Url(credential.response.attestationObject),
+            },
+        };
+        return fetch('/attendance/webauthn/register/complete/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCsrfToken(),
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify(attestation)
+        });
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+        // ⬇️ NEW: Handle pending approval code
+        if (data.code === 'PENDING_HR_APPROVAL') {
+            return { success: false, code: 'PENDING_HR_APPROVAL', message: data.message };
+        }
+        if (!data.success) {
+            var err = new Error(data.error || 'Registration failed.');
+            err.code = data.code;
+            throw err;
+        }
+        return { success: true };
+        // ⬆️ END NEW
+    })
+    .catch(function (err) {
+        console.error('Device registration error:', err);
+        // Preserve code if it exists
+        if (err.code) {
+            return { success: false, code: err.code, message: err.message };
+        }
+        throw err;
+    });
+}
+
+function verifyDevice() {
+    return fetch('/attendance/webauthn/authenticate/begin/', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCsrfToken(),
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ device_type: getDeviceType() })
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (options) {
+        if (options.error) throw new Error(options.error);
+
+        options.challenge = base64UrlToBuffer(options.challenge);
+        if (options.allowCredentials) {
+            options.allowCredentials = options.allowCredentials.map(function (c) {
+                return Object.assign({}, c, { id: base64UrlToBuffer(c.id) });
+            });
+        }
+
+        return navigator.credentials.get({ publicKey: options });
+    })
+    .then(function (assertion) {
+        var payload = {
+            id: assertion.id,
+            rawId: bufferToBase64Url(assertion.rawId),
+            type: assertion.type,
+            response: {
+                clientDataJSON: bufferToBase64Url(assertion.response.clientDataJSON),
+                authenticatorData: bufferToBase64Url(assertion.response.authenticatorData),
+                signature: bufferToBase64Url(assertion.response.signature),
+                userHandle: assertion.response.userHandle
+                    ? bufferToBase64Url(assertion.response.userHandle) : null,
+            },
+        };
+        return fetch('/attendance/webauthn/authenticate/complete/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCsrfToken(),
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify(payload)
+        });
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+        if (!data.success) throw new Error(data.error || 'Verification failed.');
+        return true;
+    })
+    .catch(function (err) {
+        console.error('Device verification error:', err);
+        throw err;
+    });
+}
+
+// ═══════════════════════════════════════════════════
+//  CLOCK IN
+// ═══════════════════════════════════════════════════
+
 function getLocationAndClockIn() {
     var btn = document.getElementById('clock-in-btn');
     if (!btn) return;
 
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Checking in...';
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Verifying device...';
 
+    // Step 1: Device verification (if enabled by HR)
+    ensureDeviceVerified()
+        .then(function (result) {
+            if (!result.verified) {
+                alert(result.error || 'Device verification failed.');
+                resetButton(btn);
+                return;
+            }
+            // Step 2: Continue with existing GPS/IP flow
+            proceedClockIn(btn);
+        })
+        .catch(function (err) {
+            console.error('Device flow error:', err);
+            alert(err.message || 'Device verification failed. Please try again.');
+            resetButton(btn);
+        });
+}
+
+function proceedClockIn(btn) {
     // ═══════════════════════════════════════════════════
     //  MOBILE — straight to GPS (no IP check)
     // ═══════════════════════════════════════════════════
@@ -1378,6 +1660,7 @@ function getLocationAndClockIn() {
     // ═══════════════════════════════════════════════════
     //  DESKTOP — try IP first, fall back to GPS
     // ═══════════════════════════════════════════════════
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Checking in...';
     submitCheckIn(null, null, null, function (responseText) {
         if (responseText.indexOf('Clocked in') !== -1) {
             window.location.href = '/dashboard/';
@@ -1407,7 +1690,6 @@ function getLocationAndClockIn() {
                             responseText.indexOf('"success": true') !== -1) {
                             window.location.href = '/dashboard/';
                         } else {
-                            // Backend ne error diya — usko dikhao
                             try {
                                 var json = JSON.parse(responseText);
                                 alert(json.error || 'Check-in failed.');
@@ -1439,8 +1721,8 @@ function getLocationAndClockIn() {
             },
             {
                 enableHighAccuracy: true,
-                timeout: 30000,      // ← 30 seconds (mobile GPS needs time)
-                maximumAge: 0,       // ← always fresh
+                timeout: 30000,
+                maximumAge: 0,
             }
         );
     }
@@ -1472,13 +1754,36 @@ function resetButton(btn) {
     btn.innerHTML = '<i class="las la-sign-in-alt me-2"></i> Clock In';
 }
 
+// ═══════════════════════════════════════════════════
+//  CLOCK OUT
+// ═══════════════════════════════════════════════════
+
 function getLocationAndClockOut() {
     var btn = document.getElementById('clock-out-btn');
     if (!btn) return;
 
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Checking out...';
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Verifying device...';
 
+    // Step 1: Device verification (if enabled by HR)
+    ensureDeviceVerified()
+        .then(function (result) {
+            if (!result.verified) {
+                alert(result.error || 'Device verification failed.');
+                resetOutButton(btn);
+                return;
+            }
+            // Step 2: Continue with existing GPS/IP flow
+            proceedClockOut(btn);
+        })
+        .catch(function (err) {
+            console.error('Device flow error:', err);
+            alert(err.message || 'Device verification failed. Please try again.');
+            resetOutButton(btn);
+        });
+}
+
+function proceedClockOut(btn) {
     // ═══════════════════════════════════════════════════
     //  MOBILE — straight to GPS (no IP check)
     // ═══════════════════════════════════════════════════
@@ -1491,6 +1796,7 @@ function getLocationAndClockOut() {
     // ═══════════════════════════════════════════════════
     //  DESKTOP — try IP first, fall back to GPS
     // ═══════════════════════════════════════════════════
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Checking out...';
     submitClockOut(null, null, null, function (data) {
         if (data.success) {
             window.location.href = '/dashboard/';
@@ -1545,7 +1851,7 @@ function getLocationAndClockOut() {
             },
             {
                 enableHighAccuracy: true,
-                timeout: 30000,      // ← 30 seconds
+                timeout: 30000,
                 maximumAge: 0,
             }
         );
@@ -1565,17 +1871,14 @@ function submitClockOut(lat, lng, acc, onData) {
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
     })
     .then(function (r) {
-        // Handle both JSON and text responses
         var ct = r.headers.get('content-type') || '';
         if (ct.indexOf('application/json') !== -1) {
             return r.json();
         }
         return r.text().then(function (text) {
-            // Try to extract JSON from response
             try {
                 return JSON.parse(text);
             } catch (e) {
-                // Not JSON — check if it's a success redirect
                 if (text.indexOf('Clocked out') !== -1) {
                     return { success: true };
                 }
@@ -1857,6 +2160,85 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 });
+</script>
+
+<script>
+
+    // templates/dashboard.html
+async function registerDevice() {
+    // 1. Get registration options from server
+    const response = await fetch('/attendance/webauthn/register/begin/', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCsrfToken(),
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({
+            device_type: isMobileDevice() ? 'mobile' : 'laptop'
+        })
+    });
+    
+    const options = await response.json();
+    
+    // 2. Convert base64url to ArrayBuffer
+    options.challenge = base64UrlToBuffer(options.challenge);
+    options.user.id = base64UrlToBuffer(options.user.id);
+    if (options.excludeCredentials) {
+        options.excludeCredentials = options.excludeCredentials.map(c => ({
+            ...c,
+            id: base64UrlToBuffer(c.id)
+        }));
+    }
+    
+    // 3. Create credential (browser prompts for biometric)
+    const credential = await navigator.credentials.create({
+        publicKey: options
+    });
+    
+    // 4. Send to server
+    const attestation = {
+        id: credential.id,
+        rawId: bufferToBase64Url(credential.rawId),
+        response: {
+            clientDataJSON: bufferToBase64Url(credential.response.clientDataJSON),
+            attestationObject: bufferToBase64Url(credential.response.attestationObject),
+        },
+        type: credential.type,
+    };
+    
+    const verifyResponse = await fetch('/attendance/webauthn/register/complete/', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCsrfToken(),
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify(attestation)
+    });
+    
+    return await verifyResponse.json();
+}
+
+function getCsrfToken() {
+    return document.querySelector('[name=csrfmiddlewaretoken]').value;
+}
+
+function base64UrlToBuffer(base64url) {
+    const base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes.buffer;
+}
+
+function bufferToBase64Url(buffer) {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) bytes[i];
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
 </script>
 
 

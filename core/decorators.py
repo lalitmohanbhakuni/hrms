@@ -4,6 +4,9 @@ from django.shortcuts import redirect
 from django.contrib import messages
 from django.shortcuts import redirect
 from .models import Company
+from django.http import HttpResponseForbidden
+from django.shortcuts import redirect
+from functools import wraps
 
 def is_admin_or_hr(user):
     """
@@ -99,3 +102,44 @@ def company_required(view_func):
         return view_func(request, *args, **kwargs)
     return wrapper
     
+
+def role_required(allowed_roles):
+    """
+    Restrict view access based on EmployeeProfile.role.
+    
+    Usage:
+        @role_required(['HR_ADMIN', 'SUPERUSER'])
+        def my_view(request):
+            ...
+    
+    Passes if:
+    - User is superuser (bypass), OR
+    - User's EmployeeProfile.role is in allowed_roles
+    """
+    if isinstance(allowed_roles, str):
+        allowed_roles = [allowed_roles]
+    
+    def decorator(view_func):
+        @wraps(view_func)
+        def wrapper(request, *args, **kwargs):
+            if not request.user.is_authenticated:
+                return redirect('login')
+            
+            # Superuser bypass
+            if request.user.is_superuser:
+                return view_func(request, *args, **kwargs)
+            
+            profile = getattr(request.user, 'profile', None)
+            if not profile:
+                return HttpResponseForbidden(
+                    'Employee profile not found.'
+                )
+            
+            if profile.role not in allowed_roles:
+                return HttpResponseForbidden(
+                    'You do not have permission to access this page.'
+                )
+            
+            return view_func(request, *args, **kwargs)
+        return wrapper
+    return decorator

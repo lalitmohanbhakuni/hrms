@@ -594,26 +594,57 @@
 
             <ul class="nav stp-tabs" id="setupTabs" role="tablist">
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="attendance-tab" data-bs-toggle="tab" data-bs-target="#attendance" type="button" role="tab">
+                    <button class="nav-link {% if active_tab == 'attendance' %}active{% endif %}" 
+                            id="attendance-tab" 
+                            data-bs-toggle="tab" 
+                            data-bs-target="#attendance" 
+                            type="button" 
+                            role="tab">
                         <i class="las la-clock"></i> Attendance
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="assign-tab" data-bs-toggle="tab" data-bs-target="#assign" type="button" role="tab">
+                    <button class="nav-link {% if active_tab == 'assign' %}active{% endif %}" 
+                            id="assign-tab" 
+                            data-bs-toggle="tab" 
+                            data-bs-target="#assign" 
+                            type="button" 
+                            role="tab">
                         <i class="las la-users-cog"></i> Shift Assignment
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="leave-types-tab" data-bs-toggle="tab" data-bs-target="#leave-types" type="button" role="tab">
+                    <button class="nav-link {% if active_tab == 'leave-types' %}active{% endif %}" 
+                            id="leave-types-tab" 
+                            data-bs-toggle="tab" 
+                            data-bs-target="#leave-types" 
+                            type="button" 
+                            role="tab">
                         <i class="las la-tags"></i> Leave Types
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="holidays-tab" data-bs-toggle="tab" data-bs-target="#holidays" type="button" role="tab">
+                    <button class="nav-link {% if active_tab == 'holidays' %}active{% endif %}" 
+                            id="holidays-tab" 
+                            data-bs-toggle="tab" 
+                            data-bs-target="#holidays" 
+                            type="button" 
+                            role="tab">
                         <i class="las la-calendar-alt"></i> Holidays
                     </button>
                 </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link {% if active_tab == 'device' %}active{% endif %}" 
+                            id="device-tab-btn" 
+                            data-bs-toggle="tab" 
+                            data-bs-target="#device-tab" 
+                            type="button" 
+                            role="tab">
+                        <i class="las la-shield-alt"></i> Device
+                    </button>
+                </li>
             </ul>
+
 
 
             <div class="tab-content">
@@ -1093,150 +1124,426 @@
                 </div>
 
                 
-                        {# ═══════════ LEAVE TYPES TAB ═══════════ #}
-        {% if user.is_superuser or user|has_group:"HR Admin" %}
-            <div class="tab-pane fade" id="leave-types" role="tabpanel">
+                {# ═══════════ LEAVE TYPES TAB ═══════════ #}
+                {% if user.is_superuser or user|has_group:"HR Admin" %}
+                    <div class="tab-pane fade" id="leave-types" role="tabpanel">
 
-                <div class="stp-sec">
-                    <div class="stp-sec-left">
-                        <span class="stp-sec-ico"><i class="las la-tags"></i></span>
-                        <div>
-                            <h5 class="stp-sec-title">Leave Types</h5>
-                            <p class="stp-sec-sub">Categories of leave your team can request.</p>
+                        <div class="stp-sec">
+                            <div class="stp-sec-left">
+                                <span class="stp-sec-ico"><i class="las la-tags"></i></span>
+                                <div>
+                                    <h5 class="stp-sec-title">Leave Types</h5>
+                                    <p class="stp-sec-sub">Categories of leave your team can request.</p>
+                                </div>
+                            </div>
+                            <a href="{% url 'leave_type_create' %}" class="stp-btn stp-btn-primary">
+                                <i class="fas fa-plus"></i> Create Leave Type
+                            </a>
+                        </div>
+
+                        <div class="stp-card">
+                            <div class="table-responsive">
+                                <table class="stp-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Leave Type</th>
+                                            <th class="text-center">Days Allowed</th>
+                                            <th class="text-center">Status</th>
+                                            <th class="text-end">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for lt in leave_types %}
+                                            <tr>
+                                                <td class="name">{{ lt.name }}</td>
+                                                <td class="text-center num">{{ lt.days_allowed }}</td>
+                                                <td class="text-center">
+                                                    {% if lt.is_active %}
+                                                        <span class="stp-ot yes"><i class="fas fa-check"></i></span>
+                                                    {% else %}
+                                                        <span class="stp-ot no"><i class="fas fa-times"></i></span>
+                                                    {% endif %}
+                                                </td>
+                                                <td class="text-end">
+                                                    <div class="stp-actions">
+                                                        <a href="{% url 'leave_type_edit' lt.id %}" class="stp-action edit" title="Edit">
+                                                            <i class="fas fa-edit"></i>
+                                                        </a>
+                                                        <a href="{% url 'leave_type_delete' lt.id %}" class="stp-action delete" title="Delete">
+                                                            <i class="fas fa-trash-alt"></i>
+                                                        </a>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        {% empty %}
+                                            <tr>
+                                                <td colspan="4">
+                                                    <div class="stp-empty">
+                                                        <div class="stp-empty-ico"><i class="las la-tags"></i></div>
+                                                        <p class="stp-empty-title">No leave types defined yet</p>
+                                                        <p class="stp-empty-sub">Create your first leave type to get started.</p>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="stp-quicklink">
+                            <a href="{% url 'leave_type_list' %}" class="stp-btn stp-btn-ghost">
+                                <i class="fas fa-arrow-right"></i> Manage Leave Types (full page)
+                            </a>
                         </div>
                     </div>
-                    <a href="{% url 'leave_type_create' %}" class="stp-btn stp-btn-primary">
-                        <i class="fas fa-plus"></i> Create Leave Type
-                    </a>
-                </div>
+                {% endif %}
 
-                <div class="stp-card">
-                    <div class="table-responsive">
-                        <table class="stp-table">
-                            <thead>
-                                <tr>
-                                    <th>Leave Type</th>
-                                    <th class="text-center">Days Allowed</th>
-                                    <th class="text-center">Status</th>
-                                    <th class="text-end">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for lt in leave_types %}
-                                    <tr>
-                                        <td class="name">{{ lt.name }}</td>
-                                        <td class="text-center num">{{ lt.days_allowed }}</td>
-                                        <td class="text-center">
-                                            {% if lt.is_active %}
-                                                <span class="stp-ot yes"><i class="fas fa-check"></i></span>
-                                            {% else %}
-                                                <span class="stp-ot no"><i class="fas fa-times"></i></span>
-                                            {% endif %}
-                                        </td>
-                                        <td class="text-end">
-                                            <div class="stp-actions">
-                                                <a href="{% url 'leave_type_edit' lt.id %}" class="stp-action edit" title="Edit">
-                                                    <i class="fas fa-edit"></i>
-                                                </a>
-                                                <a href="{% url 'leave_type_delete' lt.id %}" class="stp-action delete" title="Delete">
-                                                    <i class="fas fa-trash-alt"></i>
-                                                </a>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                {% empty %}
-                                    <tr>
-                                        <td colspan="4">
-                                            <div class="stp-empty">
-                                                <div class="stp-empty-ico"><i class="las la-tags"></i></div>
-                                                <p class="stp-empty-title">No leave types defined yet</p>
-                                                <p class="stp-empty-sub">Create your first leave type to get started.</p>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                {# ═══════════ HOLIDAYS TAB ═══════════ #}
+                {% if user.is_superuser or user|has_group:"HR Admin" %}
+                    <div class="tab-pane fade" id="holidays" role="tabpanel">
 
-                <div class="stp-quicklink">
-                    <a href="{% url 'leave_type_list' %}" class="stp-btn stp-btn-ghost">
-                        <i class="fas fa-arrow-right"></i> Manage Leave Types (full page)
-                    </a>
-                </div>
-            </div>
-        {% endif %}
+                        <div class="stp-sec">
+                            <div class="stp-sec-left">
+                                <span class="stp-sec-ico"><i class="las la-calendar-alt"></i></span>
+                                <div>
+                                    <h5 class="stp-sec-title">Company Holidays</h5>
+                                    <p class="stp-sec-sub">Company-wide holidays that appear on everyone's calendar.</p>
+                                </div>
+                            </div>
+                            <a href="{% url 'holiday_create' %}" class="stp-btn stp-btn-primary">
+                                <i class="fas fa-plus"></i> Create Holiday
+                            </a>
+                        </div>
 
-        {# ═══════════ HOLIDAYS TAB ═══════════ #}
-        {% if user.is_superuser or user|has_group:"HR Admin" %}
-            <div class="tab-pane fade" id="holidays" role="tabpanel">
+                        <div class="stp-card">
+                            <div class="table-responsive">
+                                <table class="stp-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Holiday</th>
+                                            <th>Date</th>
+                                            <th>Day</th>
+                                            <th class="text-end">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for holiday in holidays %}
+                                            <tr>
+                                                <td class="name">{{ holiday.name }}</td>
+                                                <td><span class="stp-time">{{ holiday.date|date:"d M Y" }}</span></td>
+                                                <td>{{ holiday.day }}</td>
+                                                <td class="text-end">
+                                                    <div class="stp-actions">
+                                                        <a href="{% url 'holiday_edit' holiday.id %}" class="stp-action edit" title="Edit">
+                                                            <i class="fas fa-edit"></i>
+                                                        </a>
+                                                        <a href="{% url 'holiday_delete' holiday.id %}" class="stp-action delete" title="Delete">
+                                                            <i class="fas fa-trash-alt"></i>
+                                                        </a>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        {% empty %}
+                                            <tr>
+                                                <td colspan="4">
+                                                    <div class="stp-empty">
+                                                        <div class="stp-empty-ico"><i class="las la-calendar-alt"></i></div>
+                                                        <p class="stp-empty-title">No holidays added yet</p>
+                                                        <p class="stp-empty-sub">Create your first holiday to get started.</p>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
 
-                <div class="stp-sec">
-                    <div class="stp-sec-left">
-                        <span class="stp-sec-ico"><i class="las la-calendar-alt"></i></span>
-                        <div>
-                            <h5 class="stp-sec-title">Company Holidays</h5>
-                            <p class="stp-sec-sub">Company-wide holidays that appear on everyone's calendar.</p>
+                        <div class="stp-quicklink">
+                            <a href="{% url 'holiday_list' %}" class="stp-btn stp-btn-ghost">
+                                <i class="fas fa-arrow-right"></i> Manage Holidays (full page)
+                            </a>
                         </div>
                     </div>
-                    <a href="{% url 'holiday_create' %}" class="stp-btn stp-btn-primary">
-                        <i class="fas fa-plus"></i> Create Holiday
-                    </a>
-                </div>
+                {% endif %}
 
-                <div class="stp-card">
-                    <div class="table-responsive">
-                        <table class="stp-table">
-                            <thead>
-                                <tr>
-                                    <th>Holiday</th>
-                                    <th>Date</th>
-                                    <th>Day</th>
-                                    <th class="text-end">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for holiday in holidays %}
-                                    <tr>
-                                        <td class="name">{{ holiday.name }}</td>
-                                        <td><span class="stp-time">{{ holiday.date|date:"d M Y" }}</span></td>
-                                        <td>{{ holiday.day }}</td>
-                                        <td class="text-end">
-                                            <div class="stp-actions">
-                                                <a href="{% url 'holiday_edit' holiday.id %}" class="stp-action edit" title="Edit">
-                                                    <i class="fas fa-edit"></i>
-                                                </a>
-                                                <a href="{% url 'holiday_delete' holiday.id %}" class="stp-action delete" title="Delete">
-                                                    <i class="fas fa-trash-alt"></i>
-                                                </a>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                {% empty %}
-                                    <tr>
-                                        <td colspan="4">
-                                            <div class="stp-empty">
-                                                <div class="stp-empty-ico"><i class="las la-calendar-alt"></i></div>
-                                                <p class="stp-empty-title">No holidays added yet</p>
-                                                <p class="stp-empty-sub">Create your first holiday to get started.</p>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+
+                <!-- ═══════════════════════════════════════════════════════════
+                    Device Verification Tab
+                    ═══════════════════════════════════════════════════════════ -->
+                <div class="tab-pane fade {% if active_tab == 'device' %}show active{% endif %}" id="device-tab">
+
+                    <!-- Section Header -->
+                    <div class="stp-sec">
+                        <div class="stp-sec-left">
+                            <div class="stp-sec-ico">
+                                <i class="las la-shield-alt"></i>
+                            </div>
+                            <div>
+                                <h2 class="stp-sec-title">Attendance Device Verification</h2>
+                                <p class="stp-sec-sub">
+                                    Bind employees to their phones/laptops via WebAuthn
+                                    (fingerprint / Face ID) to prevent proxy attendance.
+                                </p>
+                            </div>
+                        </div>
                     </div>
-                </div>
 
-                <div class="stp-quicklink">
-                    <a href="{% url 'holiday_list' %}" class="stp-btn stp-btn-ghost">
-                        <i class="fas fa-arrow-right"></i> Manage Holidays (full page)
-                    </a>
+                    <!-- Main Card -->
+                    <div class="stp-card">
+                        <div style="padding: 22px 24px;">
+
+                            <form method="POST">
+                                {% csrf_token %}
+
+                                <!-- ─── Master Toggle ─── -->
+                                <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding-bottom:20px; border-bottom:1px solid var(--stp-border);">
+                                    <div style="flex:1;">
+                                        <div class="stp-rule-lbl">
+                                            <i class="las la-power-off"></i>
+                                            Enable Device Verification
+                                        </div>
+                                        <div class="stp-rule-hint" style="margin-top:4px;">
+                                            When enabled, employees must register their device
+                                            before clocking in/out. Requires HTTPS in production.
+                                        </div>
+                                    </div>
+                                    <label class="stp-switch">
+                                        <input type="checkbox"
+                                            name="device_enabled"
+                                            {% if device_policy.enabled %}checked{% endif %}>
+                                        <span class="stp-switch-slider"></span>
+                                    </label>
+                                </div>
+
+                                <!-- ─── Device Limits ─── -->
+                                <div style="padding: 22px 0; border-bottom:1px solid var(--stp-border);">
+                                    <div class="stp-rule-lbl" style="margin-bottom:14px;">
+                                        <i class="las la-mobile"></i>
+                                        Device Limits Per Employee
+                                    </div>
+
+                                    <div class="stp-rule-grid">
+                                        <div class="stp-rule-item">
+                                            <label class="stp-rule-lbl" for="max_mobile">
+                                                <i class="las la-mobile-alt"></i>
+                                                Max Mobile Devices
+                                            </label>
+                                            <input type="number"
+                                                id="max_mobile"
+                                                name="max_mobile"
+                                                class="stp-input"
+                                                min="1"
+                                                max="5"
+                                                value="{{ device_policy.max_mobile_devices|default:1 }}">
+                                            <div class="stp-rule-hint">
+                                                Allow 1–5 phones per employee
+                                            </div>
+                                        </div>
+
+                                        <!-- <div class="stp-rule-item">
+                                            <label class="stp-rule-lbl" for="max_laptop">
+                                                <i class="las la-laptop"></i>
+                                                Max Laptop / Desktop Devices
+                                            </label>
+                                            <input type="number"
+                                                id="max_laptop"
+                                                name="max_laptop"
+                                                class="stp-input"
+                                                min="0"
+                                                max="5"
+                                                value="{{ device_policy.max_laptop_devices|default:1 }}">
+                                            <div class="stp-rule-hint">
+                                                Allow 1–5 laptops/desktops per employee
+                                            </div>
+                                        </div> -->
+                                    </div>
+                                </div>
+
+                                <!-- ─── Behavior Options ─── -->
+                                <div style="padding: 22px 0; border-bottom:1px solid var(--stp-border);">
+                                    <div class="stp-rule-lbl" style="margin-bottom:14px;">
+                                        <i class="las la-cog"></i>
+                                        Behavior Settings
+                                    </div>
+
+                                    <div style="display:grid; gap:14px;">
+
+                                        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px;">
+                                            <div style="flex:1;">
+                                                <div class="stp-rule-lbl">
+                                                    <i class="las la-bell"></i>
+                                                    Notify HR on New Device
+                                                </div>
+                                                <div class="stp-rule-hint">
+                                                    Send a notification when an employee registers a new device
+                                                </div>
+                                            </div>
+                                            <label class="stp-switch">
+                                                <input type="checkbox"
+                                                    name="notify_hr"
+                                                    {% if device_policy.notify_hr_on_new_device %}checked{% endif %}>
+                                                <span class="stp-switch-slider"></span>
+                                            </label>
+                                        </div>
+
+                                        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px;">
+                                            <div style="flex:1;">
+                                                <div class="stp-rule-lbl">
+                                                    <i class="las la-user-shield"></i>
+                                                    Allow HR Override / Reset
+                                                </div>
+                                                <div class="stp-rule-hint">
+                                                    Let HR admin manually reset or override device verification for any employee
+                                                </div>
+                                            </div>
+                                            <label class="stp-switch">
+                                                <input type="checkbox"
+                                                    name="hr_override"
+                                                    {% if device_policy.allow_hr_override %}checked{% endif %}>
+                                                <span class="stp-switch-slider"></span>
+                                            </label>
+                                        </div>
+
+                                        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px;">
+                                            <div style="flex:1;">
+                                                <div class="stp-rule-lbl">
+                                                    <i class="las la-user-edit"></i>
+                                                    Allow Employee Self-Removal
+                                                </div>
+                                                <div class="stp-rule-hint">
+                                                    Let employees remove their own secondary devices from profile
+                                                </div>
+                                            </div>
+                                            <label class="stp-switch">
+                                                <input type="checkbox"
+                                                    name="self_remove"
+                                                    {% if device_policy.allow_employee_self_remove %}checked{% endif %}>
+                                                <span class="stp-switch-slider"></span>
+                                            </label>
+                                        </div>
+
+                                        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px;">
+                                            <div style="flex:1;">
+                                                <div class="stp-rule-lbl">
+                                                    <i class="las la-wifi"></i>
+                                                    Allow Office IP Fallback
+                                                </div>
+                                                <div class="stp-rule-hint">
+                                                    If device verification fails, allow clock-in from office IP as backup
+                                                </div>
+                                            </div>
+                                            <label class="stp-switch">
+                                                <input type="checkbox"
+                                                    name="ip_fallback"
+                                                    {% if device_policy.allow_ip_fallback %}checked{% endif %}>
+                                                <span class="stp-switch-slider"></span>
+                                            </label>
+                                        </div>
+
+                                        <!-- ⬇️ HR Approval Toggle -->
+                                            <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px;">
+                                                <div style="flex:1;">
+                                                    <div class="stp-rule-lbl">
+                                                        <i class="las la-user-shield"></i>
+                                                        Require HR Approval for New Devices
+                                                    </div>
+                                                    <div class="stp-rule-hint">
+                                                        When enabled, new device registrations must be approved by HR
+                                                        before the employee can clock in/out. Highly recommended for security.
+                                                    </div>
+                                                </div>
+                                                <label class="stp-switch">
+                                                    <input type="checkbox"
+                                                        name="require_approval"
+                                                        {% if device_policy.require_hr_approval %}checked{% endif %}>
+                                                    <span class="stp-switch-slider"></span>
+                                                </label>
+                                            </div>
+
+
+                                    </div>
+                                </div>
+
+                                <!-- ─── Info Note ─── -->
+                                <div style="padding-top: 20px;">
+                                    <div class="stp-note">
+                                        <i class="las la-info-circle"></i>
+                                        <div>
+                                            <strong>HTTPS required in production.</strong>
+                                            WebAuthn works on <code>localhost</code> for testing and on
+                                            <code>https://</code> domains in production.
+                                            Devices are registered per browser/device — Chrome, Firefox, and Safari
+                                            each count as separate devices.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- ─── Save Button ─── -->
+                                <div class="stp-rule-actions" style="margin-top: 22px;">
+                                    <button type="submit"
+                                            name="save_device_policy"
+                                            value="1"
+                                            class="stp-btn stp-btn-primary">
+                                        <i class="las la-save"></i>
+                                        Save Device Policy
+                                    </button>
+                                </div>
+
+                            </form>
+
+                        </div>
+                    </div>
+
+                    <!-- ─── Info Card: How It Works ─── -->
+                    <div class="stp-card" style="margin-top: 22px;">
+                        <div style="padding: 22px 24px;">
+                            <div class="stp-rule-lbl" style="margin-bottom:14px;">
+                                <i class="las la-question-circle"></i>
+                                How It Works
+                            </div>
+
+                            <div style="display:grid; gap:12px;">
+                                <div style="display:flex; gap:12px; align-items:flex-start;">
+                                    <div class="stp-sec-ico" style="width:32px; height:32px; font-size:.85rem; flex-shrink:0;">1</div>
+                                    <div>
+                                        <div style="font-weight:600; font-size:.85rem; color:var(--stp-text);">First Clock-In</div>
+                                        <div class="stp-rule-hint">
+                                            Employee clocks in → browser prompts for fingerprint / Face ID →
+                                            device is registered against their account.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div style="display:flex; gap:12px; align-items:flex-start;">
+                                    <div class="stp-sec-ico" style="width:32px; height:32px; font-size:.85rem; flex-shrink:0;">2</div>
+                                    <div>
+                                        <div style="font-weight:600; font-size:.85rem; color:var(--stp-text);">Subsequent Clock-Ins</div>
+                                        <div class="stp-rule-hint">
+                                            Employee's device fingerprint is verified automatically —
+                                            no password or manual step needed.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div style="display:flex; gap:12px; align-items:flex-start;">
+                                    <div class="stp-sec-ico" style="width:32px; height:32px; font-size:.85rem; flex-shrink:0;">3</div>
+                                    <div>
+                                        <div style="font-weight:600; font-size:.85rem; color:var(--stp-text);">Prevents Proxy Attendance</div>
+                                        <div class="stp-rule-hint">
+                                            If another employee tries to use the credentials on a different device,
+                                            the WebAuthn check fails → attendance blocked.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
-            </div>
-        {% endif %}
-        
+                <!-- ═══════════════════════════════════════════════════════════ -->
+                
 
 
 
@@ -1265,5 +1572,20 @@
                 updateTargetVisibility();
             }
         </script>
+
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                // Auto-open tab from URL
+                var params = new URLSearchParams(window.location.search);
+                var tab = params.get('tab');
+                if (tab === 'device') {
+                    var trigger = document.querySelector('[data-bs-target="#device-tab"], [href="#device-tab"]');
+                    if (trigger) {
+                        new bootstrap.Tab(trigger).show();
+                    }
+                }
+            });
+            </script>
+
 
         {% endblock %}

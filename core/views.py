@@ -36,6 +36,8 @@ from .models import (
     RegularizationRequest, EmployeeProfile, Shift, Company,
     OfficeLocation, EmployeeSalary, Payroll,
     PasswordResetRequest,
+    # ⬇️ NEW — Device Verification models
+    EmployeeDevice, AttendanceDevicePolicy,
 )
 from .forms import (
     EmployeeForm,
@@ -44,7 +46,9 @@ from .forms import (
 )
 from .decorators import (
     admin_or_hr_required, hr_admin_required,
-    company_required, payroll_required
+    company_required, payroll_required,
+    # ⬇️ NEW — Role-based access decorator
+    role_required,
 )
 
 
@@ -954,17 +958,21 @@ def dashboard(request):
 
 @login_required
 def clock_in(request):
-    from datetime import timedelta
+    from datetime import timedelta, datetime
     from django.http import JsonResponse
+    from django.utils import timezone
 
     if request.method != 'POST':
         return redirect('dashboard')
 
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
 
-    def err(msg, status=400):
+    def err(msg, status=400, code=None):
         if is_ajax:
-            return JsonResponse({'success': False, 'error': msg}, status=status)
+            payload = {'success': False, 'error': msg}
+            if code:
+                payload['code'] = code
+            return JsonResponse(payload, status=status)
         messages.error(request, msg)
         return redirect('dashboard')
 
@@ -998,6 +1006,88 @@ def clock_in(request):
         x in user_agent
         for x in ['android', 'iphone', 'ipad', 'mobile', 'webos', 'blackberry']
     )
+    device_type = 'mobile' if is_mobile else 'laptop'
+
+    # ═══════════════════════════════════════════════════
+    #  DEVICE VERIFICATION (if enabled by HR)
+    # ═══════════════════════════════════════════════════
+    policy = AttendanceDevicePolicy.objects.filter(company=company).first()
+
+    if policy and policy.enabled:
+        # Check if device was verified in this session (last 5 min)
+        device_verified = request.session.get('device_verified', False)
+        verified_at_str = request.session.get('device_verified_at')
+        verified_device_id = request.session.get('verified_device_id')
+
+        is_recent = False
+        if verified_at_str:
+            try:
+                verified_time = datetime.fromisoformat(verified_at_str)
+                if timezone.is_naive(verified_time):
+                    verified_time = timezone.make_aware(verified_time)
+                delta = (timezone.now() - verified_time).total_seconds()
+                is_recent = delta < 300  # 5 minutes
+            except (ValueError, TypeError):
+                is_recent = False
+
+        if not (device_verified and is_recent and verified_device_id):
+            # ⬇️⬇️⬇️ NAYA BLOCK — approved / pending / rejected check ⬇️⬇️⬇️
+            all_devices = EmployeeDevice.objects.filter(
+                user=user,
+                device_type=device_type,
+                is_active=True,
+            )
+
+            approved_devices = all_devices.filter(registration_status='approved')
+            pending_devices = all_devices.filter(registration_status='pending')
+            rejected_devices = all_devices.filter(registration_status='rejected')
+
+            if approved_devices.exists():
+                return err(
+                    'DEVICE_VERIFICATION_REQUIRED',
+                    status=403,
+                    code='DEVICE_VERIFICATION_REQUIRED'
+                )
+
+            if pending_devices.exists():
+                return err(
+                    'PENDING_HR_APPROVAL',
+                    status=403,
+                    code='PENDING_HR_APPROVAL'
+                )
+
+            if rejected_devices.exists():
+                device = rejected_devices.first()
+                return err(
+                    f'DEVICE_REJECTED: {device.rejection_reason or "Contact HR."}',
+                    status=403,
+                    code='DEVICE_REJECTED'
+                )
+
+            return err(
+                'DEVICE_REGISTRATION_REQUIRED',
+                status=403,
+                code='DEVICE_REGISTRATION_REQUIRED'
+            )
+            # ⬆️⬆️⬆️ NAYA BLOCK END ⬆️⬆️⬆️
+
+        # Verify device still belongs to user and is active + approved
+        device = EmployeeDevice.objects.filter(
+            id=verified_device_id,
+            user=user,
+            is_active=True,
+            registration_status='approved',   # ⬅️ YEH ADD KIYA
+        ).first()
+
+        if not device:
+            request.session.pop('device_verified', None)
+            request.session.pop('device_verified_at', None)
+            request.session.pop('verified_device_id', None)
+            return err(
+                'DEVICE_VERIFICATION_REQUIRED',
+                status=403,
+                code='DEVICE_VERIFICATION_REQUIRED'
+            )
 
     # ─── Location validation (Office only) ───
     if attendance_type == 'office':
@@ -1028,7 +1118,6 @@ def clock_in(request):
 
             distance = haversine(lat, lng, float(office.latitude), float(office.longitude))
 
-            # Weak GPS but near office → trust coordinates
             if accuracy > 500 and distance > office.allowed_radius:
                 return err(
                     f'GPS signal too weak (±{accuracy:.0f}m). '
@@ -1056,7 +1145,6 @@ def clock_in(request):
             ip_allowed = office.matches_ip(client_ip)
 
             if ip_allowed:
-                # ✅ On office network — GPS not captured
                 check_in_lat = None
                 check_in_lng = None
                 check_in_dist = None
@@ -1122,6 +1210,11 @@ def clock_in(request):
         check_in_distance=check_in_dist,
     )
 
+    # Clear device verification after successful use
+    request.session.pop('device_verified', None)
+    request.session.pop('device_verified_at', None)
+    request.session.pop('verified_device_id', None)
+
     local_time = timezone.localtime(now)
     return ok(f'Clocked in at {local_time.strftime("%I:%M:%S %p")}')
 
@@ -1129,17 +1222,21 @@ def clock_in(request):
 
 @login_required
 def clock_out(request):
-    from datetime import timedelta
+    from datetime import timedelta, datetime
     from django.http import JsonResponse
+    from django.utils import timezone
 
     if request.method != 'POST':
         return redirect('dashboard')
 
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
 
-    def err(msg, status=400):
+    def err(msg, status=400, code=None):
         if is_ajax:
-            return JsonResponse({'success': False, 'error': msg}, status=status)
+            payload = {'success': False, 'error': msg}
+            if code:
+                payload['code'] = code
+            return JsonResponse(payload, status=status)
         messages.error(request, msg)
         return redirect('dashboard')
 
@@ -1172,6 +1269,86 @@ def clock_out(request):
         x in user_agent
         for x in ['android', 'iphone', 'ipad', 'mobile', 'webos', 'blackberry']
     )
+    device_type = 'mobile' if is_mobile else 'laptop'
+
+    # ═══════════════════════════════════════════════════
+    #  DEVICE VERIFICATION (if enabled by HR)
+    # ═══════════════════════════════════════════════════
+    policy = AttendanceDevicePolicy.objects.filter(company=company).first()
+
+    if policy and policy.enabled:
+        device_verified = request.session.get('device_verified', False)
+        verified_at_str = request.session.get('device_verified_at')
+        verified_device_id = request.session.get('verified_device_id')
+
+        is_recent = False
+        if verified_at_str:
+            try:
+                verified_time = datetime.fromisoformat(verified_at_str)
+                if timezone.is_naive(verified_time):
+                    verified_time = timezone.make_aware(verified_time)
+                delta = (timezone.now() - verified_time).total_seconds()
+                is_recent = delta < 300
+            except (ValueError, TypeError):
+                is_recent = False
+
+        if not (device_verified and is_recent and verified_device_id):
+            # ⬇️⬇️⬇️ NAYA BLOCK ⬇️⬇️⬇️
+            all_devices = EmployeeDevice.objects.filter(
+                user=request.user,
+                device_type=device_type,
+                is_active=True,
+            )
+
+            approved_devices = all_devices.filter(registration_status='approved')
+            pending_devices = all_devices.filter(registration_status='pending')
+            rejected_devices = all_devices.filter(registration_status='rejected')
+
+            if approved_devices.exists():
+                return err(
+                    'DEVICE_VERIFICATION_REQUIRED',
+                    status=403,
+                    code='DEVICE_VERIFICATION_REQUIRED'
+                )
+
+            if pending_devices.exists():
+                return err(
+                    'PENDING_HR_APPROVAL',
+                    status=403,
+                    code='PENDING_HR_APPROVAL'
+                )
+
+            if rejected_devices.exists():
+                device = rejected_devices.first()
+                return err(
+                    f'DEVICE_REJECTED: {device.rejection_reason or "Contact HR."}',
+                    status=403,
+                    code='DEVICE_REJECTED'
+                )
+
+            return err(
+                'DEVICE_REGISTRATION_REQUIRED',
+                status=403,
+                code='DEVICE_REGISTRATION_REQUIRED'
+            )
+            # ⬆️⬆️⬆️ NAYA BLOCK END ⬆️⬆️⬆️
+
+        device = EmployeeDevice.objects.filter(
+            id=verified_device_id,
+            user=request.user,
+            is_active=True,
+            registration_status='approved',   # ⬅️ YEH ADD KIYA
+        ).first()
+
+        if not device:
+            request.session.pop('device_verified', None)
+            request.session.pop('device_verified_at', None)
+            request.session.pop('verified_device_id', None)
+            return err(
+                'DEVICE_VERIFICATION_REQUIRED',
+                status=403,
+                code='DEVICE_VERIFICATION_REQUIRED'
+            )
 
     # ─── Location validation (Office only) ───
     if attendance_type == 'office':
@@ -1179,9 +1356,6 @@ def clock_out(request):
         if not office:
             return err('No office location assigned. Contact HR.')
 
-        # ═══════════════════════════════════════════════════
-        # MOBILE — always GPS
-        # ═══════════════════════════════════════════════════
         if is_mobile:
             lat = request.POST.get('latitude')
             lng = request.POST.get('longitude')
@@ -1218,16 +1392,12 @@ def clock_out(request):
             check_out_lat = lat
             check_out_lng = lng
 
-        # ═══════════════════════════════════════════════════
-        # DESKTOP — IP first, GPS fallback
-        # ═══════════════════════════════════════════════════
         else:
             xff = request.META.get('HTTP_X_FORWARDED_FOR')
             client_ip = xff.split(',')[0].strip() if xff else request.META.get('REMOTE_ADDR')
             ip_allowed = office.matches_ip(client_ip)
 
             if ip_allowed:
-                # ✅ On office network — GPS not captured
                 check_out_lat = None
                 check_out_lng = None
             else:
@@ -1266,7 +1436,6 @@ def clock_out(request):
                 check_out_lat = lat
                 check_out_lng = lng
     else:
-        # Remote / Flexible — capture location if provided
         lat = request.POST.get('latitude')
         lng = request.POST.get('longitude')
         if lat and lng:
@@ -1286,6 +1455,10 @@ def clock_out(request):
     attendance.check_out_latitude = check_out_lat
     attendance.check_out_longitude = check_out_lng
     attendance.save()
+
+    request.session.pop('device_verified', None)
+    request.session.pop('device_verified_at', None)
+    request.session.pop('verified_device_id', None)
 
     local_out = timezone.localtime(now)
     return ok(
@@ -4196,11 +4369,26 @@ def attendance_overview_data(request):
 @admin_or_hr_required
 @company_required
 def setup(request):
+    print("=" * 60)
+    print(">>> SETUP VIEW CALLED")
+    print(f">>> Method: {request.method}")
+    print(f">>> POST keys: {list(request.POST.keys()) if request.method == 'POST' else 'N/A'}")
+    print(f">>> GET params: {dict(request.GET)}")
+    print("=" * 60)
     from .utils import get_company_filtered, get_user_company
-    from .models import LateComingRule, RegularizationCategory
+    from .models import LateComingRule, RegularizationCategory, AttendanceDevicePolicy
 
     user    = request.user
     company = get_user_company(request)
+
+    # ═══════════════════════════════════════════════════
+    # DEVICE POLICY (get or create)
+    # ═══════════════════════════════════════════════════
+    device_policy = None
+    if company:
+        device_policy, _ = AttendanceDevicePolicy.objects.get_or_create(
+            company=company
+        )
 
     # --- Late rule (single row per company) ---
     from .utils import get_current_late_rule
@@ -4214,7 +4402,41 @@ def setup(request):
     # --- Save late rule on POST ---
     # --- Save late rule on POST (creates a NEW version, doesn't overwrite) ---
     if request.method == 'POST' and company:
+        # ⬇️ ADD DEBUG
+        print("=" * 50)
+        print("POST REQUEST RECEIVED")
+        print("Keys:", list(request.POST.keys()))
+        print("save_device_policy:", request.POST.get('save_device_policy'))
+        print("=" * 50)
         form_type = request.POST.get('form_type')
+
+        # ═══════════════════════════════════════════════════
+        # DEVICE POLICY SAVE
+        # ═══════════════════════════════════════════════════
+        if 'save_device_policy' in request.POST:
+            device_policy.enabled = request.POST.get('device_enabled') == 'on'
+            try:
+                device_policy.max_mobile_devices = int(request.POST.get('max_mobile', 1))
+            except (ValueError, TypeError):
+                device_policy.max_mobile_devices = 1
+            try:
+                device_policy.max_laptop_devices = int(request.POST.get('max_laptop', 1))
+            except (ValueError, TypeError):
+                device_policy.max_laptop_devices = 1
+            device_policy.notify_hr_on_new_device = request.POST.get('notify_hr') == 'on'
+            device_policy.allow_hr_override = request.POST.get('hr_override') == 'on'
+            device_policy.allow_employee_self_remove = request.POST.get('self_remove') == 'on'
+            device_policy.allow_ip_fallback = request.POST.get('ip_fallback') == 'on'
+            
+            # ⬇️ YEH NAYI LINE ADD KAREIN
+            device_policy.require_hr_approval = request.POST.get('require_approval') == 'on'
+            
+            device_policy.updated_by = request.user
+            device_policy.save()
+            
+            messages.success(request, 'Device verification policy updated successfully.')
+            return redirect('/setup/?tab=device')
+            
 
         if form_type == 'late':
             from datetime import date as _date, timedelta as _td
@@ -4347,7 +4569,7 @@ def setup(request):
         ).order_by('order', 'id')
 
     active_tab = request.GET.get('tab', 'attendance')
-    if active_tab not in ('attendance', 'assign', 'leave-types', 'holidays'):
+    if active_tab not in ('attendance', 'assign', 'leave-types', 'holidays', 'device'):
         active_tab = 'attendance'
 
     context = {
@@ -4359,6 +4581,7 @@ def setup(request):
         'late_rule':      late_rule,
         'reg_categories': reg_categories,
         'late_slabs': late_rule.minute_slabs.order_by('order', 'from_minutes') if late_rule else [],
+        'device_policy':  device_policy,   # ⬅️ NEW
     }
     
     return render(request, 'setup.html', context)
@@ -6914,6 +7137,237 @@ def health_check(request):
         return JsonResponse({'status': 'error', 'error': str(e)}, status=500)
 
 
+    
+@login_required
+@hr_admin_required
+@company_required
+def manage_employee_devices(request, user_id):
+    """HR manages employee's registered devices"""
+    from .utils import get_user_company
+    from .models import EmployeeProfile, EmployeeDevice
+
+    company = get_user_company(request)
+    if not company:
+        messages.error(request, 'No company assigned.')
+        return redirect('dashboard')
+
+    employee = get_object_or_404(
+        EmployeeProfile,
+        user_id=user_id,
+        company=company,
+    )
+
+    devices = EmployeeDevice.objects.filter(
+        user=employee.user
+    ).order_by('-is_active', '-registered_at')
+
+    # ─── Handle POST actions ───
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        device_id = request.POST.get('device_id')
+
+        if action == 'deactivate' and device_id:
+            device = devices.filter(id=device_id).first()
+            if device:
+                device.is_active = False
+                device.disabled_at = timezone.now()
+                device.disabled_by = request.user
+                device.disabled_reason = 'Deactivated by HR'
+                device.save()
+                messages.success(
+                    request,
+                    f'{device.get_device_type_display()} device deactivated.'
+                )
+
+                # Notify employee
+                try:
+                    from .utils import create_notification
+                    create_notification(
+                        company=company,
+                        user=employee.user,
+                        message=(
+                            f'Your {device.get_device_type_display()} device '
+                            f'has been deactivated by HR. '
+                            f'You can register a new one.'
+                        ),
+                        notification_type='info',
+                    )
+                except Exception:
+                    pass
+
+        elif action == 'reactivate' and device_id:
+            device = devices.filter(id=device_id).first()
+            if device:
+                device.is_active = True
+                device.disabled_at = None
+                device.disabled_by = None
+                device.disabled_reason = ''
+                device.save()
+                messages.success(request, 'Device reactivated.')
+
+        elif action == 'delete' and device_id:
+            device = devices.filter(id=device_id).first()
+            if device:
+                device.delete()
+                messages.success(request, 'Device deleted permanently.')
+
+        elif action == 'reset_all':
+            count = devices.filter(is_active=True).count()
+            devices.filter(is_active=True).update(
+                is_active=False,
+                disabled_at=timezone.now(),
+                disabled_by=request.user,
+                disabled_reason='Reset by HR (all devices)',
+            )
+            messages.success(
+                request,
+                f'All {count} active device(s) reset for {employee.user.username}.'
+            )
+
+            # Notify employee
+            try:
+                from .utils import create_notification
+                create_notification(
+                    company=company,
+                    user=employee.user,
+                    message=(
+                        'All your registered devices have been reset by HR. '
+                        'Please register a new device.'
+                    ),
+                    notification_type='action',
+                )
+            except Exception:
+                pass
+
+        return redirect('manage_employee_devices', user_id=user_id)
+
+    # ─── Group devices by type ───
+    mobile_devices = [d for d in devices if d.device_type == 'mobile']
+    laptop_devices = [d for d in devices if d.device_type == 'laptop']
+
+    active_mobile = sum(1 for d in mobile_devices if d.is_active)
+    active_laptop = sum(1 for d in laptop_devices if d.is_active)
+
+    context = {
+        'employee': employee,
+        'devices': devices,
+        'mobile_devices': mobile_devices,
+        'laptop_devices': laptop_devices,
+        'active_mobile': active_mobile,
+        'active_laptop': active_laptop,
+    }
+    return render(request, 'manage_devices.html', context)
+
+
+@login_required
+@hr_admin_required
+@company_required
+def pending_device_approvals(request):
+    """HR approves/rejects pending device registrations"""
+    from .utils import get_user_company
+
+    company = get_user_company(request)
+    if not company:
+        messages.error(request, 'No company assigned.')
+        return redirect('dashboard')
+
+    # Pending devices
+    pending_devices = EmployeeDevice.objects.filter(
+        company=company,
+        registration_status='pending',
+    ).select_related('user', 'user__profile').order_by('registered_at')
+
+    # Recent approvals/rejections
+    recent_devices = EmployeeDevice.objects.filter(
+        company=company,
+        registration_status__in=['approved', 'rejected'],
+        approved_at__isnull=False,
+    ).select_related(
+        'user', 'user__profile', 'approved_by'
+    ).order_by('-approved_at')[:15]
+
+    # Handle POST
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        device_id = request.POST.get('device_id')
+
+        if action == 'approve' and device_id:
+            device = pending_devices.filter(id=device_id).first()
+            if device:
+                device.registration_status = 'approved'
+                device.approved_at = timezone.now()
+                device.approved_by = request.user
+                device.save()
+
+                messages.success(
+                    request,
+                    f'Device approved for {device.user.username}.'
+                )
+
+                try:
+                    from .utils import create_notification
+                    create_notification(
+                        company=company,
+                        user=device.user,
+                        message=(
+                            f'Your {device.get_device_type_display()} device '
+                            f'has been approved by HR. You can now clock in/out.'
+                        ),
+                        notification_type='info',
+                    )
+                except Exception:
+                    pass
+
+        elif action == 'reject' and device_id:
+            device = pending_devices.filter(id=device_id).first()
+            if device:
+                reason = (request.POST.get('reason') or '').strip() or 'Rejected by HR'
+                device.registration_status = 'rejected'
+                device.rejection_reason = reason[:200]
+                device.is_active = False
+                device.approved_at = timezone.now()
+                device.approved_by = request.user
+                device.save()
+
+                messages.success(
+                    request,
+                    f'Device rejected for {device.user.username}.'
+                )
+
+                try:
+                    from .utils import create_notification
+                    create_notification(
+                        company=company,
+                        user=device.user,
+                        message=(
+                            f'Your {device.get_device_type_display()} device '
+                            f'registration was rejected. Reason: {reason}'
+                        ),
+                        notification_type='action',
+                    )
+                except Exception:
+                    pass
+
+        elif action == 'approve_all':
+            count = pending_devices.count()
+            for device in pending_devices:
+                device.registration_status = 'approved'
+                device.approved_at = timezone.now()
+                device.approved_by = request.user
+                device.save()
+            messages.success(request, f'All {count} pending devices approved.')
+
+        return redirect('pending_device_approvals')
+
+    context = {
+        'pending_devices': pending_devices,
+        'recent_devices': recent_devices,
+        'pending_count': pending_devices.count(),
+    }
+    return render(request, 'pending_device_approvals.html', context)
+    
+
+        
     # **************texting 
 def test_view(request):
     return HttpResponse("Django is working!")

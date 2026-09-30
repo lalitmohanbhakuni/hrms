@@ -224,6 +224,7 @@ TEMPLATES = [
                 'core.context_processors.notification_context',
                 'core.context_processors.company_context',
                 'core.context_processors.late_rule_status',
+                'core.context_processors.pending_device_count',
             ],
         },
     },
@@ -476,3 +477,11 @@ class PermissionsPolicyMiddleware:
         response['Permissions-Policy'] = self.policy
         return response
     
+
+# ═══════════════════════════════════════════════════════════
+#  WebAuthn (Device Verification)
+# ═══════════════════════════════════════════════════════════
+
+WEBAUTHN_RP_ID = os.environ.get('WEBAUTHN_RP_ID', 'localhost')
+WEBAUTHN_RP_NAME = os.environ.get('WEBAUTHN_RP_NAME', 'NitoHR')
+WEBAUTHN_ORIGIN = os.environ.get('WEBAUTHN_ORIGIN', 'http://localhost:8000')
