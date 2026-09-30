@@ -271,6 +271,7 @@ def webauthn_register_complete(request):
             expected_rp_id=_get_rp_id(),
         )
     except Exception as e:
+        print(f"❌ WebAuthn register failed: {type(e).__name__}: {e}")
         return _error(f'Registration failed: {str(e)}')
 
     policy = _get_policy(request.user)
