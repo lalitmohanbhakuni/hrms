@@ -1389,6 +1389,68 @@ function getDeviceType() {
     return isMobileDevice() ? 'mobile' : 'laptop';
 }
 
+// ═══════════════════════════════════════════════════
+//  GPS Helpers
+// ═══════════════════════════════════════════════════
+
+function showPreciseLocationGuide() {
+    var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    var isAndroid = /android/i.test(navigator.userAgent);
+
+    var msg = '📍 LOCATION PERMISSION NEEDS FIX\n\n';
+    msg += 'Your location is set to "Approximate".\n';
+    msg += 'Please change it to "Precise" for check-in.\n\n';
+
+    if (isAndroid) {
+        msg += '📱 Android Steps:\n';
+        msg += '1. Tap the 🔒 lock icon in address bar\n';
+        msg += '2. Tap "Permissions" → "Location"\n';
+        msg += '3. Select "Precise" (NOT "Approximate")\n';
+        msg += '4. Refresh page and try again';
+    } else if (isIOS) {
+        msg += '📱 iPhone Steps:\n';
+        msg += '1. Tap "aA" in address bar\n';
+        msg += '2. Tap "Website Settings" → "Location"\n';
+        msg += '3. Enable "Precise Location"\n';
+        msg += '4. Refresh page and try again';
+    } else {
+        msg += 'Steps:\n';
+        msg += '1. Tap 🔒 lock icon in address bar\n';
+        msg += '2. Tap "Permissions" → "Location"\n';
+        msg += '3. Select "Precise"\n';
+        msg += '4. Refresh page and try again';
+    }
+
+    alert(msg);
+}
+
+function getGpsErrorMessage(error) {
+    switch (error.code) {
+        case error.PERMISSION_DENIED:
+            return '📍 Location permission denied.\n\n' +
+                   'Please:\n' +
+                   '1. Tap 🔒 lock icon in address bar\n' +
+                   '2. Tap "Permissions" → "Location"\n' +
+                   '3. Select "Allow" + "Precise"\n' +
+                   '4. Refresh page and try again';
+        case error.POSITION_UNAVAILABLE:
+            return '📍 Location unavailable.\n\n' +
+                   'Please:\n' +
+                   '1. Turn ON GPS in phone Settings → Location\n' +
+                   '2. Set mode to "High Accuracy"\n' +
+                   '3. Move near a window or outside\n' +
+                   '4. Try again';
+        case error.TIMEOUT:
+            return '📍 GPS signal is weak.\n\n' +
+                   'Please:\n' +
+                   '1. Move near a window or outside\n' +
+                   '2. Enable "High Accuracy" in Settings → Location\n' +
+                   '3. Wait 10 seconds and try again';
+        default:
+            return 'Location error. Please check your GPS settings and try again.';
+    }
+}
+
 /**
  * Ensure device is verified before clock in/out.
  * Returns Promise<{verified: bool, error: string|null}>
@@ -1409,7 +1471,6 @@ function ensureDeviceVerified() {
             return { verified: true, error: null };
         }
 
-        // ⬇️ MOBILE-ONLY ENFORCEMENT HANDLERS (NEW)
         if (data.code === 'LAPTOP_NOT_ALLOWED') {
             return {
                 verified: false,
@@ -1430,7 +1491,6 @@ function ensureDeviceVerified() {
                 error: data.error || 'Maximum devices reached. Please contact HR.'
             };
         }
-        // ⬆️ END NEW
 
         if (data.code === 'PENDING_HR_APPROVAL') {
             return {
@@ -1448,7 +1508,6 @@ function ensureDeviceVerified() {
 
         if (data.code === 'DEVICE_REGISTRATION_REQUIRED') {
             return registerDevice().then(function (result) {
-                // Handle registration result codes
                 if (result && result.code === 'PENDING_HR_APPROVAL') {
                     return {
                         verified: false,
@@ -1481,7 +1540,6 @@ function ensureDeviceVerified() {
     })
     .catch(function (err) {
         console.error('Device check error:', err);
-        // Fail-open if endpoint error — let backend handle
         return { verified: true, error: null };
     });
 }
@@ -1498,14 +1556,12 @@ function registerDevice() {
     })
     .then(function (r) { return r.json(); })
     .then(function (options) {
-        // ⬇️ NEW: Handle backend error codes (LAPTOP_NOT_ALLOWED, etc.)
         if (options.error || options.success === false) {
             var err = new Error(options.error || 'Registration not allowed.');
             err.code = options.code;
             err.message = options.error;
             throw err;
         }
-        // ⬆️ END NEW
 
         options.challenge = base64UrlToBuffer(options.challenge);
         options.user.id = base64UrlToBuffer(options.user.id);
@@ -1539,7 +1595,6 @@ function registerDevice() {
     })
     .then(function (r) { return r.json(); })
     .then(function (data) {
-        // ⬇️ NEW: Handle pending approval code
         if (data.code === 'PENDING_HR_APPROVAL') {
             return { success: false, code: 'PENDING_HR_APPROVAL', message: data.message };
         }
@@ -1549,11 +1604,9 @@ function registerDevice() {
             throw err;
         }
         return { success: true };
-        // ⬆️ END NEW
     })
     .catch(function (err) {
         console.error('Device registration error:', err);
-        // Preserve code if it exists
         if (err.code) {
             return { success: false, code: err.code, message: err.message };
         }
@@ -1629,7 +1682,10 @@ function getLocationAndClockIn() {
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Verifying device...';
 
-    // Step 1: Device verification (if enabled by HR)
+    // Reset retry counters for new attempt
+    window._gpsRetryCount = 0;
+    window._preciseGuideShown = false;
+
     ensureDeviceVerified()
         .then(function (result) {
             if (!result.verified) {
@@ -1637,7 +1693,6 @@ function getLocationAndClockIn() {
                 resetButton(btn);
                 return;
             }
-            // Step 2: Continue with existing GPS/IP flow
             proceedClockIn(btn);
         })
         .catch(function (err) {
@@ -1679,49 +1734,63 @@ function proceedClockIn(btn) {
 
         navigator.geolocation.getCurrentPosition(
             function (position) {
-                console.log('GPS:', position.coords.latitude, position.coords.longitude,
-                            '±' + position.coords.accuracy + 'm');
-                submitCheckIn(
-                    position.coords.latitude,
-                    position.coords.longitude,
-                    position.coords.accuracy,
-                    function (responseText) {
-                        if (responseText.indexOf('Clocked in') !== -1 ||
-                            responseText.indexOf('"success": true') !== -1) {
-                            window.location.href = '/dashboard/';
-                        } else {
-                            try {
-                                var json = JSON.parse(responseText);
-                                alert(json.error || 'Check-in failed.');
-                            } catch (e) {
-                                alert('Check-in failed. Please try again.');
-                            }
-                            resetButton(btn);
-                        }
+                var lat = position.coords.latitude;
+                var lng = position.coords.longitude;
+                var acc = position.coords.accuracy || 0;
+
+                console.log('GPS:', lat, lng, '±' + acc + 'm');
+
+                // ⬇️ Detect "Approximate" with auto-retry
+                if (acc > 500) {
+                    // Show guide only once
+                    if (!window._preciseGuideShown) {
+                        window._preciseGuideShown = true;
+                        showPreciseLocationGuide();
                     }
-                );
+
+                    // Auto-retry up to 3 times (waiting for user to fix settings)
+                    window._gpsRetryCount = (window._gpsRetryCount || 0) + 1;
+
+                    if (window._gpsRetryCount <= 3) {
+                        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Waiting for precise location... (' + window._gpsRetryCount + '/3)';
+                        setTimeout(tryGPS, 3000);
+                        return;
+                    }
+
+                    // Max retries reached
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Please fix location settings';
+                    resetButton(btn);
+                    window._gpsRetryCount = 0;
+                    window._preciseGuideShown = false;
+                    return;
+                }
+
+                // Reset counters on success
+                window._gpsRetryCount = 0;
+                window._preciseGuideShown = false;
+
+                submitCheckIn(lat, lng, acc, function (responseText) {
+                    if (responseText.indexOf('Clocked in') !== -1 ||
+                        responseText.indexOf('"success": true') !== -1) {
+                        window.location.href = '/dashboard/';
+                    } else {
+                        try {
+                            var json = JSON.parse(responseText);
+                            alert(json.error || 'Check-in failed.');
+                        } catch (e) {
+                            alert('Check-in failed. Please try again.');
+                        }
+                        resetButton(btn);
+                    }
+                });
             },
             function (error) {
-                var msg = '';
-                switch (error.code) {
-                    case error.PERMISSION_DENIED:
-                        msg = 'Location permission denied.\n\nPlease enable location access for this site in your browser settings.';
-                        break;
-                    case error.POSITION_UNAVAILABLE:
-                        msg = 'Location unavailable.\n\nPlease turn ON GPS (Location) in your phone settings and try again.';
-                        break;
-                    case error.TIMEOUT:
-                        msg = 'GPS signal is weak.\n\nPlease move near a window / open area and try again.';
-                        break;
-                    default:
-                        msg = 'Location error. Please check your GPS settings and try again.';
-                }
-                alert(msg);
+                alert(getGpsErrorMessage(error));
                 resetButton(btn);
             },
             {
                 enableHighAccuracy: true,
-                timeout: 30000,
+                timeout: 60000,
                 maximumAge: 0,
             }
         );
@@ -1765,7 +1834,10 @@ function getLocationAndClockOut() {
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Verifying device...';
 
-    // Step 1: Device verification (if enabled by HR)
+    // Reset retry counters for new attempt
+    window._gpsRetryCount = 0;
+    window._preciseGuideShown = false;
+
     ensureDeviceVerified()
         .then(function (result) {
             if (!result.verified) {
@@ -1773,7 +1845,6 @@ function getLocationAndClockOut() {
                 resetOutButton(btn);
                 return;
             }
-            // Step 2: Continue with existing GPS/IP flow
             proceedClockOut(btn);
         })
         .catch(function (err) {
@@ -1815,43 +1886,54 @@ function proceedClockOut(btn) {
 
         navigator.geolocation.getCurrentPosition(
             function (position) {
-                console.log('GPS OUT:', position.coords.latitude, position.coords.longitude,
-                            '±' + position.coords.accuracy + 'm');
-                submitClockOut(
-                    position.coords.latitude,
-                    position.coords.longitude,
-                    position.coords.accuracy,
-                    function (data) {
-                        if (data.success) {
-                            window.location.href = '/dashboard/';
-                        } else {
-                            alert(data.error || 'Check-out failed. Please try again.');
-                            resetOutButton(btn);
-                        }
+                var lat = position.coords.latitude;
+                var lng = position.coords.longitude;
+                var acc = position.coords.accuracy || 0;
+
+                console.log('GPS OUT:', lat, lng, '±' + acc + 'm');
+
+                // ⬇️ Detect "Approximate" with auto-retry
+                if (acc > 500) {
+                    if (!window._preciseGuideShown) {
+                        window._preciseGuideShown = true;
+                        showPreciseLocationGuide();
                     }
-                );
+
+                    window._gpsRetryCount = (window._gpsRetryCount || 0) + 1;
+
+                    if (window._gpsRetryCount <= 3) {
+                        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Waiting for precise location... (' + window._gpsRetryCount + '/3)';
+                        setTimeout(tryGPSOut, 3000);
+                        return;
+                    }
+
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Please fix location settings';
+                    resetOutButton(btn);
+                    window._gpsRetryCount = 0;
+                    window._preciseGuideShown = false;
+                    return;
+                }
+
+                // Reset counters on success
+                window._gpsRetryCount = 0;
+                window._preciseGuideShown = false;
+
+                submitClockOut(lat, lng, acc, function (data) {
+                    if (data.success) {
+                        window.location.href = '/dashboard/';
+                    } else {
+                        alert(data.error || 'Check-out failed. Please try again.');
+                        resetOutButton(btn);
+                    }
+                });
             },
             function (error) {
-                var msg = '';
-                switch (error.code) {
-                    case error.PERMISSION_DENIED:
-                        msg = 'Location permission denied.\n\nPlease enable location access for this site in your browser settings.';
-                        break;
-                    case error.POSITION_UNAVAILABLE:
-                        msg = 'Location unavailable.\n\nPlease turn ON GPS (Location) in your phone settings and try again.';
-                        break;
-                    case error.TIMEOUT:
-                        msg = 'GPS signal is weak.\n\nPlease move near a window / open area and try again.';
-                        break;
-                    default:
-                        msg = 'Location error. Please check your GPS settings and try again.';
-                }
-                alert(msg);
+                alert(getGpsErrorMessage(error));
                 resetOutButton(btn);
             },
             {
                 enableHighAccuracy: true,
-                timeout: 30000,
+                timeout: 60000,
                 maximumAge: 0,
             }
         );
@@ -1900,7 +1982,6 @@ function resetOutButton(btn) {
     btn.innerHTML = '<i class="las la-sign-out-alt me-2"></i> Clock Out';
 }
 </script>
-
 
 
 
