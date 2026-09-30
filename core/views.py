@@ -4369,12 +4369,6 @@ def attendance_overview_data(request):
 @admin_or_hr_required
 @company_required
 def setup(request):
-    print("=" * 60)
-    print(">>> SETUP VIEW CALLED")
-    print(f">>> Method: {request.method}")
-    print(f">>> POST keys: {list(request.POST.keys()) if request.method == 'POST' else 'N/A'}")
-    print(f">>> GET params: {dict(request.GET)}")
-    print("=" * 60)
     from .utils import get_company_filtered, get_user_company
     from .models import LateComingRule, RegularizationCategory, AttendanceDevicePolicy
 
@@ -4402,12 +4396,6 @@ def setup(request):
     # --- Save late rule on POST ---
     # --- Save late rule on POST (creates a NEW version, doesn't overwrite) ---
     if request.method == 'POST' and company:
-        # ⬇️ ADD DEBUG
-        print("=" * 50)
-        print("POST REQUEST RECEIVED")
-        print("Keys:", list(request.POST.keys()))
-        print("save_device_policy:", request.POST.get('save_device_policy'))
-        print("=" * 50)
         form_type = request.POST.get('form_type')
 
         # ═══════════════════════════════════════════════════
@@ -7365,7 +7353,7 @@ def pending_device_approvals(request):
         'pending_count': pending_devices.count(),
     }
     return render(request, 'pending_device_approvals.html', context)
-    
+
 
         
     # **************texting 
