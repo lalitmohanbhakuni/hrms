@@ -1195,8 +1195,22 @@ def clock_in(request):
             except ValueError:
                 pass
 
-    # ─── Create the ONE attendance record ───
+    # ═══════════════════════════════════════════════════════
+    #  CALCULATE LATE MINUTES
+    # ═══════════════════════════════════════════════════════
     now = timezone.now()
+    late_minutes = 0
+    
+    if profile.shift:
+        shift_start_dt = timezone.make_aware(
+            datetime.combine(today, profile.shift.start_time)
+        )
+        grace_end = shift_start_dt + timedelta(minutes=profile.shift.grace_period)
+        
+        if now > grace_end:
+            late_minutes = int((now - shift_start_dt).total_seconds() // 60)
+    
+    # ─── Create the ONE attendance record ───
     attendance = Attendance.objects.create(
         user=user,
         company=company,
@@ -1208,6 +1222,7 @@ def clock_in(request):
         check_in_latitude=check_in_lat,
         check_in_longitude=check_in_lng,
         check_in_distance=check_in_dist,
+        late_minutes=late_minutes,
     )
 
     # Clear device verification after successful use
@@ -1445,15 +1460,67 @@ def clock_out(request):
             except ValueError:
                 pass
 
-    # ─── Close the day ───
+    # ═══════════════════════════════════════════════════════
+    #  CALCULATE OT / EARLY OUT / HALF-DAY
+    # ═══════════════════════════════════════════════════════
     now = timezone.now()
     interval = now - attendance.check_in_time
+    shift = profile.shift
+    
+    overtime_minutes = 0
+    early_out_minutes = 0
+    is_half_day = False
+    final_status = attendance.status or 'Present'
+    
+    
+    if shift:
+        # ═══════════════════════════════════════════════════
+        #  HALF-DAY CHECK (with grace period)
+        #  Rule: (worked_hours + grace) >= min_working_hours → Present
+        #        else → Half-Day
+        # ═══════════════════════════════════════════════════
+        worked_hours = interval.total_seconds() / 3600
+        grace_hours = (shift.grace_period or 0) / 60
+        min_required = float(shift.min_working_hours or 8)
+        effective_hours = worked_hours + grace_hours
+        
+        if effective_hours < min_required:
+            is_half_day = True
+            final_status = 'Half-Day'
+        else:
+            is_half_day = False
+            final_status = 'Present'
 
+        
+        # Shift end reference
+        shift_end_dt = timezone.make_aware(
+            datetime.combine(attendance.date, shift.end_time)
+        )
+        
+        # Overtime calculation
+        if now > shift_end_dt and shift.overtime_allowed:
+            raw_ot = int((now - shift_end_dt).total_seconds() // 60)
+            min_ot = shift.min_overtime_minutes or 0
+            limit_ot = int((shift.overtime_limit or 0) * 60)
+            
+            if raw_ot >= min_ot:
+                overtime_minutes = min(raw_ot, limit_ot) if limit_ot > 0 else raw_ot
+        
+        # Early out calculation
+        if now < shift_end_dt:
+            early_out_minutes = int((shift_end_dt - now).total_seconds() // 60)
+    
+    # ─── Close the day ───
     attendance.check_out_time = now
     attendance.state = 'checked_out'
     attendance.total_working_time = interval
     attendance.check_out_latitude = check_out_lat
     attendance.check_out_longitude = check_out_lng
+    attendance.overtime_minutes = overtime_minutes
+    attendance.early_out_minutes = early_out_minutes
+    attendance.is_half_day = is_half_day
+    if is_half_day:
+        attendance.status = final_status
     attendance.save()
 
     request.session.pop('device_verified', None)
@@ -5392,7 +5459,7 @@ def employee_salary_create(request):
         basic_salary = Decimal(request.POST.get('basic_salary') or 0)
         hra = Decimal(request.POST.get('hra') or 0)
         allowance = Decimal(request.POST.get('allowance') or 0)
-        overtime_rate = Decimal(request.POST.get('overtime_rate') or 0)   # ✅ NEW
+        # overtime_rate = Decimal(request.POST.get('overtime_rate') or 0)   # ✅ NEW
         effective_from = request.POST.get('effective_from')
 
         if not employee_id:
@@ -5423,7 +5490,7 @@ def employee_salary_create(request):
             basic_salary=basic_salary,
             hra=hra,
             allowance=allowance,
-            overtime_rate=overtime_rate,        # ✅ NEW
+            # overtime_rate=overtime_rate,        # ✅ NEW
             # ❌ REMOVED: deduction=deduction,
             effective_from=effective_from,
             status='active',
@@ -5457,7 +5524,7 @@ def employee_salary_edit(request, pk):
         salary.basic_salary = Decimal(request.POST.get('basic_salary') or 0)
         salary.hra = Decimal(request.POST.get('hra') or 0)
         salary.allowance = Decimal(request.POST.get('allowance') or 0)
-        salary.overtime_rate = Decimal(request.POST.get('overtime_rate') or 0)   # ✅ NEW
+        # salary.overtime_rate = Decimal(request.POST.get('overtime_rate') or 0)   # ✅ NEW
         # ❌ REMOVED: salary.deduction = ...
         salary.effective_from = request.POST.get('effective_from')
         salary.status = request.POST.get('status')

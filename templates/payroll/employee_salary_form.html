@@ -460,7 +460,7 @@
 
                             <div class="row g-3">
                                 
-                                <div class="col-md-4">
+                                <!-- <div class="col-md-4">
                                     <div class="esf-field">
                                         <label class="esf-label" for="overtime_rate">
                                             <i class="las la-clock"></i> Overtime Rate
@@ -474,6 +474,25 @@
                                         <div class="esf-hint">
                                             <i class="las la-info-circle"></i>
                                             <span>Amount paid per hour of approved overtime.</span>
+                                        </div>
+                                    </div>
+                                </div> -->
+
+                                <div class="col-md-4">
+                                    <div class="esf-field">
+                                        <label class="esf-label">
+                                            <i class="las la-clock"></i> Overtime Rate
+                                            <span style="color:#059669; font-size:.7rem; margin-left:6px;">
+                                                <i class="las la-magic"></i> Auto-calculated
+                                            </span>
+                                        </label>
+                                        <input type="text" class="esf-input"
+                                            value="Auto from Shift (Basic / Monthly Hours × Multiplier)"
+                                            readonly
+                                            style="background:#f1f5f9; cursor:not-allowed; font-size:.75rem;">
+                                        <div class="esf-hint">
+                                            <i class="las la-info-circle"></i>
+                                            <span>OT rate is calculated automatically from the employee's shift multiplier.</span>
                                         </div>
                                     </div>
                                 </div>

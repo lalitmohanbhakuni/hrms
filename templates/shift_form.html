@@ -521,20 +521,22 @@
                                         <label for="min_working_hours" class="shf-label">
                                             <i class="las la-business-time"></i> Min Working Hours
                                             <span class="shf-optional">(minutes)</span>
+                                            <span style="color:#059669; font-size:.7rem; margin-left:6px;">
+                                                <i class="las la-magic"></i> Auto-calculated
+                                            </span>
                                         </label>
 
                                         <div class="shf-input-group">
                                             <input type="number" name="min_working_hours" id="min_working_hours" class="shf-input"
-                                                   value="{{ shift.min_working_hours|default:480 }}" min="0" step="1">
+                                                   value="{{ shift.min_working_hours|default:480 }}" min="0" step="1"
+                                                   readonly
+                                                   style="background:#f1f5f9; cursor:not-allowed;">
                                             <span class="shf-preview-label shf-label" id="min_hours_display">= 8h 00m</span>
                                         </div>
-
-                                        <!-- <input type="number" name="min_working_hours" id="min_working_hours" class="shf-input"
-                                               value="{{ shift.min_working_hours|default:480 }}" min="0" step="1">
                                         <div class="shf-hint">
                                             <i class="las la-info-circle"></i>
-                                            <span>Default: 480 minutes = 8 hours.</span>
-                                        </div> -->
+                                            <span>Auto-calculated from Shift Timing minus Break time.</span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -692,20 +694,24 @@
 <!-- ===== JavaScript (unchanged) ===== -->
 
 <script>
-    
+    // ═══════════════════════════════════════════════════════════
+    //  OVERTIME TOGGLE
+    // ═══════════════════════════════════════════════════════════
     function toggleOvertimeLimit() {
         const checkbox = document.getElementById('overtime_allowed');
         const limitDiv = document.getElementById('overtime_limit_div');
         const multDiv  = document.getElementById('overtime_multiplier_div');
-        const minOtDiv = document.getElementById('min_overtime_minutes_div');   // ← NEW
+        const minOtDiv = document.getElementById('min_overtime_minutes_div');
 
         const show = checkbox.checked;
         if (limitDiv) limitDiv.style.display = show ? 'block' : 'none';
         if (multDiv)  multDiv.style.display  = show ? 'block' : 'none';
-        if (minOtDiv) minOtDiv.style.display = show ? 'block' : 'none';       // ← NEW
+        if (minOtDiv) minOtDiv.style.display = show ? 'block' : 'none';
     }
 
-    // Live preview of working days
+    // ═══════════════════════════════════════════════════════════
+    //  WORKING DAYS PREVIEW
+    // ═══════════════════════════════════════════════════════════
     document.addEventListener('DOMContentLoaded', function() {
         toggleOvertimeLimit();
 
@@ -742,30 +748,89 @@
 
 
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-    const input   = document.getElementById('min_working_hours');
-    const display = document.getElementById('min_hours_display');
+    // ═══════════════════════════════════════════════════════════
+    //  AUTO-CALCULATE MIN WORKING HOURS FROM SHIFT TIMING
+    //  (Readonly field - HR cannot edit manually)
+    // ═══════════════════════════════════════════════════════════
+    document.addEventListener('DOMContentLoaded', function () {
+        var startEl      = document.getElementById('start_time');
+        var endEl        = document.getElementById('end_time');
+        var breakStartEl = document.getElementById('break_start');
+        var breakEndEl   = document.getElementById('break_end');
+        var input        = document.getElementById('min_working_hours');
+        var display      = document.getElementById('min_hours_display');
 
-    if (!input || !display) return;
+        if (!input || !display || !startEl || !endEl) return;
 
-    function updateHours() {
-        const mins = parseInt(input.value) || 0;
-
-        if (mins <= 0) {
-            display.textContent = '= 0h 00m';
-            display.style.color = '#dc2626';
-            return;
+        // Convert "HH:MM" to minutes
+        function toMinutes(timeStr) {
+            if (!timeStr) return null;
+            var parts = timeStr.split(':');
+            return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
         }
 
-        display.style.color = '';
-        const h = Math.floor(mins / 60);
-        const m = mins % 60;
-        display.textContent = `= ${h}h ${String(m).padStart(2, '0')}m`;
-    }
+        // Format minutes to "8h 30m"
+        function formatDuration(mins) {
+            if (!mins || mins < 0) return '= 0h 00m';
+            var h = Math.floor(mins / 60);
+            var m = mins % 60;
+            return '= ' + h + 'h ' + (m < 10 ? '0' : '') + m + 'm';
+        }
 
-    input.addEventListener('input', updateHours);
-    updateHours();
-});
+        function calculate() {
+            var startM = toMinutes(startEl.value);
+            var endM   = toMinutes(endEl.value);
+
+            if (startM === null || endM === null) {
+                input.value = 0;
+                display.textContent = '= 0h 00m';
+                display.style.color = '#dc2626';
+                return;
+            }
+
+            // Total shift time (handle overnight shifts)
+            var totalM = endM - startM;
+            if (totalM < 0) totalM += 24 * 60;
+
+            // Subtract break time (if provided)
+            var breakStartM = toMinutes(breakStartEl ? breakStartEl.value : '');
+            var breakEndM   = toMinutes(breakEndEl   ? breakEndEl.value   : '');
+
+            if (breakStartM !== null && breakEndM !== null) {
+                var breakM = breakEndM - breakStartM;
+                if (breakM < 0) breakM += 24 * 60;
+                totalM -= breakM;
+            }
+
+            // Guard against negative
+            if (totalM < 0) totalM = 0;
+
+            // Set value
+            input.value = totalM;
+
+            // Update display
+            if (totalM <= 0) {
+                display.textContent = '= 0h 00m';
+                display.style.color = '#dc2626';
+            } else {
+                display.textContent = formatDuration(totalM);
+                display.style.color = '';
+            }
+        }
+
+        // Attach listeners
+        [startEl, endEl, breakStartEl, breakEndEl].forEach(function (el) {
+            if (el) {
+                el.addEventListener('input', calculate);
+                el.addEventListener('change', calculate);
+            }
+        });
+
+        // Initial calculation on page load
+        calculate();
+    });
 </script>
+
+
 
 {% endblock %}

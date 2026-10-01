@@ -94,6 +94,30 @@ class Attendance(models.Model):
         related_name='attendance_records',
         help_text="The shift that was active on this date",
     )
+    # ═══════════════════════════════════════════════════════
+    #  ATTENDANCE ANALYSIS FIELDS (Late / OT / Half-Day)
+    # ═══════════════════════════════════════════════════════
+    late_minutes = models.PositiveIntegerField(
+        default=0,
+        help_text="Minutes late from shift start (after grace period)"
+    )
+    overtime_minutes = models.PositiveIntegerField(
+        default=0,
+        help_text="Overtime minutes worked beyond shift end"
+    )
+    early_out_minutes = models.PositiveIntegerField(
+        default=0,
+        help_text="Minutes left before shift end"
+    )
+    is_half_day = models.BooleanField(
+        default=False,
+        help_text="True if worked less than half of min working hours"
+    )
+    missing_checkout = models.BooleanField(
+        default=False,
+        help_text="True if clock in but no clock out"
+    )
+
 
     class Meta:
         # One attendance record per user per day

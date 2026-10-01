@@ -359,11 +359,19 @@ def calculate_monthly_payroll(employee, year, month, salary):
 
     # ── OT rate: auto-computed from basic × shift multiplier ──
     if shift and shift.overtime_allowed:
-        # Hours per day from shift's min_working_hours (break included)
-        if shift.min_working_hours:
-            _hours_per_day = Decimal(str(shift.min_working_hours)) / Decimal(60)
+        # Hours per day from shift's min_working_hours
+        # Field stores MINUTES. Defensive: if value < 24, assume it's hours.
+        _mwh = int(shift.min_working_hours or 0)
+        if _mwh <= 0:
+            _minutes_per_day = 480  # fallback 8 hours
+        elif _mwh < 24:
+            # Value seems to be in HOURS (e.g., 9) — convert to minutes
+            _minutes_per_day = _mwh * 60
         else:
-            _hours_per_day = Decimal('8')
+            # Value is in MINUTES (e.g., 540)
+            _minutes_per_day = _mwh
+
+        _hours_per_day = Decimal(str(_minutes_per_day)) / Decimal(60)
 
         # Count working days in this month from the shift flags
         _flags = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
