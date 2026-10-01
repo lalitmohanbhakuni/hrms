@@ -205,7 +205,38 @@
 .sm-flex-col {
     flex-direction: column !important;
 }
+.sm-h-19 {
+    min-height: 190px;
+}
 
+/* .icon-hide-m .db-stat-ico {
+    display: none;
+} */
+
+}
+
+@media (max-width: 767.98px) {
+    .stat-scroll-row {
+        display: flex;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scroll-snap-type: x mandatory;
+        scrollbar-width: none;
+        margin-left: -12px;
+        margin-right: -12px;
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+    .stat-scroll-row::-webkit-scrollbar {
+        display: none;
+    }
+    .stat-scroll-row > [class*="col-"] {
+        flex: 0 0 auto;
+        width: 68%;
+        scroll-snap-align: start;
+    }
 }
 
 
@@ -236,7 +267,7 @@
 </div>
 
 {# ─────────── STATS ─────────── #}
-<div class="row g-3 mb-4">
+<div class="row g-3 mb-4 stat-scroll-row">
 
     {% if user.is_superuser or user|has_group:"HR Admin" %}
         <div class="col-6 col-lg-3">
@@ -572,7 +603,7 @@
                     <h5 class="db-card-title"><i class="las la-calendar-week"></i> This Week's Daily Attendance</h5>
                     <span class="db-count-pill">{{ week_start|date:"M d" }} – {{ week_end|date:"M d" }}</span>
                 </div>
-                <div class="db-card-bd">
+                <div class="db-card-bd sm-h-19">
                     <canvas id="weeklyBarChart" width="400" height="200"></canvas>
                 </div>
             </div>
