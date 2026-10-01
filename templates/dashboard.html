@@ -1150,6 +1150,8 @@
 {# ─────────── SCRIPTS (identical to before) ─────────── #}
 <script src="{% static 'vendor/chartjs/chart.min.js' %}"></script>
 
+
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded – initializing charts...');
@@ -1571,7 +1573,11 @@ function ensureDeviceVerified() {
     })
     .catch(function (err) {
         console.error('Device check error:', err);
-        return { verified: true, error: null };
+        // Fail-CLOSED — don't proceed if device check fails
+        return { 
+            verified: false, 
+            error: 'Device verification failed.\n\nPlease try again or contact HR.' 
+        };
     });
 }
 
@@ -1698,7 +1704,20 @@ function verifyDevice() {
     })
     .catch(function (err) {
         console.error('Device verification error:', err);
-        throw err;
+        
+        // Friendly message for "no passkey on this device"
+        var msg = err.message || 'Device verification failed.';
+        
+        if (err.name === 'NotAllowedError') {
+            msg = 'No passkey found on this device.\n\n' +
+                'This means you haven\'t registered this device yet,\n' +
+                'or the passkey was removed.\n\n' +
+                'Please contact HR if the problem continues.';
+        } else if (err.name === 'InvalidStateError') {
+            msg = 'This device is already registered. Please contact HR.';
+        }
+        
+        throw new Error(msg);
     });
 }
 
@@ -2352,6 +2371,7 @@ function bufferToBase64Url(buffer) {
 }
 
 </script>
+
 
 
 
