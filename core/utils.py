@@ -5,6 +5,7 @@ from datetime import date, timedelta, datetime
 from calendar import monthrange
 from django.utils import timezone
 
+
 def get_employee_attendance_for_pdf(employee, year, month, first_day, last_day):
     """
     Returns a dictionary with employee attendance data for PDF generation.
@@ -97,7 +98,7 @@ def get_employee_attendance_for_pdf(employee, year, month, first_day, last_day):
             daily_data.append(day_data)
             continue
 
-        # Attendance record
+        # ─── Attendance record ───
         if att:
             if att.status == 'Present':
                 day_data['status'] = 'Present'
@@ -108,7 +109,12 @@ def get_employee_attendance_for_pdf(employee, year, month, first_day, last_day):
             elif att.status == 'Half-Day':
                 day_data['status'] = 'Half Day'
                 total_half += 0.5
+                total_present += 0.5     # half-day counts as 0.5 present
+            else:
+                # Any other status (Under Review, Missing Checkout, etc.)
+                day_data['status'] = att.status
 
+            # ── Times (run for every attendance row) ──
             if att.check_in_time:
                 local_in = timezone.localtime(att.check_in_time)
                 day_data['check_in'] = local_in.strftime('%I:%M %p')
@@ -116,7 +122,7 @@ def get_employee_attendance_for_pdf(employee, year, month, first_day, last_day):
                 local_out = timezone.localtime(att.check_out_time)
                 day_data['check_out'] = local_out.strftime('%I:%M %p')
 
-            # Calculate working hours
+            # ── Hours / Late / OT ──
             if att.check_in_time and att.check_out_time:
                 diff = att.check_out_time - att.check_in_time
                 hours = diff.seconds // 3600
@@ -124,19 +130,19 @@ def get_employee_attendance_for_pdf(employee, year, month, first_day, last_day):
                 day_data['working_hours'] = f"{hours}h {minutes}m"
                 total_working_seconds += diff.seconds
 
-                # Check late (uses the shift active on that day)
+                # Late check (uses shift active on that day)
                 if day_shift and att.check_in_time:
                     shift_start = timezone.make_aware(datetime.combine(d, day_shift.start_time))
                     if att.check_in_time > shift_start:
                         total_late += 1
 
-                # Check overtime (uses the shift active on that day)
+                # Overtime (uses shift active on that day)
                 if day_shift and att.check_out_time:
                     shift_end = timezone.make_aware(datetime.combine(d, day_shift.end_time))
                     if att.check_out_time > shift_end:
                         ot = int((att.check_out_time - shift_end).total_seconds() // 60)
 
-                        # Apply minimum OT threshold
+                        # Minimum OT threshold
                         _min_ot = int(getattr(day_shift, 'min_overtime_minutes', 0) or 0)
                         if ot < _min_ot:
                             ot = 0
@@ -153,8 +159,9 @@ def get_employee_attendance_for_pdf(employee, year, month, first_day, last_day):
 
         daily_data.append(day_data)
 
-    # Summary
+    # ─── Summary ───
     total_working_days = len([d for d in daily_data if d['status'] not in ['Weekly Off', 'Holiday']])
+    total_absent = max(0, total_working_days - total_present - total_leave)   # ← authoritative absent
     total_hours = total_working_seconds // 3600
     total_minutes = (total_working_seconds % 3600) // 60
     avg_hours = round(total_working_seconds / total_working_days / 3600, 2) if total_working_days > 0 else 0
@@ -435,13 +442,18 @@ def calculate_monthly_payroll(employee, year, month, salary):
     # ── Late Coming — read from LateDeduction ledger (Phase 4) ──
     from .models import LateDeduction
 
-    late_deductions = LateDeduction.objects.filter(
+    # All deduction rows for this month
+    all_deductions = LateDeduction.objects.filter(
         employee=employee,
         attendance_date__year=year,
         attendance_date__month=month,
     ).exclude(status='CANCELLED')
 
-    late_days          = late_deductions.count()
+    # Split by source
+    late_deductions = all_deductions.filter(source='LATE_COMING')
+    reg_deductions  = all_deductions.filter(source='REG_OVERAGE')
+
+    late_days = late_deductions.count()
     late_halfday_days  = 0
     total_late_minutes = 0
 
@@ -543,6 +555,7 @@ def calculate_monthly_payroll(employee, year, month, salary):
     late_deduction         = Decimal('0')
     late_halfday_deduction = Decimal('0')
 
+     # ── Late Coming deductions ──
     late_leave_deductions  = late_deductions.filter(deduction_type='LEAVE')
     late_salary_deductions = late_deductions.filter(deduction_type='SALARY')
 
@@ -557,6 +570,23 @@ def calculate_monthly_payroll(employee, year, month, salary):
         (late_salary_deductions.aggregate(s=Sum('salary_amount'))['s'] or Decimal('0'))
         + (late_leave_deductions.aggregate(s=Sum('salary_amount'))['s'] or Decimal('0'))
     ).quantize(Decimal('0.01'))
+
+    # ── Regularization over-limit deductions ──
+    reg_leave_deductions  = reg_deductions.filter(deduction_type='LEAVE')
+    reg_salary_deductions = reg_deductions.filter(deduction_type='SALARY')
+
+    reg_leave_days = (
+        reg_leave_deductions.aggregate(s=Sum('leave_days'))['s'] or Decimal('0')
+    ).quantize(Decimal('0.01'))
+    reg_lop_days = (
+        (reg_salary_deductions.aggregate(s=Sum('penalty_days'))['s'] or Decimal('0'))
+        + (reg_leave_deductions.aggregate(s=Sum('lop_days'))['s'] or Decimal('0'))
+    ).quantize(Decimal('0.01'))
+    reg_deduction = (
+        (reg_salary_deductions.aggregate(s=Sum('salary_amount'))['s'] or Decimal('0'))
+        + (reg_leave_deductions.aggregate(s=Sum('salary_amount'))['s'] or Decimal('0'))
+    ).quantize(Decimal('0.01'))
+    reg_marks = reg_deductions.count()
     
     late_halfday_deduction = Decimal('0')
     late_penalty_days = late_leave_days + late_lop_days
@@ -565,6 +595,7 @@ def calculate_monthly_payroll(employee, year, month, salary):
         + unpaid_leave_deduction
         + other_deduction
         + late_deduction
+        + reg_deduction
     )
     net_payable = (gross + overtime_amount - total_deduction).quantize(Decimal('0.01'))
 
@@ -594,11 +625,16 @@ def calculate_monthly_payroll(employee, year, month, salary):
         'late_leave_days': late_leave_days,
         'late_lop_days': late_lop_days,
         'total_late_minutes': total_late_minutes,
-        'pure_absent_days':      pure_absent_days,
+        'pure_absent_days': pure_absent_days,
         'pure_absent_deduction': pure_absent_deduction,
-        'half_day_days':         half_day_count,
-        'half_day_units':        half_day_units,
-        'half_day_deduction':    half_day_deduction,
+        'half_day_days': half_day_count,
+        'half_day_units': half_day_units,
+        'half_day_deduction': half_day_deduction,
+        # ── Regularization over-limit ──
+        'reg_leave_days': reg_leave_days,
+        'reg_lop_days': reg_lop_days,
+        'reg_deduction': reg_deduction,
+        'reg_marks': reg_marks,
     }
 
 

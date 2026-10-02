@@ -10,6 +10,10 @@ class Company(models.Model):
     code_prefix = models.CharField(max_length=10)
     created_at = models.DateTimeField(auto_now_add=True)
     payroll_enabled = models.BooleanField(default=False)
+    device_tracking_enabled = models.BooleanField(
+        default=False,
+        help_text="Enable employee device management feature (Manage Devices).",
+    )
 
     def __str__(self):
         return self.name
@@ -43,7 +47,7 @@ class Attendance(models.Model):
     )
     # date = models.DateField()                         # ✅ fixed earlier
     date = models.DateField(default=timezone.localdate)   # ← add this
-    check_in_time  = models.DateTimeField()
+    check_in_time  = models.DateTimeField(null=True, blank=True)
     check_out_time = models.DateTimeField(null=True, blank=True)
 
     status = models.CharField(
@@ -553,17 +557,85 @@ class RegularizationCategory(models.Model):
     """
     HR Admin–managed categories for regularization requests.
     Employees pick one when submitting; limits enforced per employee, per month.
+
+    NEW: Over-limit handling — when an employee exceeds their monthly quota,
+    the system can either block further submissions, or auto-deduct from
+    paid leave (with LOP fallback) at month-end.
     """
     company = models.ForeignKey(
         Company, on_delete=models.CASCADE, related_name='reg_categories'
     )
     name = models.CharField(max_length=100)
+
+    # ══════════════════════════════════════════════════════════
+    # system_type — maps category to attendance state
+    # ══════════════════════════════════════════════════════════
+    system_type = models.CharField(
+        max_length=30,
+        choices=[
+            ('miss_punch',      'Miss Punch — no attendance row'),
+            ('forgot_checkout', 'Forgot Checkout — checked in, no checkout'),
+            ('wrong_punch',     'Wrong Punch — wrong times'),
+            ('short_hours',     'Short Hours — worked less than shift'),
+            ('other',           'Other'),
+        ],
+        default='other',
+        help_text="Attendance state this category handles.",
+    )
+
     monthly_limit = models.PositiveIntegerField(
         default=3, help_text="Max requests per employee per month."
     )
     is_active = models.BooleanField(default=True)
     order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    # ══════════════════════════════════════════════════════════
+    # Over-limit handling
+    # ══════════════════════════════════════════════════════════
+    over_limit_action = models.CharField(
+        max_length=20,
+        choices=[
+            ('block',       'Block — cannot submit'),
+            ('auto_deduct', 'Auto-Deduct on Quota Exhaustion'),
+        ],
+        default='block',
+        help_text="What happens when employee exceeds the monthly limit.",
+    )
+
+    # ── NEW: penalty_type ──
+    penalty_type = models.CharField(
+        max_length=10,
+        choices=[
+            ('leave',  'Deduct Leave'),
+            ('salary', 'Deduct Salary'),
+        ],
+        default='leave',
+        help_text="How the penalty is charged.",
+    )
+
+    penalty_days = models.DecimalField(
+        max_digits=4,
+        decimal_places=2,
+        default=Decimal('0.50'),
+        help_text="0.5 = half day, 1.0 = full day. Applied per over-limit day.",
+    )
+    target_leave_type = models.ForeignKey(
+        'LeaveType',
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name='reg_over_limit_deductions',
+        help_text="Which leave type absorbs the penalty first.",
+    )
+    insufficient_balance_action = models.CharField(
+        max_length=10,
+        choices=[
+            ('lop',  'Loss of Pay (LOP)'),
+            ('skip', 'Skip — waive remainder'),
+        ],
+        default='lop',
+        help_text="What happens when leave balance is insufficient.",
+    )
 
     class Meta:
         unique_together = [('company', 'name')]
@@ -572,8 +644,6 @@ class RegularizationCategory(models.Model):
 
     def __str__(self):
         return f"{self.company.name} — {self.name}"
-
-        
 
 
 class RegularizationRequest(models.Model):
@@ -942,6 +1012,7 @@ class LateDeduction(models.Model):
     ]
     SOURCE_CHOICES = [
         ('LATE_COMING', 'Late Coming'),
+        ('REG_OVERAGE', 'Regularization over-limit'),
     ]
 
     employee = models.ForeignKey(

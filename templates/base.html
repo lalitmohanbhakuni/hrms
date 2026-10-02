@@ -146,13 +146,16 @@
                         </a>
                     {% endif %}
 
-                    <a href="{% url 'pending_device_approvals' %}" class="nav-item {% if 'device-approvals' in request.path %}active{% endif %}">
-                        <i class="las la-user-shield"></i>
-                        <span>Device Approvals</span>
-                        {% if pending_device_count > 0 %}
-                        <span class="badge">{{ pending_device_count }}</span>
-                        {% endif %}
-                    </a>
+                    {% if profile.company.device_tracking_enabled %}
+
+                        <a href="{% url 'pending_device_approvals' %}" class="nav-item {% if 'device-approvals' in request.path %}active{% endif %}">
+                            <i class="las la-user-shield"></i>
+                            <span>Device Approvals</span>
+                            {% if pending_device_count > 0 %}
+                            <span class="badge">{{ pending_device_count }}</span>
+                            {% endif %}
+                        </a>
+                    {% endif %}
 
 
                 {% endif %}
@@ -314,17 +317,17 @@
                     <!-- USER DROPDOWN -->
                     <div class="dropdown user-dropdown">
                         <div class="avatar" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                            {{ user.username|slice:":1"|upper }}
+                            {{ user.profile.full_name|default:user.username|slice:":1"|upper }}
                         </div>
 
                         <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0" aria-labelledby="userDropdown">
                             <li class="user-info">
                                 <div class="d-flex align-items-center gap-2">
                                     <div style="width:36px; height:36px; border-radius:50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display:flex; align-items:center; justify-content:center; color:#fff; font-weight:600; font-size:0.9rem;">
-                                        {{ user.username|slice:":1"|upper }}
+                                        {{ user.profile.full_name|default:user.username|slice:":1"|upper }}
                                     </div>
                                     <div>
-                                        <div class="username">{{ user.username }}</div>
+                                        <div class="username">{{ user.profile.full_name|default:user.username }}</div>
                                         <div class="email">
                                             {% with profile=user.profile %}
                                                 {% if profile and profile.employee_id %}

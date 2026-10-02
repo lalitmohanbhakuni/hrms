@@ -800,7 +800,10 @@
                                         <thead>
                                             <tr>
                                                 <th>Category</th>
+                                                <th class="text-center">System Type</th>
                                                 <th class="text-center">Monthly Limit</th>
+                                                <th class="text-center">Over-Limit</th>
+                                                <th class="text-center">Penalty</th>
                                                 <th class="text-center">Status</th>
                                                 <th class="text-end">Actions</th>
                                             </tr>
@@ -809,7 +812,78 @@
                                             {% for cat in reg_categories %}
                                                 <tr>
                                                     <td class="name">{{ cat.name }}</td>
+
+                                                    {# ── System Type badge ── #}
+                                                    <td class="text-center">
+                                                        {% if cat.system_type == 'miss_punch' %}
+                                                            <span class="stp-badge" style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;">
+                                                                Miss Punch
+                                                            </span>
+                                                        {% elif cat.system_type == 'forgot_checkout' %}
+                                                            <span class="stp-badge" style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;">
+                                                                Forgot Checkout
+                                                            </span>
+                                                        {% elif cat.system_type == 'wrong_punch' %}
+                                                            <span class="stp-badge" style="background:#e0e7ff;color:#3730a3;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;">
+                                                                Wrong Punch
+                                                            </span>
+                                                        {% elif cat.system_type == 'short_hours' %}
+                                                            <span class="stp-badge" style="background:#fce7f3;color:#9f1239;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;">
+                                                                Short Hours
+                                                            </span>
+                                                        {% else %}
+                                                            <span class="stp-badge" style="background:#f1f5f9;color:#64748b;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;">
+                                                                Other
+                                                            </span>
+                                                        {% endif %}
+                                                    </td>
+
                                                     <td class="text-center num">{{ cat.monthly_limit }}</td>
+
+                                                    {# ── Over-Limit Action badge ── #}
+                                                    <td class="text-center">
+                                                        {% if cat.over_limit_action == 'auto_deduct' %}
+                                                            <span class="stp-badge" style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;">
+                                                                Auto-Deduct
+                                                            </span>
+                                                        {% else %}
+                                                            <span class="stp-badge" style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;">
+                                                                Block
+                                                            </span>
+                                                        {% endif %}
+                                                    </td>
+
+                                                    <!-- {# ── Penalty Days + Type ── #} -->
+                                                    <td class="text-center">
+                                                        {% if cat.over_limit_action == 'auto_deduct' %}
+                                                            <span style="font-size:12px;color:#0f172a;font-weight:600;">
+                                                                {{ cat.penalty_days|floatformat:"-2" }} day
+                                                            </span>
+
+                                                            {% if cat.penalty_type == 'salary' %}
+                                                                <br>
+                                                                <span style="display:inline-block;margin-top:3px;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;background:#fee2e2;color:#991b1b;">
+                                                                    Salary Cut
+                                                                </span>
+
+                                                            {% elif cat.target_leave_type %}
+                                                                <br>
+                                                                <span style="display:inline-block;margin-top:3px;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;background:#dbeafe;color:#1e40af;">
+                                                                    {{ cat.target_leave_type.name }}
+                                                                </span>
+
+                                                            {% else %}
+                                                                <br>
+                                                                <span style="display:inline-block;margin-top:3px;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;background:#f1f5f9;color:#64748b;">
+                                                                    Leave (none set)
+                                                                </span>
+                                                            {% endif %}
+
+                                                        {% else %}
+                                                            <span style="color:#94a3b8;font-size:12px;">—</span>
+                                                        {% endif %}
+                                                    </td>
+
                                                     <td class="text-center">
                                                         {% if cat.is_active %}
                                                             <span class="stp-ot yes"><i class="fas fa-check"></i></span>
@@ -830,7 +904,7 @@
                                                 </tr>
                                             {% empty %}
                                                 <tr>
-                                                    <td colspan="5">
+                                                    <td colspan="7">
                                                         <div class="stp-empty">
                                                             <div class="stp-empty-ico"><i class="las la-edit"></i></div>
                                                             <p class="stp-empty-title">No categories defined yet</p>
@@ -843,6 +917,7 @@
                                     </table>
                                 </div>
                             </div>
+
                         </div>
 
                         <!-- SUB-TAB 3: LATE COMING RULES -->

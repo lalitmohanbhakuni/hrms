@@ -200,7 +200,7 @@ def dashboard(request):
             shift_start = datetime.combine(today, employee_shift.start_time)
             shift_start = timezone.make_aware(shift_start)
             check_in = today_attendance.check_in_time
-            if check_in > shift_start:
+            if check_in and check_in > shift_start:
                 late_minutes = int((check_in - shift_start).total_seconds() // 60)
                 
         
@@ -1464,6 +1464,9 @@ def clock_out(request):
     #  CALCULATE OT / EARLY OUT / HALF-DAY
     # ═══════════════════════════════════════════════════════
     now = timezone.now()
+    if not attendance.check_in_time:
+        messages.error(request, 'Cannot calculate interval — no check-in time recorded.')
+        return redirect('attendance')
     interval = now - attendance.check_in_time
     shift = profile.shift
     
@@ -1962,8 +1965,8 @@ def employee_detail(request, user_id):
         'employee_user': employee_user,
         'profile': profile,
         'total_days': total_days,
-        'present': present,
-        'absent': absent,
+            'present': present,
+            'absent': absent,
         'half_day': half_day,
         'leave_balance': leave_balance,
         'month_name': today.strftime('%B %Y'),
@@ -3092,10 +3095,26 @@ def attendance_report(request):
 
             daily_statuses = row[5:]
             present_count = sum(1 for s in daily_statuses if s == 'P')
-            absent_count = sum(1 for s in daily_statuses if s == 'A')
-            leave_count = sum(1 for s in daily_statuses if s == 'L')
-            half_count = sum(1 for s in daily_statuses if s == 'HD')
-            late_count = emp_data.get('late_days', 0)
+            absent_count  = sum(1 for s in daily_statuses if s == 'A')
+            leave_count   = sum(1 for s in daily_statuses if s == 'L')
+            half_count    = sum(1 for s in daily_statuses if s == 'HD')
+            late_count    = emp_data.get('late_days', 0)
+
+            # Working days = anything that isn't WO (weekly off) or H (holiday)
+            working_days = sum(
+                1 for s in daily_statuses if s in ('P', 'HD', 'A', 'L')
+            )
+
+            # Weighted (half-day = 0.5)
+            from decimal import Decimal
+            half_day_units   = Decimal(str(half_count)) * Decimal('0.5')
+            present_weighted = Decimal(str(present_count)) + half_day_units
+            absent_weighted  = max(
+                Decimal('0'),
+                Decimal(str(working_days))
+                  - present_weighted
+                  - Decimal(str(leave_count))
+            )
 
             # ─── OT (per-day historical shift + min threshold) ───
             ot_minutes_total = 0
@@ -3114,7 +3133,11 @@ def attendance_report(request):
                             ot_minutes_total += ot
 
             row.extend([
-                present_count, absent_count, leave_count, half_count, late_count,
+                float(present_weighted),          # 20.5
+                float(absent_weighted),           # 1.5
+                leave_count,
+                half_count,                       # 3 (count) — see note below
+                late_count,
                 f"{int(ot_minutes_total//60)}h {int(ot_minutes_total%60)}m" if ot_minutes_total else "0h"
             ])
             writer.writerow(row)
@@ -3431,14 +3454,18 @@ def employee_attendance_detail(request, user_id):
         if d <= today:
             elapsed_working_days += 1
 
-    # ─── Rate ───
-    rate = round((present / elapsed_working_days) * 100, 1) if elapsed_working_days > 0 else 0
-
     leave_days_count = len(leave_days)
 
     # ─── Weighted present / absent (includes half-day) ───
-    present_weighted = Decimal(str(present)) + (Decimal(str(half_day)) * Decimal('0.5'))
-    absent_weighted  = Decimal(str(absent))  + (Decimal(str(half_day)) * Decimal('0.5'))
+    half_day_units   = Decimal(str(half_day)) * Decimal('0.5')
+    present_weighted = Decimal(str(present)) + half_day_units
+    absent_weighted  = max(
+        Decimal('0'),
+        Decimal(str(elapsed_working_days)) - present_weighted - Decimal(str(leave_days_count))
+    )
+
+    # ─── Rate ───
+    rate = round((float(present_weighted) / elapsed_working_days) * 100, 1) if elapsed_working_days > 0 else 0
 
     ot_hours = total_overtime_minutes // 60
     ot_minutes = total_overtime_minutes % 60
@@ -6121,7 +6148,7 @@ def payslip_pdf(request, pk):
         [Paragraph("Present", field_label_style),
          Paragraph(fmt_days(present_display), field_value_style)],
         [Paragraph("Absent", field_label_style),
-         Paragraph(fmt_days(pure_absent_days), field_value_style)],
+         Paragraph(fmt_days(total_absent_days   ), field_value_style)],
         [Paragraph("Paid / Unpaid Leave", field_label_style),
          Paragraph(
              f"{payroll.paid_leave_days or 0} / {payroll.unpaid_leave_days or 0}",
@@ -6766,7 +6793,8 @@ def _validate_password_fields(user, password1, password2, is_create):
 @company_required
 def reg_category_create(request):
     from .utils import get_user_company
-    from .models import RegularizationCategory
+    from .models import RegularizationCategory, LeaveType
+    from decimal import Decimal
 
     company = get_user_company(request)
     if not company:
@@ -6777,6 +6805,13 @@ def reg_category_create(request):
         name  = (request.POST.get('name') or '').strip()
         limit = int(request.POST.get('monthly_limit') or 3)
         order = int(request.POST.get('order') or 0)
+
+        system_type               = request.POST.get('system_type') or 'other'
+        over_limit_action         = request.POST.get('over_limit_action') or 'block'
+        penalty_type              = request.POST.get('penalty_type') or 'leave'
+        penalty_days              = Decimal(request.POST.get('penalty_days') or '0.50')
+        target_leave_type_id      = request.POST.get('target_leave_type') or None
+        insufficient_balance_action = request.POST.get('insufficient_balance_action') or 'lop'
 
         if not name:
             messages.error(request, 'Category name is required.')
@@ -6789,8 +6824,14 @@ def reg_category_create(request):
         RegularizationCategory.objects.create(
             company=company,
             name=name,
+            system_type=system_type,
             monthly_limit=limit,
             order=order,
+            over_limit_action=over_limit_action,
+            penalty_type=penalty_type,
+            penalty_days=penalty_days,
+            target_leave_type_id=target_leave_type_id,
+            insufficient_balance_action=insufficient_balance_action,
             is_active=True,
         )
         messages.success(request, f'Category "{name}" created.')
@@ -6798,7 +6839,11 @@ def reg_category_create(request):
 
     return render(request, 'attendance/reg_category_form.html', {
         'action': 'Create',
+        'leave_types': LeaveType.objects.filter(
+            company=company, is_active=True
+        ).order_by('name'),
     })
+
 
 
 
@@ -6808,7 +6853,8 @@ def reg_category_create(request):
 @company_required
 def reg_category_edit(request, pk):
     from .utils import get_user_company
-    from .models import RegularizationCategory
+    from .models import RegularizationCategory, LeaveType
+    from decimal import Decimal
 
     company = get_user_company(request)
     cat = get_object_or_404(RegularizationCategory, id=pk, company=company)
@@ -6819,6 +6865,13 @@ def reg_category_edit(request, pk):
         order     = int(request.POST.get('order') or 0)
         is_active = 'is_active' in request.POST
 
+        system_type                 = request.POST.get('system_type') or 'other'
+        over_limit_action           = request.POST.get('over_limit_action') or 'block'
+        penalty_type                = request.POST.get('penalty_type') or 'leave'
+        penalty_days                = Decimal(request.POST.get('penalty_days') or '0.50')
+        target_leave_type_id        = request.POST.get('target_leave_type') or None
+        insufficient_balance_action = request.POST.get('insufficient_balance_action') or 'lop'
+
         if not name:
             messages.error(request, 'Category name is required.')
         elif RegularizationCategory.objects.filter(
@@ -6826,19 +6879,28 @@ def reg_category_edit(request, pk):
         ).exclude(id=cat.id).exists():
             messages.error(request, f'Another category named "{name}" already exists.')
         else:
-            cat.name          = name
-            cat.monthly_limit = limit
-            cat.order         = order
-            cat.is_active     = is_active
+            cat.name                        = name
+            cat.system_type                 = system_type
+            cat.monthly_limit               = limit
+            cat.order                       = order
+            cat.over_limit_action           = over_limit_action
+            cat.penalty_type                = penalty_type
+            cat.penalty_days                = penalty_days
+            cat.target_leave_type_id        = target_leave_type_id
+            cat.insufficient_balance_action = insufficient_balance_action
+            cat.is_active                   = is_active
             cat.save()
             messages.success(request, f'Category "{name}" updated.')
             return redirect('setup')
 
     return render(request, 'attendance/reg_category_form.html', {
-        'action':   'Edit',
-        'category': cat,
+        'action':      'Edit',
+        'category':    cat,
+        'leave_types': LeaveType.objects.filter(
+            company=company, is_active=True
+        ).order_by('name'),
     })
-
+    
     
 
 @login_required

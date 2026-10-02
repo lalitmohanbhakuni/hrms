@@ -266,8 +266,9 @@
     <!-- Card -->
     <form method="post" class="stp-card">
         {% csrf_token %}
-
         <div class="stp-form-body">
+
+            <!-- ═══════════════ BASIC INFO ═══════════════ -->
 
             <!-- Name -->
             <div class="stp-field">
@@ -275,12 +276,43 @@
                     <i class="las la-tag"></i> Category Name <span class="req">*</span>
                 </label>
                 <input type="text" id="id_name" name="name" class="stp-input"
-                       value="{{ category.name|default:'' }}"
-                       placeholder="e.g. Miss Punch" required autofocus>
+                    value="{{ category.name|default:'' }}"
+                    placeholder="e.g. Miss Punch" required autofocus>
                 <span class="stp-hint">Shown to employees when they submit a request.</span>
             </div>
 
-            <!-- System type -->
+            <!-- System Type -->
+            <div class="stp-field">
+                <label class="stp-lbl" for="id_system_type">
+                    <i class="las la-cogs"></i> System Type <span class="req">*</span>
+                </label>
+                <select id="id_system_type" name="system_type" class="stp-input">
+                    <option value="miss_punch"
+                        {% if category.system_type == 'miss_punch' %}selected{% endif %}>
+                        Miss Punch — no attendance row
+                    </option>
+                    <option value="forgot_checkout"
+                        {% if category.system_type == 'forgot_checkout' %}selected{% endif %}>
+                        Forgot Checkout — checked in, no checkout
+                    </option>
+                    <option value="wrong_punch"
+                        {% if category.system_type == 'wrong_punch' %}selected{% endif %}>
+                        Wrong Punch — wrong times
+                    </option>
+                    <option value="short_hours"
+                        {% if category.system_type == 'short_hours' %}selected{% endif %}>
+                        Short Hours — worked less than shift
+                    </option>
+                    <option value="other"
+                        {% if category.system_type == 'other' or not category.system_type %}selected{% endif %}>
+                        Other
+                    </option>
+                </select>
+                <span class="stp-hint">
+                    Which attendance state this category handles.
+                    Auto-deduct uses this to match the right category.
+                </span>
+            </div>
 
             <!-- Limit + order -->
             <div class="stp-row">
@@ -289,8 +321,8 @@
                         <i class="las la-redo-alt"></i> Monthly Limit <span class="req">*</span>
                     </label>
                     <input type="number" id="id_monthly_limit" name="monthly_limit"
-                           class="stp-input" min="0"
-                           value="{{ category.monthly_limit|default:3 }}" required>
+                        class="stp-input" min="0"
+                        value="{{ category.monthly_limit|default:3 }}" required>
                     <span class="stp-hint">Max requests per employee, per month.</span>
                 </div>
 
@@ -299,17 +331,118 @@
                         <i class="las la-sort-numeric-down"></i> Display Order
                     </label>
                     <input type="number" id="id_order" name="order"
-                           class="stp-input" min="0"
-                           value="{{ category.order|default:0 }}">
+                        class="stp-input" min="0"
+                        value="{{ category.order|default:0 }}">
                     <span class="stp-hint">Lower numbers appear first.</span>
+                </div>
+            </div>
+
+            <!-- ═══════════════ OVER-LIMIT HANDLING ═══════════════ -->
+            <div style="margin-top:24px;padding-top:20px;border-top:1px solid #e2e8f0;">
+                <div style="font-size:13px;font-weight:600;color:#0f172a;margin-bottom:12px;">
+                    <i class="las la-exclamation-triangle" style="color:#f59e0b;"></i>
+                    When Monthly Limit is Reached
+                </div>
+
+                <!-- Over-Limit Action -->
+                <div class="stp-field">
+                    <label class="stp-lbl" for="id_over_limit_action">
+                        <i class="las la-shield-alt"></i> Over-Limit Action
+                    </label>
+                    <select id="id_over_limit_action" name="over_limit_action" class="stp-input">
+                        <option value="block"
+                            {% if category.over_limit_action == 'block' or not category.over_limit_action %}selected{% endif %}>
+                            Block — cannot submit
+                        </option>
+                        <option value="auto_deduct"
+                            {% if category.over_limit_action == 'auto_deduct' %}selected{% endif %}>
+                            Auto-Deduct on Quota Exhaustion
+                        </option>
+                    </select>
+                    <span class="stp-hint">What happens when employee exceeds the monthly limit.</span>
+                </div>
+
+                <!-- Auto-Deduct sub-fields -->
+                <div id="auto-deduct-fields"
+                    style="display: {% if category.over_limit_action == 'auto_deduct' %}block{% else %}none{% endif %};">
+
+                    <!-- Penalty Days -->
+                    <div class="stp-field">
+                        <label class="stp-lbl" for="id_penalty_days">
+                            <i class="las la-calendar-minus"></i> Penalty Days per Over-Limit Day
+                        </label>
+                        <input type="number" id="id_penalty_days" name="penalty_days"
+                            class="stp-input" step="0.25" min="0" max="1"
+                            value="{{ category.penalty_days|default:'0.50' }}">
+                        <span class="stp-hint">0.5 = half day · 1.0 = full day</span>
+                    </div>
+
+                    <!-- NEW: Penalty Type -->
+                    <div class="stp-field">
+                        <label class="stp-lbl" for="id_penalty_type">
+                            <i class="las la-gavel"></i> Penalty Type
+                        </label>
+                        <select id="id_penalty_type" name="penalty_type" class="stp-input">
+                            <option value="leave"
+                                {% if category.penalty_type == 'leave' or not category.penalty_type %}selected{% endif %}>
+                                Deduct Leave (fallback to LOP if insufficient)
+                            </option>
+                            <option value="salary"
+                                {% if category.penalty_type == 'salary' %}selected{% endif %}>
+                                Deduct Salary directly
+                            </option>
+                        </select>
+                        <span class="stp-hint">How the penalty is charged.</span>
+                    </div>
+
+                    <!-- Leave-specific fields (hidden in salary mode) -->
+                    <div id="leave-fields"
+                        style="display: {% if category.penalty_type == 'salary' %}none{% else %}block{% endif %};">
+
+                        <!-- Target Leave Type -->
+                        <div class="stp-field">
+                            <label class="stp-lbl" for="id_target_leave_type">
+                                <i class="las la-umbrella-beach"></i> Target Leave Type
+                            </label>
+                            <select id="id_target_leave_type" name="target_leave_type" class="stp-input">
+                                <option value="">— Select leave type —</option>
+                                {% for lt in leave_types %}
+                                <option value="{{ lt.id }}"
+                                    {% if category.target_leave_type_id == lt.id %}selected{% endif %}>
+                                    {{ lt.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <span class="stp-hint">Which leave type absorbs the penalty first.</span>
+                        </div>
+
+                        <!-- If Leave Insufficient -->
+                        <div class="stp-field">
+                            <label class="stp-lbl" for="id_insufficient_balance_action">
+                                <i class="las la-balance-scale"></i> If Leave Insufficient
+                            </label>
+                            <select id="id_insufficient_balance_action"
+                                    name="insufficient_balance_action" class="stp-input">
+                                <option value="lop"
+                                    {% if category.insufficient_balance_action == 'lop' or not category.insufficient_balance_action %}selected{% endif %}>
+                                    Loss of Pay (LOP)
+                                </option>
+                                <option value="skip"
+                                    {% if category.insufficient_balance_action == 'skip' %}selected{% endif %}>
+                                    Skip — waive remainder
+                                </option>
+                            </select>
+                            <span class="stp-hint">What happens when leave balance runs out.</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <!-- Active toggle (Edit only) -->
             {% if action == 'Edit' %}
-                <label class="stp-check" for="isActive">
+                <label class="stp-check" for="isActive" style="margin-top:20px;">
                     <input class="form-check-input" type="checkbox" name="is_active"
-                           id="isActive" {% if category.is_active %}checked{% endif %}>
+                        id="isActive" {% if category.is_active %}checked{% endif %}>
                     <span class="stp-check-lbl">
                         <span class="stp-check-title">Active</span>
                         <span class="stp-check-sub">
@@ -320,6 +453,11 @@
             {% endif %}
 
         </div>
+
+        
+
+
+        
 
         <!-- Footer actions -->
         <div class="stp-actions">
@@ -334,5 +472,29 @@
 
     </form>
 </div>
+
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Toggle auto-deduct section
+        var olSel = document.getElementById('id_over_limit_action');
+        var olBox = document.getElementById('auto-deduct-fields');
+        if (olSel && olBox) {
+            olSel.addEventListener('change', function () {
+                olBox.style.display = this.value === 'auto_deduct' ? 'block' : 'none';
+            });
+        }
+
+        // Toggle leave fields based on penalty type
+        var ptSel = document.getElementById('id_penalty_type');
+        var lfBox = document.getElementById('leave-fields');
+        if (ptSel && lfBox) {
+            ptSel.addEventListener('change', function () {
+                lfBox.style.display = this.value === 'salary' ? 'none' : 'block';
+            });
+        }
+    });
+</script>
+
 
 {% endblock %}

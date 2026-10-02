@@ -263,6 +263,35 @@
                                     </div>
                                     {% endif %}
 
+                                    <!-- {# ─── NEW: Reg. Over-Limit Penalty ─── #} -->
+                                    {% if payroll.reg_deduction > 0 or payroll.reg_leave_days > 0 or payroll.reg_lop_days > 0 %}
+                                    <div class="psl-item is-notable-warning">
+                                        <span class="psl-item-label">
+                                            Reg. Over-Limit
+                                            <small>{{ payroll.reg_marks }} mark{{ payroll.reg_marks|pluralize }} · {{ payroll.reg_leave_days|add:payroll.reg_lop_days|floatformat:"-2" }} day</small>
+                                            {% if payroll.reg_leave_days > 0 and payroll.reg_lop_days > 0 %}
+                                            <small style="display:block;color:#64748b;font-size:.7rem;margin-top:2px;">
+                                                {{ payroll.reg_leave_days|floatformat:"-2" }} day absorbed by leave ·
+                                                {{ payroll.reg_lop_days|floatformat:"-2" }} day LOP
+                                            </small>
+                                            {% elif payroll.reg_leave_days > 0 %}
+                                            <small style="display:block;color:#64748b;font-size:.7rem;margin-top:2px;">
+                                                {{ payroll.reg_leave_days|floatformat:"-2" }} day absorbed by leave
+                                            </small>
+                                            {% elif payroll.reg_lop_days > 0 %}
+                                            <small style="display:block;color:#64748b;font-size:.7rem;margin-top:2px;">
+                                                {{ payroll.reg_lop_days|floatformat:"-2" }} day salary cut
+                                            </small>
+                                            {% endif %}
+                                        </span>
+                                        {% if payroll.reg_deduction > 0 %}
+                                        <span class="psl-item-value danger">₹{{ payroll.reg_deduction|floatformat:2 }}</span>
+                                        {% else %}
+                                        <span class="psl-item-value empty">₹0.00</span>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+
                                     {# Unpaid Leave Deduction — highlighted when > 0 #}
                                     {% if payroll.unpaid_leave_deduction and payroll.unpaid_leave_deduction > 0 %}
                                     <div class="psl-item is-notable-warning">
@@ -282,8 +311,8 @@
                                     </div>
                                     {% endif %}
 
-                                    {# Zero-deduction case — show all rows muted #}
-                                    {% if not payroll.absent_deduction and not payroll.unpaid_leave_deduction and not payroll.other_deduction and not payroll.late_deduction and not payroll.late_leave_days %}
+                                    <!-- {# Zero-deduction case — show all rows muted #} -->
+                                    {% if not payroll.absent_deduction and not payroll.unpaid_leave_deduction and not payroll.other_deduction and not payroll.late_deduction and not payroll.late_leave_days and not payroll.reg_deduction and not payroll.reg_leave_days %}
                                     <div class="psl-item">
                                         <span class="psl-item-label">Absent Deduction</span>
                                         <span class="psl-item-value empty">₹0.00</span>
