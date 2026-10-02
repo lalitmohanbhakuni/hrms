@@ -254,7 +254,7 @@
                                                  class="rounded-circle border prf-avatar-img">
                                         {% else %}
                                             <div class="prf-avatar-fallback">
-                                                {{ user.username|slice:":1"|upper }}
+                                                {{ user.profile.full_name|slice:":1"|upper }}
                                             </div>
                                         {% endif %}
                                     </div>
@@ -318,7 +318,7 @@
                                     </div>
 
                                     <div class="row g-3">
-                                        <div class="col-md-6">
+                                        <!-- <div class="col-md-6">
                                             <div class="prf-field">
                                                 <label for="username" class="prf-label">
                                                     <i class="las la-user"></i> Username
@@ -330,7 +330,7 @@
                                                     <span>Username cannot be changed.</span>
                                                 </div>
                                             </div>
-                                        </div>
+                                        </div> -->
                                         <div class="col-md-6">
                                             <div class="prf-field">
                                                 <label for="email" class="prf-label">

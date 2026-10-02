@@ -1592,18 +1592,42 @@ def employee_create(request):
         # ✅ FIX #2 — pass company so office_location/manager querysets are populated
         form = EmployeeForm(request.POST, company=company)
         if form.is_valid():
-            username  = form.cleaned_data['username']
             email     = form.cleaned_data['email']
             password  = form.cleaned_data['password1']
             password2 = form.cleaned_data.get('password2', '')
 
+            # ═══════════════════════════════════════════════════
+            # ✅ PRE-GENERATE EMPLOYEE ID (used as username too)
+            # ═══════════════════════════════════════════════════
+            # Superuser must pick a company from form
+            if not company and request.user.is_superuser:
+                company_id = request.POST.get('company')
+                if company_id:
+                    from .models import Company
+                    company = Company.objects.filter(id=company_id).first()
+
+            if company:
+                prefix = company.code_prefix
+                existing_ids = EmployeeProfile.objects.filter(
+                    company=company, employee_id__startswith=prefix
+                ).values_list('employee_id', flat=True)
+                max_num = 0
+                for emp_id in existing_ids:
+                    try:
+                        num = int(emp_id[len(prefix):])
+                        if num > max_num:
+                            max_num = num
+                    except ValueError:
+                        continue
+                generated_employee_id = f"{prefix}{max_num + 1:04d}"
+            else:
+                generated_employee_id = f"EMP{EmployeeProfile.objects.count() + 1:04d}"
+
+            # ✅ username = employee_id (HR no longer types it)
+            username = generated_employee_id
+
             # ✅ ═══════════════════════════════════════════════════
             # ✅ PASSWORD VALIDATION
-            # ✅ Rejects weak passwords using Django's built-in validators:
-            # ✅   - Minimum 8 characters
-            # ✅   - Not entirely numeric
-            # ✅   - Not a common password
-            # ✅   - Not too similar to username/email
             # ✅ ═══════════════════════════════════════════════════
             password_errors = []
 
@@ -1623,25 +1647,16 @@ def employee_create(request):
             if password_errors:
                 for err in password_errors:
                     form.add_error('password1', err)
-                    # messages.error(request, err)
-                # Skip creation — render form with errors below
             else:
                 # ✅ Password is valid → proceed with normal creation
                 user = User.objects.create_user(
                     username=username, email=email, password=password
                 )
 
-                # ✅ Company already fetched at top — reuse it
-                if not company and request.user.is_superuser:
-                    # Superuser must pick a company from form
-                    company_id = request.POST.get('company')
-                    if company_id:
-                        from .models import Company
-                        company = Company.objects.filter(id=company_id).first()
-
                 profile = EmployeeProfile(
                     user=user,
                     company=company,
+                    employee_id=generated_employee_id,      # ← use pre-generated
                     full_name=form.cleaned_data['full_name'],
                     date_of_birth=form.cleaned_data.get('date_of_birth'),
                     date_of_joining=form.cleaned_data.get('date_of_joining'),
@@ -1653,25 +1668,6 @@ def employee_create(request):
                     office_location=form.cleaned_data.get('office_location'),
                     role=form.cleaned_data.get('role', 'employee'),
                 )
-
-                # Auto-generate employee_id within the company
-                if company:
-                    prefix = company.code_prefix
-                    existing_ids = EmployeeProfile.objects.filter(
-                        company=company, employee_id__startswith=prefix
-                    ).values_list('employee_id', flat=True)
-                    max_num = 0
-                    for emp_id in existing_ids:
-                        try:
-                            num = int(emp_id[len(prefix):])
-                            if num > max_num:
-                                max_num = num
-                        except ValueError:
-                            continue
-                    profile.employee_id = f"{prefix}{max_num + 1:04d}"
-                else:
-                    profile.employee_id = f"EMP{EmployeeProfile.objects.count() + 1:04d}"
-
                 profile.save()
 
                 # Manager assignment
@@ -1708,7 +1704,6 @@ def employee_create(request):
                 for error in errors:
                     messages.error(request, f'{field}: {error}')
     else:
-        # ✅ FIX #3 — GET form also needs company
         form = EmployeeForm(company=company)
 
     # Filter dropdowns by company
@@ -1719,7 +1714,7 @@ def employee_create(request):
         request,
         EmployeeProfile.objects.filter(
             role__in=['manager', 'hr_admin'],
-            is_active=True,                    # ← ADD
+            is_active=True,
         )
     ).order_by('full_name')
 
@@ -1731,6 +1726,7 @@ def employee_create(request):
         'all_managers': all_managers,
     }
     return render(request, 'employee_form.html', context)
+
 
     
 
@@ -4098,7 +4094,7 @@ def regularize_reject(request, req_id):
             notification_type='info',
         )
 
-        messages.success(request, f'Regularization rejected for {reg_req.user.username}.')
+        messages.success(request, f'Regularization rejected for {reg_req.user.profile.full_name}.')
         return redirect('regularize_request_list')
 
     return render(request, 'attendance/regularize_reject.html', {'reg_req': reg_req})
@@ -4235,7 +4231,7 @@ def regularize_approve(request, req_id):
 
         messages.success(
             request,
-            f'Regularization approved for {reg_req.user.username} — {final_status}.'
+            f'Regularization approved for {reg_req.user.profile.full_name} — {final_status}.'
         )
         return redirect('regularize_request_list')
 

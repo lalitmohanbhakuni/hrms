@@ -381,8 +381,8 @@
                                     <tr>
                                         <td>
                                             <div class="lap-emp">
-                                                <div class="lap-avatar">{{ req.user.username|slice:":1"|upper }}</div>
-                                                <span class="name">{{ req.user.username }}</span>
+                                                <div class="lap-avatar">{{ req.user.profile.full_name|default:req.user.username|slice:":1"|upper }}</div>
+                                                <span class="name">{{ req.user.profile.full_name|default:req.user.username }}</span>
                                             </div>
                                         </td>
                                         <td>{{ req.leave_type.name }}</td>

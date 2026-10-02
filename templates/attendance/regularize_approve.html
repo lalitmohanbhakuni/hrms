@@ -306,10 +306,10 @@
 
                     <!-- Employee -->
                     <div class="rap-employee">
-                        <div class="rap-avatar">{{ reg_req.user.username|slice:":1"|upper }}</div>
+                        <div class="rap-avatar">{{ reg_req.user.profile.full_name|slice:":1"|upper }}</div>
                         <div class="rap-employee-info">
                             <div class="rap-employee-label">Employee</div>
-                            <p class="rap-employee-name">{{ reg_req.user.username }}</p>
+                            <p class="rap-employee-name">{{ reg_req.user.profile.full_name|default:reg_req.user.username }}</p>
                         </div>
                     </div>
 

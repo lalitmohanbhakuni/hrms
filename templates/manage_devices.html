@@ -1,117 +1,97 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Manage Devices — {{ employee.full_name }}{% endblock %}
+{% block title %}Devices — {{ employee.full_name }} · HRMS{% endblock %}
+{% block page_icon %}shield-alt{% endblock %}
+{% block page_title %}Device Management{% endblock %}
 
 {% block content %}
-<div class="container py-4">
 
-    <!-- ═══════════════════════════════════════════════════
-         SECTION HEADER
-         ═══════════════════════════════════════════════════ -->
-    <div class="stp-sec mb-4">
-        <div class="stp-sec-left">
-            <a href="{% url 'employee_detail' employee.user.id %}" 
-               class="stp-action" 
-               title="Back to Employee">
-                <i class="las la-arrow-left"></i>
-            </a>
-            <div class="stp-sec-ico">
-                <i class="las la-shield-alt"></i>
-            </div>
-            <div>
-                <h2 class="stp-sec-title">Device Management</h2>
-                <p class="stp-sec-sub">
-                    {{ employee.full_name|default:employee.user.username }} 
-                    <span style="color: var(--stp-text-faint);">·</span>
-                    {{ employee.employee_id }}
-                    <span style="color: var(--stp-text-faint);">·</span>
-                    @{{ employee.user.username }}
-                </p>
-            </div>
-        </div>
-        <div>
-            <a href="{% url 'employee_detail' employee.user.id %}"
-               class="stp-btn stp-btn-ghost">
-                <i class="las la-user"></i> View Profile
-            </a>
-        </div>
+<style>
+   .dev-hero,.dev-hero-back:hover{color:#fff}.dev-stat-label,.dev-table thead th{text-transform:uppercase;letter-spacing:.6px}.dev-hero{background:linear-gradient(135deg,#667eea 0,#764ba2 100%);border-radius:16px;padding:24px 28px;margin-bottom:20px}.dev-hero-back{display:inline-flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);font-size:.8rem;font-weight:600;text-decoration:none;margin-bottom:12px}.dev-hero-title{font-size:1.4rem;font-weight:700;margin:0 0 6px;display:flex;align-items:center;gap:10px}.dev-hero-meta{display:flex;flex-wrap:wrap;gap:16px;font-size:.85rem;opacity:.9}.dev-hero-meta span{display:inline-flex;align-items:center;gap:6px}.dev-stat{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:20px;height:100%;display:flex;align-items:center;gap:16px}.dev-stat-ico{width:52px;height:52px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;flex-shrink:0}.dev-ico.mobile,.dev-stat-ico.mobile{background:#ecfdf5;color:#059669}.dev-ico.laptop,.dev-stat-ico.laptop{background:#eff6ff;color:#2563eb}.dev-stat-body{flex-grow:1;min-width:0}.dev-sec-head,.dev-sec-head h5{display:flex;align-items:center}.dev-stat-label{font-size:.72rem;color:#64748b;font-weight:700;margin-bottom:4px}.dev-stat-value{font-size:1.6rem;font-weight:700;color:#0f172a;line-height:1}.dev-stat-value small{font-size:.8rem;color:#94a3b8;font-weight:500}.dev-sec-head{justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}.dev-sec-head h5{font-size:1rem;font-weight:700;margin:0;color:#0f172a;gap:8px}.dev-ico,.dev-name-cell{display:flex;align-items:center}.dev-sec-head h5 .count{background:#f1f5f9;color:#64748b;border-radius:20px;padding:2px 10px;font-size:.75rem;font-weight:600}.dev-table{width:100%;border-collapse:separate;border-spacing:0;font-size:.875rem}.dev-table thead th{font-size:.7rem;color:#64748b;font-weight:700;padding:12px 16px;background:#f8fafc;border-bottom:1px solid #e2e8f0;text-align:left}.dev-empty h4,.dev-note li strong{color:#0f172a}.dev-table thead th:first-child{border-top-left-radius:12px}.dev-table thead th:last-child{border-top-right-radius:12px;text-align:right}.dev-table tbody td{padding:16px;border-bottom:1px solid #f1f5f9;vertical-align:middle}.dev-table tbody tr:hover{background:#f8fafc}.dev-table tbody tr:last-child td{border-bottom:none}.dev-name-cell{gap:12px}.dev-ico{width:40px;height:40px;border-radius:10px;justify-content:center;font-size:1rem;flex-shrink:0}.dev-name-main{font-weight:600;color:#0f172a;font-size:.88rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px}.dev-primary-tag{display:inline-block;font-size:.6rem;padding:1px 6px;border-radius:4px;background:#eef2ff;color:#4338ca;font-weight:700;letter-spacing:.5px;margin-top:3px}.dev-act-btn,.dev-btn-outline{background:#fff;color:#64748b}.dev-badge{display:inline-flex;align-items:center;gap:5px;font-size:.72rem;padding:3px 10px;border-radius:999px;font-weight:600}.dev-badge.active{background:#dcfce7;color:#15803d}.dev-badge.disabled{background:#f1f5f9;color:#64748b}.dev-act-btn:hover,.dev-btn-outline:hover{background:#f8fafc;color:#334155}.dev-actions{display:flex;justify-content:flex-end;gap:6px}.dev-act-btn,.dev-btn{display:inline-flex;align-items:center;cursor:pointer;transition:.15s}.dev-act-btn{width:34px;height:34px;border-radius:8px;border:1px solid #e2e8f0;justify-content:center;font-size:.95rem}.dev-act-btn:hover{border-color:#cbd5e1}.dev-act-btn.danger:hover{background:#fef2f2;color:#dc2626;border-color:#fecaca}.dev-btn{padding:9px 18px;border-radius:9px;font-size:.82rem;font-weight:600;gap:6px;border:1px solid transparent;text-decoration:none}.dev-btn-outline{border-color:#cbd5e1}.dev-btn-danger{background:#fff;color:#dc2626;border-color:#fecaca}.dev-btn-danger:hover{background:#fef2f2;color:#b91c1c}.dev-btn-white{background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)}.dev-btn-white:hover{background:rgba(255,255,255,.25);color:#fff}.dev-empty{text-align:center;padding:60px 20px}.dev-empty-ico{width:72px;height:72px;margin:0 auto 16px;border-radius:20px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:2rem;color:#94a3b8}.dev-empty h4{font-size:1.05rem;font-weight:700;margin:0 0 6px}.dev-empty p{font-size:.85rem;color:#64748b;margin:0}.dev-note{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px 20px;display:flex;gap:12px;font-size:.82rem;color:#475569;margin-top:20px}.dev-note i{font-size:1.1rem;color:#3b82f6;flex-shrink:0;margin-top:1px}.dev-note ul{margin:6px 0 0;padding-left:18px;line-height:1.7}
+</style>
+
+
+<!-- ═══════════════════════════════════════════
+     HERO
+     ═══════════════════════════════════════════ -->
+<div class="dev-hero">
+    <a href="{% url 'employee_detail' employee.user.id %}" class="dev-hero-back">
+        <i class="las la-arrow-left"></i> Back to Employee
+    </a>
+    <h2 class="dev-hero-title">
+        <i class="las la-shield-alt"></i> Device Management
+    </h2>
+    <div class="dev-hero-meta">
+        <span><i class="las la-user"></i> {{ employee.full_name|default:employee.user.username }}</span>
+        <span><i class="las la-id-badge"></i> {{ employee.employee_id }}</span>
+        {% if employee.designation %}
+        <span><i class="las la-briefcase"></i> {{ employee.designation }}</span>
+        {% endif %}
     </div>
+</div>
 
-    <!-- ═══════════════════════════════════════════════════
-         SUMMARY CARDS
-         ═══════════════════════════════════════════════════ -->
-    <div class="stp-rule-grid mb-4">
-        <div class="stp-card">
-            <div style="padding: 18px 20px;">
-                <div class="stp-rule-lbl">
-                    <i class="las la-mobile"></i> Mobile Devices
-                </div>
-                <div class="num" style="font-size: 1.6rem; font-weight: 600; margin-top: 6px; color: var(--stp-text);">
+
+<!-- ═══════════════════════════════════════════
+     STAT CARDS
+     ═══════════════════════════════════════════ -->
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="dev-stat">
+            <div class="dev-stat-ico mobile">
+                <i class="las la-mobile"></i>
+            </div>
+            <div class="dev-stat-body">
+                <div class="dev-stat-label">Mobile Devices</div>
+                <div class="dev-stat-value">
                     {{ active_mobile }}
-                    <span style="color: var(--stp-text-faint); font-weight: 400; font-size: .85rem;">
-                        / {{ mobile_devices|length }} active
-                    </span>
-                </div>
-                <div class="stp-rule-hint">
-                    {{ mobile_devices|length }} total registered
+                    <small>/ {{ mobile_devices|length }} active</small>
                 </div>
             </div>
         </div>
-        <div class="stp-card">
-            <div style="padding: 18px 20px;">
-                <div class="stp-rule-lbl">
-                    <i class="las la-laptop"></i> Laptop Devices
-                </div>
-                <div class="num" style="font-size: 1.6rem; font-weight: 600; margin-top: 6px; color: var(--stp-text);">
+    </div>
+    <div class="col-md-6">
+        <div class="dev-stat">
+            <div class="dev-stat-ico laptop">
+                <i class="las la-laptop"></i>
+            </div>
+            <div class="dev-stat-body">
+                <div class="dev-stat-label">Laptop Devices</div>
+                <div class="dev-stat-value">
                     {{ active_laptop }}
-                    <span style="color: var(--stp-text-faint); font-weight: 400; font-size: .85rem;">
-                        / {{ laptop_devices|length }} active
-                    </span>
-                </div>
-                <div class="stp-rule-hint">
-                    {{ laptop_devices|length }} total registered
+                    <small>/ {{ laptop_devices|length }} active</small>
                 </div>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- ═══════════════════════════════════════════════════
-         ACTION BAR
-         ═══════════════════════════════════════════════════ -->
+
+<!-- ═══════════════════════════════════════════
+     DEVICES SECTION
+     ═══════════════════════════════════════════ -->
+<div class="dev-sec-head">
+    <h5>
+        <i class="las la-microchip"></i> Registered Devices
+        <span class="count">{{ devices|length }}</span>
+    </h5>
     {% if devices %}
-    <div class="stp-sec" style="margin-bottom: 14px;">
-        <div class="stp-sec-left">
-            <h3 class="stp-sec-title" style="font-size: .9rem;">
-                Registered Devices
-            </h3>
-            <span class="num" style="font-size: .8rem; color: var(--stp-text-faint);">
-                {{ devices|length }}
-            </span>
-        </div>
-        <div>
-            <form method="POST" 
-                  onsubmit="return confirm('Reset ALL active devices for {{ employee.user.username }}?\n\nThey will need to re-register from scratch.');"
-                  style="margin: 0;">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="reset_all">
-                <button type="submit" 
-                        class="stp-btn stp-btn-ghost" 
-                        style="color: var(--stp-danger); border-color: var(--stp-danger);">
-                    <i class="las la-redo-alt"></i> Reset All Devices
-                </button>
-            </form>
-        </div>
-    </div>
+    <form method="POST"
+          onsubmit="return confirm('Reset ALL active devices for {{ employee.user.username }}?\n\nThey will need to re-register from scratch.');"
+          style="margin: 0;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="reset_all">
+        <button type="submit" class="dev-btn dev-btn-danger">
+            <i class="las la-redo-alt"></i> Reset All Devices
+        </button>
+    </form>
     {% endif %}
+</div>
 
-    <!-- ═══════════════════════════════════════════════════
-         DEVICE LIST
-         ═══════════════════════════════════════════════════ -->
-    <div class="stp-card">
-        {% if devices %}
-
-        <table class="stp-table">
+<div style="background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden;">
+    {% if devices %}
+    <div style="overflow-x:auto;">
+        <table class="dev-table">
             <thead>
                 <tr>
                     <th>Device</th>
@@ -119,106 +99,81 @@
                     <th>Registered</th>
                     <th>Last Used</th>
                     <th>Status</th>
-                    <th style="text-align: right;">Actions</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
                 {% for d in devices %}
                 <tr>
-                    <!-- ─── Device Name + Icon ─── -->
                     <td>
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            <div class="stp-sec-ico" 
-                                 style="width: 36px; height: 36px; font-size: .9rem; flex-shrink: 0;
-                                 {% if d.device_type == 'mobile' %}
-                                     background: #ecfdf5; color: #059669;
-                                 {% else %}
-                                     background: #eff6ff; color: #2563eb;
-                                 {% endif %}">
+                        <div class="dev-name-cell">
+                            <div class="dev-ico {% if d.device_type == 'mobile' %}mobile{% else %}laptop{% endif %}">
                                 <i class="las {% if d.device_type == 'mobile' %}la-mobile{% else %}la-laptop{% endif %}"></i>
                             </div>
-                            <div style="min-width: 0;">
-                                <div class="name" style="font-size: .84rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px;">
+                            <div style="min-width:0;">
+                                <div class="dev-name-main">
                                     {{ d.device_name|default:"Unknown Device"|truncatechars:50 }}
                                 </div>
                                 {% if d.is_primary %}
-                                <span style="display: inline-block; font-size: .65rem; padding: 1px 7px; border-radius: 4px; background: var(--stp-primary-soft); color: var(--stp-primary); font-weight: 600; letter-spacing: .04em; margin-top: 3px;">
-                                    PRIMARY
-                                </span>
+                                    <span class="dev-primary-tag">PRIMARY</span>
                                 {% endif %}
                             </div>
                         </div>
                     </td>
-
-                    <!-- ─── Type ─── -->
-                    <td>
-                        <span style="font-size: .8rem; font-weight: 500;">
-                            {{ d.get_device_type_display }}
-                        </span>
+                    <td style="font-weight:500; color:#334155;">
+                        {{ d.get_device_type_display }}
                     </td>
-
-                    <!-- ─── Registered ─── -->
-                    <td>
-                        <span class="muted" style="font-size: .78rem; font-variant-numeric: tabular-nums;">
-                            {{ d.registered_at|date:"d M Y" }}
-                        </span>
+                    <td style="color:#64748b; font-variant-numeric: tabular-nums;">
+                        {{ d.registered_at|date:"d M Y" }}
                     </td>
-
-                    <!-- ─── Last Used ─── -->
-                    <td>
-                        <span class="muted" style="font-size: .78rem;">
-                            {% if d.last_used_at %}
-                                {{ d.last_used_at|timesince }} ago
-                            {% else %}
-                                <span style="color: var(--stp-text-faint);">Never</span>
-                            {% endif %}
-                        </span>
-                    </td>
-
-                    <!-- ─── Status Badge ─── -->
-                    <td>
-                        {% if d.is_active %}
-                        <span style="display: inline-flex; align-items: center; gap: 5px; font-size: .72rem; padding: 3px 10px; border-radius: 999px; background: var(--stp-success-soft); color: var(--stp-success); font-weight: 600;">
-                            <i class="las la-check-circle"></i> Active
-                        </span>
+                    <td style="color:#64748b;">
+                        {% if d.last_used_at %}
+                            {{ d.last_used_at|timesince }} ago
                         {% else %}
-                        <span style="display: inline-flex; align-items: center; gap: 5px; font-size: .72rem; padding: 3px 10px; border-radius: 999px; background: var(--stp-surface-3); color: var(--stp-text-faint); font-weight: 600;">
-                            <i class="las la-ban"></i> Disabled
-                        </span>
+                            <span style="color:#94a3b8;">Never</span>
                         {% endif %}
                     </td>
-
-                    <!-- ─── Actions ─── -->
-                    <td style="text-align: right;">
-                        <div class="stp-actions" style="justify-content: flex-end;">
+                    <td>
+                        {% if d.is_active %}
+                            <span class="dev-badge active">
+                                <i class="las la-check-circle"></i> Active
+                            </span>
+                        {% else %}
+                            <span class="dev-badge disabled">
+                                <i class="las la-ban"></i> Disabled
+                            </span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="dev-actions">
                             {% if d.is_active %}
-                            <form method="POST" style="display: inline; margin: 0;"
+                            <form method="POST" style="margin:0;"
                                   onsubmit="return confirm('Deactivate this device?\n\nEmployee won\'t be able to use it, but history is preserved.');">
                                 {% csrf_token %}
                                 <input type="hidden" name="action" value="deactivate">
                                 <input type="hidden" name="device_id" value="{{ d.id }}">
-                                <button type="submit" class="stp-action" title="Deactivate">
+                                <button type="submit" class="dev-act-btn" title="Deactivate">
                                     <i class="las la-ban"></i>
                                 </button>
                             </form>
                             {% else %}
-                            <form method="POST" style="display: inline; margin: 0;"
+                            <form method="POST" style="margin:0;"
                                   onsubmit="return confirm('Reactivate this device?');">
                                 {% csrf_token %}
                                 <input type="hidden" name="action" value="reactivate">
                                 <input type="hidden" name="device_id" value="{{ d.id }}">
-                                <button type="submit" class="stp-action" title="Reactivate">
+                                <button type="submit" class="dev-act-btn" title="Reactivate">
                                     <i class="las la-check-circle"></i>
                                 </button>
                             </form>
                             {% endif %}
 
-                            <form method="POST" style="display: inline; margin: 0;"
+                            <form method="POST" style="margin:0;"
                                   onsubmit="return confirm('Delete this device permanently?\n\nThis action cannot be undone.');">
                                 {% csrf_token %}
                                 <input type="hidden" name="action" value="delete">
                                 <input type="hidden" name="device_id" value="{{ d.id }}">
-                                <button type="submit" class="stp-action delete" title="Delete permanently">
+                                <button type="submit" class="dev-act-btn danger" title="Delete permanently">
                                     <i class="las la-trash"></i>
                                 </button>
                             </form>
@@ -228,52 +183,40 @@
                 {% endfor %}
             </tbody>
         </table>
-
-        {% else %}
-
-        <!-- ═══════════════════════════════════════════════════
-             EMPTY STATE
-             ═══════════════════════════════════════════════════ -->
-        <div class="stp-empty">
-            <div class="stp-empty-ico">
-                <i class="las la-shield-alt"></i>
-            </div>
-            <h4 class="stp-empty-title">No Devices Registered</h4>
-            <p class="stp-empty-sub">
-                {{ employee.full_name|default:employee.user.username }} 
-                has not registered any device yet.
-            </p>
-        </div>
-
-        {% endif %}
     </div>
 
-    <!-- ═══════════════════════════════════════════════════
-         INFO NOTE
-         ═══════════════════════════════════════════════════ -->
-    <div class="stp-note" style="margin-top: 20px;">
-        <i class="las la-info-circle"></i>
-        <div>
-            <strong>Actions explained:</strong>
-            <ul style="margin: 6px 0 0; padding-left: 18px; line-height: 1.7;">
-                <li>
-                    <strong>Deactivate</strong> — Device temporarily disabled. 
-                    Employee can't use it but history is preserved.
-                </li>
-                <li>
-                    <strong>Reactivate</strong> — Re-enable a previously disabled device.
-                </li>
-                <li>
-                    <strong>Delete</strong> — Permanently remove device. 
-                    Use only when employee changed device permanently.
-                </li>
-                <li>
-                    <strong>Reset All</strong> — Deactivate all devices at once. 
-                    Employee must re-register from scratch.
-                </li>
-            </ul>
+    {% else %}
+
+    <!-- Empty state -->
+    <div class="dev-empty">
+        <div class="dev-empty-ico">
+            <i class="las la-shield-alt"></i>
         </div>
+        <h4>No Devices Registered</h4>
+        <p>
+            {{ employee.full_name|default:employee.user.username }}
+            has not registered any device yet.
+        </p>
     </div>
 
+    {% endif %}
 </div>
+
+
+<!-- ═══════════════════════════════════════════
+     INFO NOTE
+     ═══════════════════════════════════════════ -->
+<div class="dev-note">
+    <i class="las la-info-circle"></i>
+    <div>
+        <strong>Actions explained:</strong>
+        <ul>
+            <li><strong>Deactivate</strong> — Device temporarily disabled. Employee can't use it but history is preserved.</li>
+            <li><strong>Reactivate</strong> — Re-enable a previously disabled device.</li>
+            <li><strong>Delete</strong> — Permanently remove device. Use only when employee changed device permanently.</li>
+            <li><strong>Reset All</strong> — Deactivate all devices at once. Employee must re-register from scratch.</li>
+        </ul>
+    </div>
+</div>
+
 {% endblock %}

@@ -9,7 +9,7 @@ from django.contrib.auth.password_validation import validate_password
 
 class EmployeeForm(forms.ModelForm):
     # User fields
-    username = forms.CharField(max_length=150, required=True, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    # username = forms.CharField(max_length=150, required=True, widget=forms.TextInput(attrs={'class': 'form-control'}))
     email = forms.EmailField(required=False, widget=forms.EmailInput(attrs={'class': 'form-control'}))
     password1 = forms.CharField(label='Password', widget=forms.PasswordInput(attrs={'class': 'form-control'}), required=False)
     password2 = forms.CharField(label='Confirm Password', widget=forms.PasswordInput(attrs={'class': 'form-control'}), required=False)
@@ -66,11 +66,11 @@ class EmployeeForm(forms.ModelForm):
             self.fields['office_location'].queryset = OfficeLocation.objects.none()
             self.fields['manager'].queryset = EmployeeProfile.objects.none()
 
-    def clean_username(self):
-        username = self.cleaned_data.get('username')
-        if User.objects.filter(username=username).exists():
-            raise forms.ValidationError('Username already exists.')
-        return username
+    # def clean_username(self):
+    #     username = self.cleaned_data.get('username')
+    #     if User.objects.filter(username=username).exists():
+    #         raise forms.ValidationError('Username already exists.')
+    #     return username
 
     def clean_email(self):
         email = self.cleaned_data.get('email')
@@ -103,7 +103,7 @@ class EmployeeForm(forms.ModelForm):
             raise ValueError("EmployeeForm.save() requires employee_id=")
 
         user = User.objects.create_user(
-            username=self.cleaned_data['username'],
+            username=employee_id,                          # ← employee_id as username
             email=self.cleaned_data.get('email') or '',
             password=self.cleaned_data['password1'],
         )

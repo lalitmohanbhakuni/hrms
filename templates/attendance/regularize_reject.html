@@ -295,10 +295,10 @@
 
                     <!-- Employee -->
                     <div class="rrj-employee">
-                        <div class="rrj-avatar">{{ reg_req.user.username|slice:":1"|upper }}</div>
+                        <div class="rrj-avatar">{{ reg_req.user.profile.full_name|slice:":1"|upper }}</div>
                         <div class="rrj-employee-info">
                             <div class="rrj-employee-label">Employee</div>
-                            <p class="rrj-employee-name">{{ reg_req.user.username }}</p>
+                            <p class="rrj-employee-name">{{ reg_req.user.profile.full_name|default:reg_req.user.username }}</p>
                         </div>
                     </div>
 

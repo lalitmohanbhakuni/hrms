@@ -146,7 +146,7 @@
                         </a>
                     {% endif %}
 
-                    {% if profile.company.device_tracking_enabled %}
+                    {% if request.user.profile.company.device_tracking_enabled %}
 
                         <a href="{% url 'pending_device_approvals' %}" class="nav-item {% if 'device-approvals' in request.path %}active{% endif %}">
                             <i class="las la-user-shield"></i>
