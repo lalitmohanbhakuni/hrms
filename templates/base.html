@@ -37,6 +37,10 @@
             max-width: 100%;
             min-width: 0;
         }
+        .dd.tab-pane {
+            max-height: 340px;
+            overflow: auto;
+        }
 
     </style>
 
@@ -207,7 +211,7 @@
                             <div class="tab-content">
 
                             {# ═══════════════ INFORMATION TAB ═══════════════ #}
-                            <div class="tab-pane active" id="notifPane">
+                            <div class="dd tab-pane active" id="notifPane">
                                 {% with info_notifs=notifications|filter_info_notifications|filter_unread %}
                                     {% if info_notifs %}
                                         {% for notif in info_notifs %}
@@ -229,7 +233,7 @@
 
                             {# ═══════════════ ACTIONS TAB ═══════════════ #}
                             {% if user|is_admin_or_hr %}
-                                <div class="tab-pane" id="actionPane">
+                                <div class="dd tab-pane" id="actionPane">
                                     <div id="pendingActionsList">
 
                                         {# ─── Password Reset Requests ─── #}

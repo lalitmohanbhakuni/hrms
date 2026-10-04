@@ -310,109 +310,249 @@
 
 
         {# ═══════════ Late Deductions tab ═══════════ #}
-        {% if tab == 'late-deductions' %}
-        <div class="mlv-lt-card">
+{% if tab == 'late-deductions' %}
+<div class="mlv-lt-card">
 
-            <div class="mlv-lt-hd">
-                <h6 class="mlv-lt-title">
-                    <i class="las la-clock"></i>
-                    My Late Deduction History
-                </h6>
-                <span class="mlv-lt-count">
-                    {{ late_deductions|length }} transaction{{ late_deductions|length|pluralize }}
-                </span>
-            </div>
-
-            {% if late_deductions %}
-            <div class="mlv-lt-table-wrap">
-                <table class="mlv-lt-table">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Type</th>
-                            <th class="center">Penalty</th>
-                            <th>Details</th>
-                            <th class="right">Amount</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for d in late_deductions %}
-                        <tr>
-                            <td class="mlv-lt-date">{{ d.attendance_date|date:"d M Y" }}</td>
-
-                            <td>
-                                {% if d.deduction_type == 'LEAVE' %}
-                                    <span class="mlv-lt-badge leave">
-                                        <i class="las la-calendar-minus"></i> Leave
-                                    </span>
-                                {% else %}
-                                    <span class="mlv-lt-badge salary">
-                                        <i class="las la-rupee-sign"></i> Salary
-                                    </span>
-                                {% endif %}
-                            </td>
-
-                            <td class="mlv-lt-penalty">
-                                {{ d.penalty_days|floatformat:"-2" }} day
-                            </td>
-
-                            <td class="mlv-lt-details">
-                                {% if d.deduction_type == 'LEAVE' %}
-                                    {% if d.leave_type %}
-                                        Deducted from <strong>{{ d.leave_type.name }}</strong>
-                                    {% else %}
-                                        Leave deduction
-                                    {% endif %}
-                                {% else %}
-                                    {% if d.payroll %}
-                                        Included in payslip {{ d.payroll.month|stringformat:"02d" }}/{{ d.payroll.year }}
-                                    {% else %}
-                                        Pending in payroll
-                                    {% endif %}
-                                {% endif %}
-                            </td>
-
-                            <td class="mlv-lt-amount {% if not d.salary_amount %}empty{% endif %}">
-                                {% if d.salary_amount > 0 %}
-                                    −₹{{ d.salary_amount|floatformat:2 }}
-                                {% else %}
-                                    —
-                                {% endif %}
-                            </td>
-
-                            <td>
-                                {% if d.status == 'APPLIED' %}
-                                    <span class="mlv-lt-badge applied">
-                                        <i class="las la-check"></i> Applied
-                                    </span>
-                                {% elif d.status == 'PENDING_PAYROLL' %}
-                                    <span class="mlv-lt-badge pending">
-                                        <i class="las la-hourglass-half"></i> Pending
-                                    </span>
-                                {% elif d.status == 'PROCESSED' %}
-                                    <span class="mlv-lt-badge processed">
-                                        <i class="las la-check-double"></i> Processed
-                                    </span>
-                                {% else %}
-                                    <span style="color:#94a3b8;">{{ d.status }}</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-            <div class="mlv-lt-empty">
-                <div class="mlv-lt-empty-ico"><i class="las la-inbox"></i></div>
-                <p class="mlv-lt-empty-title">No late deductions</p>
-                <p class="mlv-lt-empty-sub">You have no late penalty deductions yet.</p>
-            </div>
-            {% endif %}
-
+    <!-- ═════════ MONTH NAVIGATOR ═════════ -->
+    <div class="mlv-lt-month-nav">
+        <a href="?tab=late-deductions&month={{ prev_month }}&year={{ prev_year }}"
+           class="mlv-lt-nav-btn" title="Previous month">
+            <i class="fas fa-chevron-left"></i>
+        </a>
+        <div class="mlv-lt-month-label">
+            <!-- <i class="las la-calendar-alt"></i> -->
+            {{ month_name }}
         </div>
+        {% if is_future %}
+        <span class="mlv-lt-nav-btn disabled">
+            <i class="fas fa-chevron-right"></i>
+        </span>
+        {% else %}
+        <a href="?tab=late-deductions&month={{ next_month }}&year={{ next_year }}"
+           class="mlv-lt-nav-btn" title="Next month">
+            <i class="fas fa-chevron-right"></i>
+        </a>
         {% endif %}
+    </div>
+
+    <!-- ═════════ MONTH SUMMARY ═════════ -->
+    {% if month_summary.total_transactions > 0 %}
+    <div class="mlv-lt-summary">
+        <div class="mlv-lt-sum-item">
+            <div class="mlv-lt-sum-lbl">Total Penalty</div>
+            <div class="mlv-lt-sum-val">
+                {{ month_summary.total_penalty_days|floatformat:"-2" }}
+                <small>day{{ month_summary.total_penalty_days|pluralize }}</small>
+            </div>
+        </div>
+        <div class="mlv-lt-sum-item">
+            <div class="mlv-lt-sum-lbl">Leave Deducted</div>
+            <div class="mlv-lt-sum-val clr-leave">
+                {{ month_summary.leave_days|floatformat:"-2" }}
+                <small>day{{ month_summary.leave_days|pluralize }}</small>
+            </div>
+        </div>
+        <div class="mlv-lt-sum-item">
+            <div class="mlv-lt-sum-lbl">LOP Days</div>
+            <div class="mlv-lt-sum-val clr-lop">
+                {{ month_summary.lop_days|floatformat:"-2" }}
+                <small>day{{ month_summary.lop_days|pluralize }}</small>
+            </div>
+        </div>
+        <div class="mlv-lt-sum-item">
+            <div class="mlv-lt-sum-lbl">Salary Cut</div>
+            <div class="mlv-lt-sum-val clr-salary">
+                ₹{{ month_summary.salary_amount|floatformat:2 }}
+            </div>
+        </div>
+        <div class="mlv-lt-sum-item">
+            <div class="mlv-lt-sum-lbl">Transactions</div>
+            <div class="mlv-lt-sum-val">
+                {{ month_summary.total_transactions }}
+                <small>
+                    {{ month_summary.applied_count }} applied{% if month_summary.pending_count %} · {{ month_summary.pending_count }} pending{% endif %}
+                </small>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ═════════ TABLE ═════════ -->
+    {% if late_deductions %}
+    <div class="mlv-lt-table-wrap">
+        <table class="mlv-lt-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th class="center">Penalty</th>
+                    <th>Details</th>
+                    <th class="right">Amount</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in late_deductions %}
+                <tr>
+                    <td class="mlv-lt-date">{{ d.attendance_date|date:"d M Y" }}</td>
+
+                    <td>
+                        {% if d.deduction_type == 'LEAVE' %}
+                            <span class="mlv-lt-badge leave">
+                                <i class="las la-calendar-minus"></i> Leave
+                            </span>
+                        {% else %}
+                            <span class="mlv-lt-badge salary">
+                                <i class="las la-rupee-sign"></i> Salary
+                            </span>
+                        {% endif %}
+                    </td>
+
+                    <td class="mlv-lt-penalty">
+                        {{ d.penalty_days|floatformat:"-2" }} day
+                    </td>
+
+                    <td class="mlv-lt-details">
+                        {% if d.deduction_type == 'LEAVE' %}
+                            {% if d.leave_type %}
+                                Deducted from <strong>{{ d.leave_type.name }}</strong>
+                            {% else %}
+                                Leave deduction
+                            {% endif %}
+                        {% else %}
+                            {% if d.payroll %}
+                                Included in payslip {{ d.payroll.month|stringformat:"02d" }}/{{ d.payroll.year }}
+                            {% else %}
+                                Pending in payroll
+                            {% endif %}
+                        {% endif %}
+                    </td>
+
+                    <td class="mlv-lt-amount {% if not d.salary_amount %}empty{% endif %}">
+                        {% if d.salary_amount > 0 %}
+                            −₹{{ d.salary_amount|floatformat:2 }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        {% if d.status == 'APPLIED' %}
+                            <span class="mlv-lt-badge applied">
+                                <i class="las la-check"></i> Applied
+                            </span>
+                        {% elif d.status == 'PENDING_PAYROLL' %}
+                            <span class="mlv-lt-badge pending">
+                                <i class="las la-hourglass-half"></i> Pending
+                            </span>
+                        {% elif d.status == 'PROCESSED' %}
+                            <span class="mlv-lt-badge processed">
+                                <i class="las la-check-double"></i> Processed
+                            </span>
+                        {% else %}
+                            <span style="color:#94a3b8;">{{ d.status }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="mlv-lt-empty">
+        <div class="mlv-lt-empty-ico"><i class="las la-inbox"></i></div>
+        <p class="mlv-lt-empty-title">No late deductions in {{ month_name }}</p>
+        <p class="mlv-lt-empty-sub">Nothing was deducted for this month.</p>
+    </div>
+    {% endif %}
+
+</div>
+{% endif %}
+
+<style>
+    /* ─── Month Navigator ─── */
+    .mlv-lt-month-nav {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        padding: 16px 20px;
+        border-bottom: 1px solid #f1f5f9;
+        background: #fafbfc;
+    }
+    .mlv-lt-nav-btn {
+        width: 36px;
+        height: 36px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 10px;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        color: #475569;
+        font-size: 1rem;
+        text-decoration: none;
+        transition: all 0.15s;
+    }
+    .mlv-lt-nav-btn:hover {
+        background: #f8fafc;
+        color: #0f172a;
+        border-color: #cbd5e1;
+    }
+    .mlv-lt-nav-btn.disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
+    .mlv-lt-month-label {
+        font-weight: 700;
+        font-size: 0.95rem;
+        color: #0f172a;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 140px;
+        justify-content: center;
+    }
+    .mlv-lt-month-label i { color: #3b82f6; }
+
+    /* ─── Summary Cards ─── */
+    .mlv-lt-summary {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        border-bottom: 1px solid #f1f5f9;
+    }
+    .mlv-lt-sum-item {
+        padding: 14px 16px;
+        border-right: 1px solid #f1f5f9;
+    }
+    .mlv-lt-sum-item:last-child { border-right: none; }
+    .mlv-lt-sum-lbl {
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #64748b;
+        font-weight: 700;
+        margin-bottom: 4px;
+    }
+    .mlv-lt-sum-val {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #0f172a;
+        line-height: 1.2;
+    }
+    .mlv-lt-sum-val small {
+        font-size: 0.7rem;
+        color: #94a3b8;
+        font-weight: 500;
+        display: block;
+        margin-top: 2px;
+    }
+    .mlv-lt-sum-val.clr-leave  { color: #2563eb; }
+    .mlv-lt-sum-val.clr-lop    { color: #dc2626; }
+    .mlv-lt-sum-val.clr-salary { color: #b45309; }
+</style>
+
 
 
     </div>

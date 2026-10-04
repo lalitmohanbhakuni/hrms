@@ -1762,7 +1762,6 @@ def employee_edit(request, user_id):
         messages.info(request, f'Profile was missing – created a default profile for {user.username}.')
 
     if request.method == 'POST':
-        user.username = request.POST.get('username')
         user.email = request.POST.get('email')
         password1 = request.POST.get('password1')
         password2 = request.POST.get('password2')
@@ -2157,8 +2156,10 @@ def holiday_delete(request, pk):
 
 @login_required
 def employee_leaves(request):
-    from .utils import get_leave_balance, get_late_deduction_history
+    from .utils import get_leave_balance
     from .models import LateDeduction
+    from django.db.models import Sum
+    from datetime import date
 
     user = request.user
     tab = request.GET.get('tab', 'status')
@@ -2187,14 +2188,54 @@ def employee_leaves(request):
 
     holidays = get_company_filtered(request, Holiday.objects.all()).order_by('date')
 
-    # ── Employee's own late deduction transactions ──
+    # ── Month selector for late-deductions tab ──
+    today = date.today()
+    try:
+        sel_month = int(request.GET.get('month', today.month))
+        sel_year  = int(request.GET.get('year',  today.year))
+        if not (1 <= sel_month <= 12) or not (2000 <= sel_year <= 2100):
+            raise ValueError
+    except (TypeError, ValueError):
+        sel_month, sel_year = today.month, today.year
+
+    prev_month = sel_month - 1 if sel_month > 1 else 12
+    prev_year  = sel_year if sel_month > 1 else sel_year - 1
+    next_month = sel_month + 1 if sel_month < 12 else 1
+    next_year  = sel_year if sel_month < 12 else sel_year + 1
+    is_future  = (sel_year, sel_month) > (today.year, today.month)
+    month_name = date(sel_year, sel_month, 1).strftime('%b %Y')
+
+    # ── Employee's own late deduction transactions (month-scoped) ──
     profile = getattr(user, 'profile', None)
     if profile:
-        late_deductions = LateDeduction.objects.filter(
+        base_qs = LateDeduction.objects.filter(
             employee=profile,
-        ).select_related('leave_type', 'payroll').order_by('-attendance_date')[:100]
+        ).exclude(status='CANCELLED')
     else:
-        late_deductions = LateDeduction.objects.none()
+        base_qs = LateDeduction.objects.none()
+
+    late_deductions = base_qs.filter(
+        attendance_date__year=sel_year,
+        attendance_date__month=sel_month,
+    ).select_related('leave_type', 'payroll').order_by('-attendance_date')
+
+    # ── Month summary ──
+    def _sum(qs, field):
+        return qs.aggregate(s=Sum(field))['s'] or 0
+
+    leave_only  = late_deductions.filter(deduction_type='LEAVE')
+    salary_only = late_deductions.filter(deduction_type='SALARY')
+
+    month_summary = {
+        'total_transactions': late_deductions.count(),
+        'total_penalty_days': _sum(late_deductions, 'penalty_days'),
+        'leave_days':         _sum(leave_only, 'leave_days'),
+        'lop_days':           _sum(salary_only, 'lop_days'),
+        'salary_amount':      _sum(salary_only, 'salary_amount'),
+        'applied_count':      late_deductions.filter(status='APPLIED').count(),
+        'pending_count':      late_deductions.filter(status='PENDING_PAYROLL').count(),
+        'processed_count':    late_deductions.filter(status='PROCESSED').count(),
+    }
 
     context = {
         'tab': tab,
@@ -2202,7 +2243,17 @@ def employee_leaves(request):
         'requests': requests,
         'holidays': holidays,
         'filter_status': filter_status,
-        'late_deductions': late_deductions,   # ← NEW
+        'late_deductions': late_deductions,
+        'month_summary': month_summary,
+        'sel_month': sel_month,
+        'sel_year': sel_year,
+        'month_name': month_name,
+        'prev_month': prev_month,
+        'prev_year': prev_year,
+        'next_month': next_month,
+        'next_year': next_year,
+        'is_future': is_future,
+        'today': today,
     }
     return render(request, 'employee_leaves.html', context)
     
