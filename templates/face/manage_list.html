@@ -1,0 +1,267 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Face Management{% endblock %}
+{% block page_icon %}user-check{% endblock %}
+{% block page_title %}Face Management{% endblock %}
+
+{% block content %}
+
+<style>
+    .fm-wrap { max-width: 1200px; margin: 0 auto; }
+    .fm-hero {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 16px;
+        padding: 24px 28px;
+        color: #fff;
+        margin-bottom: 20px;
+    }
+    .fm-hero h2 { font-size: 1.3rem; font-weight: 700; margin: 0 0 4px; }
+    .fm-hero p { font-size: 0.88rem; opacity: 0.9; margin: 0; }
+
+    .fm-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+    .fm-stat {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        padding: 18px;
+    }
+    .fm-stat-label {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #64748b;
+        font-weight: 700;
+        margin-bottom: 4px;
+    }
+    .fm-stat-value {
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: #0f172a;
+    }
+    .fm-stat-value.ok    { color: #10b981; }
+    .fm-stat-value.warn  { color: #f59e0b; }
+    .fm-stat-value.err   { color: #ef4444; }
+
+    .fm-filter {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+    }
+    .fm-filter input,
+    .fm-filter select {
+        padding: 8px 14px;
+        border: 1px solid #cbd5e1;
+        border-radius: 9px;
+        font-size: 0.85rem;
+    }
+    .fm-filter input { min-width: 240px; }
+
+    .fm-table-wrap {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        overflow: hidden;
+    }
+    .fm-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.875rem;
+    }
+    .fm-table thead th {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        color: #64748b;
+        font-weight: 700;
+        padding: 12px 16px;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+        text-align: left;
+    }
+    .fm-table tbody td {
+        padding: 14px 16px;
+        border-bottom: 1px solid #f1f5f9;
+        vertical-align: middle;
+    }
+    .fm-table tbody tr:hover { background: #f8fafc; }
+    .fm-table tbody tr:last-child td { border-bottom: none; }
+
+    .fm-emp { font-weight: 600; color: #0f172a; }
+    .fm-emp small { display: block; color: #94a3b8; font-size: 0.75rem; font-weight: 500; }
+
+    .fm-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 0.72rem;
+        padding: 3px 10px;
+        border-radius: 999px;
+        font-weight: 600;
+    }
+    .fm-badge.ok      { background: #dcfce7; color: #166534; }
+    .fm-badge.missing { background: #fef3c7; color: #92400e; }
+
+    .fm-actions {
+        display: flex;
+        gap: 6px;
+        justify-content: flex-end;
+    }
+    .fm-btn {
+        padding: 7px 14px;
+        border-radius: 8px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        text-decoration: none;
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        color: #475569;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .fm-btn:hover { background: #f8fafc; color: #0f172a; }
+    .fm-btn.primary {
+        background: #eef2ff;
+        color: #4338ca;
+        border-color: #c7d2fe;
+    }
+    .fm-btn.primary:hover { background: #e0e7ff; }
+    .fm-btn.danger {
+        color: #dc2626;
+        border-color: #fecaca;
+    }
+    .fm-btn.danger:hover { background: #fef2f2; }
+
+    .fm-empty {
+        padding: 60px 20px;
+        text-align: center;
+        color: #94a3b8;
+    }
+    .fm-empty i { font-size: 3rem; opacity: 0.5; }
+</style>
+
+<div class="fm-wrap">
+
+    <!-- ═══════ HERO ═══════ -->
+    <div class="fm-hero">
+        <h2><i class="las la-user-check"></i> Face Management</h2>
+        <p>Register, view, or delete employee face credentials. Only HR Admin can access this page.</p>
+    </div>
+
+    <!-- ═══════ STATS ═══════ -->
+    <div class="fm-stats">
+        <div class="fm-stat">
+            <div class="fm-stat-label">Total Employees</div>
+            <div class="fm-stat-value">{{ total_employees }}</div>
+        </div>
+        <div class="fm-stat">
+            <div class="fm-stat-label">Registered</div>
+            <div class="fm-stat-value ok">{{ total_registered }}</div>
+        </div>
+        <div class="fm-stat">
+            <div class="fm-stat-label">Not Registered</div>
+            <div class="fm-stat-value {% if total_missing %}warn{% endif %}">{{ total_missing }}</div>
+        </div>
+    </div>
+
+    <!-- ═══════ FILTER ═══════ -->
+    <form method="get" class="fm-filter">
+        <input type="text" name="search" placeholder="Search by name or employee ID..."
+               value="{{ search }}">
+        <select name="status">
+            <option value="all" {% if filter_status == 'all' %}selected{% endif %}>All employees</option>
+            <option value="registered" {% if filter_status == 'registered' %}selected{% endif %}>Only registered</option>
+            <option value="missing" {% if filter_status == 'missing' %}selected{% endif %}>Only not registered</option>
+        </select>
+        <button type="submit" class="fm-btn primary">
+            <i class="las la-search"></i> Filter
+        </button>
+        {% if search or filter_status != 'all' %}
+        <a href="{% url 'face_manage_list' %}" class="fm-btn">
+            <i class="las la-times"></i> Clear
+        </a>
+        {% endif %}
+    </form>
+
+    <!-- ═══════ TABLE ═══════ -->
+    <div class="fm-table-wrap">
+        {% if employee_rows %}
+        <table class="fm-table">
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Face Status</th>
+                    <th>Registered</th>
+                    <th>Matches</th>
+                    <th>Failures</th>
+                    <th style="text-align:right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in employee_rows %}
+                <tr>
+                    <td>
+                        <div class="fm-emp">
+                            {{ row.employee.full_name }}
+                            <small>{{ row.employee.employee_id }} · {{ row.employee.designation|default:"—" }}</small>
+                        </div>
+                    </td>
+                    <td>
+                        {% if row.has_face %}
+                            <span class="fm-badge ok"><i class="las la-check-circle"></i> Registered</span>
+                        {% else %}
+                            <span class="fm-badge missing"><i class="las la-exclamation-circle"></i> Not registered</span>
+                        {% endif %}
+                    </td>
+                    <td style="color:#64748b; font-size:0.82rem;">
+                        {% if row.registered_at %}
+                            {{ row.registered_at|date:"d M Y" }}<br>
+                            <small style="color:#94a3b8;">{{ row.registered_at|date:"H:i" }}</small>
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                    <td style="color:#10b981; font-weight:600;">{{ row.match_count }}</td>
+                    <td style="color:{% if row.fail_count %} #ef4444 {% else %} #64748b {% endif %}; font-weight:600;">{{ row.fail_count }}</td>
+                    <td>
+                        <div class="fm-actions">
+                            {% if row.has_face %}
+                                <a href="{% url 'face_manage' row.employee.user_id %}" class="fm-btn">
+                                    <i class="las la-info-circle"></i> View
+                                </a>
+                                <a href="{% url 'face_register' row.employee.user_id %}" class="fm-btn primary">
+                                    <i class="las la-redo-alt"></i> Re-register
+                                </a>
+                            {% else %}
+                                <a href="{% url 'face_register' row.employee.user_id %}" class="fm-btn primary">
+                                    <i class="las la-plus"></i> Register Face
+                                </a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="fm-empty">
+            <i class="las la-user-slash"></i>
+            <h4 style="color:#0f172a; margin-top:12px;">No employees found</h4>
+            <p>Try a different search or filter.</p>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+
+{% endblock %}

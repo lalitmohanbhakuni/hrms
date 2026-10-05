@@ -285,7 +285,12 @@ DATETIME_FORMAT = 'd M Y h:i:s A'
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# Use compressed + hashed names in production; simple storage in dev
+if IS_PRODUCTION:
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+else:
+    STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
 
 
 # ═══════════════════════════════════════════════════════════
@@ -444,7 +449,7 @@ CONTENT_SECURITY_POLICY = {
 
 PERMISSIONS_POLICY = {
     'geolocation': ['self'],
-    'camera': [],
+    'camera': ['self'],
     'microphone': [],
     'payment': [],
     'usb': [],
@@ -468,7 +473,7 @@ class PermissionsPolicyMiddleware:
         self.get_response = get_response
         self.policy = (
             "geolocation=(self), "
-            "camera=(), "
+            "camera=(self), "
             "microphone=(), "
             "payment=(), "
             "usb=()"

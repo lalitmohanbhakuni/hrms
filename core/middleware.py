@@ -250,7 +250,7 @@ class PermissionsPolicyMiddleware:
         self.get_response = get_response
         self.policy = (
             "geolocation=(self), "
-            "camera=(), "
+            "camera=(self), "
             "microphone=(), "
             "payment=(), "
             "usb=()"
