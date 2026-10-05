@@ -161,6 +161,13 @@
                         </a>
                     {% endif %}
 
+                    {% if request.user.profile.role == 'hr_admin' or request.user.is_superuser %}
+                    <a href="{% url 'employee_import' %}" class="nav-item {% if 'import' in request.path %}active{% endif %}">
+                        <i class="las la-file-upload"></i>
+                        <span>Bulk Import</span>
+                    </a>
+                    {% endif %}
+
 
                 {% endif %}
             {% endif %}

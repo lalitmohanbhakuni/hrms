@@ -7531,6 +7531,331 @@ def pending_device_approvals(request):
     return render(request, 'pending_device_approvals.html', context)
 
 
+# ═══════════════════════════════════════════════════════════════
+# BULK EMPLOYEE IMPORT
+# ═══════════════════════════════════════════════════════════════
+
+@login_required
+@hr_admin_required
+@company_required
+def employee_import(request):
+    """
+    HR uploads CSV to create many employees at once.
+    Email is optional. Password column is optional.
+    """
+    from .utils import get_user_company
+    from django.contrib.auth.models import User
+    from django.contrib.auth.password_validation import validate_password
+    from django.core.exceptions import ValidationError
+    from django.http import HttpResponse
+    import csv
+    import io
+    import secrets
+    import string
+    from datetime import datetime, date
+
+    company = get_user_company(request)
+    if not company:
+        messages.error(request, 'No company assigned.')
+        return redirect('dashboard')
+
+    if request.method != 'POST':
+        return render(request, 'employees/import.html', {'company': company})
+
+    csv_file = request.FILES.get('csv_file')
+    if not csv_file:
+        messages.error(request, 'Please select a CSV file.')
+        return redirect('employee_import')
+
+    if not csv_file.name.lower().endswith('.csv'):
+        messages.error(request, 'Only .csv files are allowed.')
+        return redirect('employee_import')
+
+    if csv_file.size > 2 * 1024 * 1024:
+        messages.error(request, 'File too large. Max 2 MB.')
+        return redirect('employee_import')
+
+    try:
+        decoded = csv_file.read().decode('utf-8-sig')
+    except UnicodeDecodeError:
+        messages.error(request, 'File must be UTF-8 encoded.')
+        return redirect('employee_import')
+
+    reader = csv.DictReader(io.StringIO(decoded))
+
+    if reader.fieldnames:
+        reader.fieldnames = [f.strip().lower() for f in reader.fieldnames]
+
+    required_cols = {'full_name', 'date_of_joining'}
+    actual_cols = set(reader.fieldnames or [])
+    missing = required_cols - actual_cols
+    if missing:
+        messages.error(
+            request,
+            f'Missing required columns: {", ".join(sorted(missing))}. '
+            f'Download the template to see the correct format.'
+        )
+        return redirect('employee_import')
+
+    rows_ok      = []
+    rows_failed  = []
+    credentials  = []
+
+    # ── Next employee ID — numeric max ──
+    existing_ids = EmployeeProfile.objects.filter(
+        company=company,
+        employee_id__startswith=company.code_prefix,
+    ).values_list('employee_id', flat=True)
+
+    max_num = 0
+    for eid in existing_ids:
+        try:
+            suffix = eid[len(company.code_prefix):]
+            num = int(suffix)
+            if num > max_num:
+                max_num = num
+        except (ValueError, TypeError):
+            continue
+
+    next_num = max_num + 1
+
+    from .models import Shift
+    shifts_by_name = {s.name.lower(): s for s in Shift.objects.filter(company=company)}
+    default_shift = Shift.objects.filter(company=company).first()
+
+    existing_emails = set(
+        User.objects.filter(profile__company=company)
+        .exclude(email='')
+        .values_list('email', flat=True)
+    )
+
+    max_rows = 500
+
+    for i, row in enumerate(reader, start=2):
+        if len(rows_ok) + len(rows_failed) >= max_rows:
+            rows_failed.append({
+                'row': i,
+                'error': f'Limit of {max_rows} rows exceeded. Please split the file.',
+            })
+            break
+
+        if not any(v.strip() for v in row.values() if v):
+            continue
+
+        full_name = (row.get('full_name') or '').strip()
+        email     = (row.get('email') or '').strip().lower()
+        doj_str   = (row.get('date_of_joining') or '').strip()
+
+        errors = []
+
+        if not full_name:
+            errors.append('full_name is required')
+
+        # Email is optional
+        if email:
+            if '@' not in email or '.' not in email:
+                errors.append(f'invalid email "{email}"')
+            elif email in existing_emails:
+                errors.append(f'email "{email}" already exists')
+
+        doj = None
+        if not doj_str:
+            errors.append('date_of_joining is required')
+        else:
+            try:
+                doj = datetime.strptime(doj_str, '%Y-%m-%d').date()
+            except ValueError:
+                errors.append(f'invalid date "{doj_str}" — use YYYY-MM-DD')
+
+        dob = None
+        dob_str = (row.get('date_of_birth') or '').strip()
+        if dob_str:
+            try:
+                dob = datetime.strptime(dob_str, '%Y-%m-%d').date()
+            except ValueError:
+                errors.append(f'invalid date_of_birth "{dob_str}" — use YYYY-MM-DD')
+
+        role = (row.get('role') or 'employee').strip().lower()
+        if role not in ('employee', 'manager', 'hr_admin'):
+            errors.append(f'invalid role "{role}"')
+
+        attendance_type = (row.get('attendance_type') or 'Office').strip()
+        if attendance_type not in ('Office', 'Remote', 'Flexible'):
+            errors.append(f'invalid attendance_type "{attendance_type}"')
+
+        shift = default_shift
+        shift_name = (row.get('shift_name') or '').strip()
+        if shift_name:
+            found = shifts_by_name.get(shift_name.lower())
+            if found:
+                shift = found
+            else:
+                errors.append(f'shift "{shift_name}" not found')
+
+        # Password (optional)
+        provided_password = (row.get('password') or '').strip()
+        if provided_password:
+            try:
+                validate_password(provided_password)
+            except ValidationError as e:
+                errors.append(f'weak password: {"; ".join(e.messages)}')
+
+        if errors:
+            rows_failed.append({
+                'row': i,
+                'name': full_name or '(no name)',
+                'email': email or '(no email)',
+                'error': '; '.join(errors),
+            })
+            continue
+
+        try:
+            employee_id = f"{company.code_prefix}{next_num:04d}"
+
+            if provided_password:
+                password = provided_password
+            else:
+                password = ''.join(
+                    secrets.choice(string.ascii_letters + string.digits + '!@#$')
+                    for _ in range(10)
+                )
+
+            user = User.objects.create_user(
+                username=employee_id,
+                email=email,
+                password=password,
+            )
+            user.is_staff = False
+            user.save()
+
+            profile = EmployeeProfile.objects.create(
+                user=user,
+                company=company,
+                employee_id=employee_id,
+                full_name=full_name,
+                date_of_joining=doj,
+                date_of_birth=dob,
+                designation=(row.get('designation') or '').strip(),
+                department=(row.get('department') or '').strip(),
+                phone=(row.get('phone') or '').strip(),
+                address=(row.get('address') or '').strip(),
+                attendance_type=attendance_type,
+                role=role,
+                shift=shift,
+                shift_effective_from=doj,
+            )
+
+            from django.contrib.auth.models import Group
+            if role == 'hr_admin':
+                grp, _ = Group.objects.get_or_create(name='HR Admin')
+                user.groups.add(grp)
+            elif role == 'manager':
+                grp, _ = Group.objects.get_or_create(name='Manager')
+                user.groups.add(grp)
+
+            rows_ok.append({
+                'row': i,
+                'employee_id': employee_id,
+                'full_name': full_name,
+            })
+
+            credentials.append({
+                'employee_id': employee_id,
+                'full_name': full_name,
+                'email': email or '(no email)',
+                'username': employee_id,
+                'password': password,
+            })
+
+            if email:
+                existing_emails.add(email)
+            next_num += 1
+
+        except Exception as e:
+            rows_failed.append({
+                'row': i,
+                'name': full_name,
+                'email': email or '(no email)',
+                'error': f'Server error: {e}',
+            })
+
+    request.session['import_credentials'] = credentials
+    request.session['import_company'] = company.id
+
+    context = {
+        'company': company,
+        'rows_ok': rows_ok,
+        'rows_failed': rows_failed,
+        'has_credentials': len(credentials) > 0,
+    }
+    return render(request, 'employees/import_report.html', context)
+
+
+
+@login_required
+@hr_admin_required
+def employee_import_template(request):
+    """Download sample CSV template."""
+    from django.http import HttpResponse
+    import csv
+
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="nitohr_employee_template.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow([
+        'full_name', 'email', 'phone', 'date_of_joining',
+        'date_of_birth', 'designation', 'department', 'role',
+        'attendance_type', 'shift_name', 'address', 'password',
+    ])
+    writer.writerow([
+        'Arjun Sharma', 'arjun@company.com', '+91 98765 43210', '2026-01-15',
+        '1995-05-10', 'Developer', 'Engineering', 'employee',
+        'Office', '', '123 MG Road, Bengaluru', '',
+    ])
+    writer.writerow([
+        'Priya Patel', 'priya@company.com', '+91 98765 43211', '2026-01-15',
+        '1993-08-22', 'Designer', 'Design', 'employee',
+        'Office', '', '456 Park Street, Mumbai', '',
+    ])
+    writer.writerow([
+        'No Email Employee', '', '+91 98765 43299', '2026-01-15',
+        '', 'Worker', 'Production', 'employee',
+        'Office', '', '', '',
+    ])
+    return response
+
+
+@login_required
+@hr_admin_required
+@company_required
+def employee_import_credentials(request):
+    """Download credentials of recently imported employees."""
+    from django.http import HttpResponse
+    from .utils import get_user_company
+    import csv
+
+    company = get_user_company(request)
+    if request.session.get('import_company') != company.id:
+        messages.error(request, 'No import data available. Please upload a CSV first.')
+        return redirect('employee_import')
+
+    credentials = request.session.get('import_credentials') or []
+    if not credentials:
+        messages.error(request, 'No credentials to download.')
+        return redirect('employee_import')
+
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="nitohr_employee_credentials.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow(['Employee ID', 'Full Name', 'Email', 'Username', 'Initial Password'])
+    for c in credentials:   
+        writer.writerow([
+            c['employee_id'], c['full_name'], c['email'], c['username'], c['password'],
+        ])
+    return response
+
         
     # **************texting 
 def test_view(request):

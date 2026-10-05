@@ -23,6 +23,12 @@ urlpatterns = [
     path('employees/edit/<int:user_id>/', views.employee_edit, name='employee_edit'),
     path('employees/delete/<int:user_id>/', views.employee_delete, name='employee_delete'),
     path('employees/', views.employee_list, name='employee_list'),  # last
+
+    # ─── Bulk Employee Import ───
+    path('employees/import/',               views.employee_import,             name='employee_import'),
+    path('employees/import/template/',      views.employee_import_template,    name='employee_import_template'),
+    path('employees/import/credentials/',   views.employee_import_credentials, name='employee_import_credentials'),
+
     
     # Leave Types (Admin)
     path('leave-types/', views.leave_type_list, name='leave_type_list'),

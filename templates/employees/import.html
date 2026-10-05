@@ -1,0 +1,176 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Bulk Import Employees{% endblock %}
+{% block page_icon %}file-upload{% endblock %}
+{% block page_title %}Bulk Import{% endblock %}
+
+{% block content %}
+
+<style>
+    .imp-wrap { max-width: 780px; margin: 0 auto; }
+    .imp-hero {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 16px;
+        padding: 24px 28px;
+        color: #fff;
+        margin-bottom: 20px;
+    }
+    .imp-hero h2 { font-size: 1.3rem; font-weight: 700; margin: 0 0 6px; }
+    .imp-hero p { font-size: 0.9rem; opacity: 0.9; margin: 0; }
+
+    .imp-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        padding: 24px;
+        margin-bottom: 18px;
+    }
+    .imp-card h4 {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin: 0 0 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .imp-card p { font-size: 0.85rem; color: #64748b; margin: 0 0 12px; }
+
+    .imp-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        border-radius: 10px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-decoration: none;
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .imp-btn-primary {
+        background: #667eea;
+        color: #fff;
+    }
+    .imp-btn-primary:hover { background: #5568d3; color: #fff; }
+    .imp-btn-ghost {
+        background: #fff;
+        color: #475569;
+        border-color: #cbd5e1;
+    }
+    .imp-btn-ghost:hover { background: #f8fafc; }
+
+    .imp-file {
+        display: block;
+        width: 100%;
+        padding: 20px;
+        border: 2px dashed #cbd5e1;
+        border-radius: 12px;
+        background: #f8fafc;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .imp-file:hover { border-color: #667eea; background: #eef2ff; }
+    .imp-file input[type="file"] { display: none; }
+    .imp-file-icon { font-size: 2.5rem; color: #667eea; margin-bottom: 8px; }
+    .imp-file-label { font-size: 0.9rem; font-weight: 600; color: #0f172a; }
+    .imp-file-hint { font-size: 0.75rem; color: #94a3b8; margin-top: 4px; }
+
+    .imp-filename {
+        display: none;
+        padding: 10px;
+        background: #dcfce7;
+        color: #166534;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-top: 12px;
+    }
+    .imp-filename.show { display: block; }
+
+    .imp-cols {
+        background: #f8fafc;
+        border-radius: 10px;
+        padding: 16px;
+        font-size: 0.8rem;
+        font-family: monospace;
+        color: #334155;
+        overflow-x: auto;
+    }
+    .imp-cols strong { color: #0f172a; }
+
+    .imp-req { color: #dc2626; font-weight: 700; }
+</style>
+
+<div class="imp-wrap">
+
+    <!-- HERO -->
+    <div class="imp-hero">
+        <h2><i class="las la-file-upload"></i> Bulk Import Employees</h2>
+        <p>Upload a CSV file to create many employees at once. Employee IDs and usernames are auto-generated.</p>
+    </div>
+
+    <!-- STEP 1 — DOWNLOAD TEMPLATE -->
+    <div class="imp-card">
+        <h4><i class="las la-download"></i> Step 1 — Download Template</h4>
+        <p>Start with the sample CSV. Open it in Excel or Google Sheets, then fill in your employees.</p>
+        <a href="{% url 'employee_import_template' %}" class="imp-btn imp-btn-ghost">
+            <i class="las la-file-csv"></i> Download Template
+        </a>
+    </div>
+
+    <!-- STEP 2 — UPLOAD -->
+    <div class="imp-card">
+        <h4><i class="las la-cloud-upload-alt"></i> Step 2 — Upload Filled CSV</h4>
+        <p>Requirements: <span class="imp-req">full_name, email, date_of_joining</span> (YYYY-MM-DD). Max 500 rows, 2 MB file.</p>
+
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+
+            <label class="imp-file" for="csvFile">
+                <input type="file" name="csv_file" id="csvFile" accept=".csv">
+                <div class="imp-file-icon"><i class="las la-file-csv"></i></div>
+                <div class="imp-file-label">Click to select CSV file</div>
+                <div class="imp-file-hint">or drag and drop</div>
+            </label>
+
+            <div class="imp-filename" id="fileName"></div>
+
+            <div style="margin-top:16px; text-align:right;">
+                <button type="submit" class="imp-btn imp-btn-primary">
+                    <i class="las la-upload"></i> Import Employees
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- INFO -->
+    <div class="imp-card">
+        <h4><i class="las la-info-circle"></i> Column Reference</h4>
+        <div class="imp-cols">
+            <strong>full_name</strong> (required) · <strong>email</strong> (required, unique) · <strong>date_of_joining</strong> (required, YYYY-MM-DD)<br>
+            <strong>phone</strong> · <strong>date_of_birth</strong> (YYYY-MM-DD) · <strong>designation</strong> · <strong>department</strong><br>
+            <strong>role</strong> (employee / manager / hr_admin) · <strong>attendance_type</strong> (Office / Remote / Flexible)<br>
+            <strong>shift_name</strong> (must match existing shift) · <strong>address</strong>
+        </div>
+    </div>
+
+</div>
+
+<script>
+document.getElementById('csvFile').addEventListener('change', function(e) {
+    const fname = e.target.files[0]?.name;
+    const el = document.getElementById('fileName');
+    if (fname) {
+        el.textContent = '✓ Selected: ' + fname;
+        el.classList.add('show');
+    } else {
+        el.classList.remove('show');
+    }
+});
+</script>
+
+{% endblock %}

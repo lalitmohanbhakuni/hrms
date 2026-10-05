@@ -1,0 +1,195 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Import Report{% endblock %}
+{% block page_icon %}check-double{% endblock %}
+{% block page_title %}Import Report{% endblock %}
+
+{% block content %}
+
+<style>
+    .irp-wrap { max-width: 900px; margin: 0 auto; }
+    .irp-hero {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        border-radius: 16px;
+        padding: 24px 28px;
+        color: #fff;
+        margin-bottom: 20px;
+    }
+    .irp-hero h2 { font-size: 1.3rem; font-weight: 700; margin: 0 0 6px; }
+    .irp-hero p { font-size: 0.9rem; opacity: 0.9; margin: 0; }
+
+    .irp-stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+    .irp-stat {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        padding: 18px;
+    }
+    .irp-stat-label {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #64748b;
+        font-weight: 700;
+        margin-bottom: 4px;
+    }
+    .irp-stat-value { font-size: 1.8rem; font-weight: 700; }
+    .irp-stat-value.ok    { color: #10b981; }
+    .irp-stat-value.error { color: #ef4444; }
+
+    .irp-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        padding: 20px;
+        margin-bottom: 18px;
+    }
+    .irp-card h4 { font-size: 0.95rem; font-weight: 700; margin: 0 0 12px; color: #0f172a; }
+
+    .irp-table { width: 100%; font-size: 0.85rem; border-collapse: collapse; }
+    .irp-table th {
+        text-align: left;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #64748b;
+        font-weight: 700;
+        padding: 8px 10px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .irp-table td { padding: 10px; border-bottom: 1px solid #f1f5f9; }
+
+    .irp-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        border-radius: 10px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-decoration: none;
+        border: 1px solid #cbd5e1;
+        background: #fff;
+        color: #475569;
+        cursor: pointer;
+    }
+    .irp-btn:hover { background: #f8fafc; color: #0f172a; }
+    .irp-btn.primary { background: #10b981; color: #fff; border: none; }
+    .irp-btn.primary:hover { background: #059669; color: #fff; }
+
+    .irp-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+</style>
+
+<div class="irp-wrap">
+
+    <div class="irp-hero">
+        <h2><i class="las la-check-double"></i> Import Complete</h2>
+        <p>Here's what happened. Review the results below.</p>
+    </div>
+
+    <!-- STATS -->
+    <div class="irp-stats">
+        <div class="irp-stat">
+            <div class="irp-stat-label">✅ Created</div>
+            <div class="irp-stat-value ok">{{ rows_ok|length }}</div>
+        </div>
+        <div class="irp-stat">
+            <div class="irp-stat-label">❌ Failed</div>
+            <div class="irp-stat-value error">{{ rows_failed|length }}</div>
+        </div>
+    </div>
+
+    <!-- CREDENTIALS DOWNLOAD -->
+    {% if has_credentials %}
+    <div class="irp-card">
+        <h4><i class="las la-key"></i> Next Step — Download Credentials</h4>
+        <p style="font-size:0.85rem; color:#64748b;">
+            The system generated a random password for each new employee.
+            Download the credentials CSV and share it with them securely.
+        </p>
+        <div class="irp-actions">
+            <a href="{% url 'employee_import_credentials' %}" class="irp-btn primary">
+                <i class="las la-download"></i> Download Credentials CSV
+            </a>
+            <!-- <a href="{% url 'face_manage_list' %}" class="irp-btn">
+                <i class="las la-user-check"></i> Register Faces
+            </a> -->
+            <a href="{% url 'employee_list' %}" class="irp-btn">
+                <i class="las la-users"></i> View Employees
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- SUCCESS LIST -->
+    {% if rows_ok %}
+    <div class="irp-card">
+        <h4>✅ Created Employees ({{ rows_ok|length }})</h4>
+        <table class="irp-table">
+            <thead>
+                <tr>
+                    <th style="width:60px;">Row</th>
+                    <th style="width:120px;">Employee ID</th>
+                    <th>Name</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in rows_ok %}
+                <tr>
+                    <td>{{ r.row }}</td>
+                    <td><code>{{ r.employee_id }}</code></td>
+                    <td>{{ r.full_name }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- FAILED LIST -->
+    {% if rows_failed %}
+    <div class="irp-card">
+        <h4 style="color:#dc2626;">❌ Skipped Rows ({{ rows_failed|length }})</h4>
+        <table class="irp-table">
+            <thead>
+                <tr>
+                    <th style="width:60px;">Row</th>
+                    <th>Name / Email</th>
+                    <th>Reason</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in rows_failed %}
+                <tr>
+                    <td>{{ r.row }}</td>
+                    <td>
+                        {{ r.name|default:r.email|default:"—" }}
+                        {% if r.email %}<br><small style="color:#94a3b8;">{{ r.email }}</small>{% endif %}
+                    </td>
+                    <td style="color:#dc2626;">{{ r.error }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <p style="font-size:0.8rem; color:#64748b; margin-top:12px;">
+            Fix the issues above and re-upload only the failed rows.
+        </p>
+    </div>
+    {% endif %}
+
+    <!-- BOTTOM ACTIONS -->
+    <div style="text-align:center; margin: 20px 0;">
+        <a href="{% url 'employee_import' %}" class="irp-btn">
+            <i class="las la-redo-alt"></i> Import More
+        </a>
+    </div>
+
+</div>
+
+{% endblock %}
