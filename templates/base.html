@@ -168,12 +168,11 @@
                     </a>
                     {% endif %}
 
-                        {% if request.user.profile.company.face_registration_enabled %}
-                        <a href="{% url 'face_manage_list' %}" class="nav-item {% if 'face/manage' in request.path %}active{% endif %}">
+                    {% if request.user.profile.company.face_registration_enabled %}
+                        <a href="{% url     'face_manage_list' %}" class="nav-item {% if 'face/manage' in request.path %}active{% endif %}">
                             <i class="las la-user-check"></i>
                             <span>Face Management</span>
                         </a>
-                        {% endif %}
                     {% endif %}
 
 
