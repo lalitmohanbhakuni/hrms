@@ -372,8 +372,8 @@ def dashboard(request):
                     'designation':  emp.designation or '—',
                     'department':   emp.department or '—',
                     'status':       status,
-                    'check_in':     att.check_in_time.strftime('%I:%M %p') if att and att.check_in_time else '--:--',
-                    'check_out':    att.check_out_time.strftime('%I:%M %p') if att and att.check_out_time else '--:--',
+                    'check_in':     timezone.localtime(att.check_in_time).strftime('%I:%M %p') if att and att.check_in_time else '--:--',
+                    'check_out':    timezone.localtime(att.check_out_time).strftime('%I:%M %p') if att and att.check_out_time else '--:--',
                 })
 
         # ─── Self mode → own status ───
@@ -860,8 +860,8 @@ def dashboard(request):
             for att in emp_records:
                 records.append({
                     'date': att.date,
-                    'in_time': att.check_in_time.strftime('%I:%M %p') if att.check_in_time else '--:--',
-                    'out_time': att.check_out_time.strftime('%I:%M %p') if att.check_out_time else '--:--',
+                    'in_time': timezone.localtime(att.check_in_time).strftime('%I:%M %p') if att.check_in_time else '--:--',
+                    'out_time': timezone.localtime(att.check_out_time).strftime('%I:%M %p') if att.check_out_time else '--:--',
                     'status': att.status,
                 })
             
@@ -2779,8 +2779,8 @@ def attendance_report(request):
             daily_records.append({
                 'date': att.date,
                 'shift': day_shift.name if day_shift else '—',
-                'in_time': att.check_in_time.strftime('%I:%M %p') if att.check_in_time else '--:--',
-                'out_time': att.check_out_time.strftime('%I:%M %p') if att.check_out_time else '--:--',
+                'in_time': timezone.localtime(att.check_in_time).strftime('%I:%M %p') if att.check_in_time else '--:--',
+                'out_time': timezone.localtime(att.check_out_time).strftime('%I:%M %p') if att.check_out_time else '--:--',
                 'hours': hours_str,
                 'status': status_label,
             })
