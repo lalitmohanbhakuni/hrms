@@ -8223,39 +8223,68 @@ def kiosk_get_vectors(request):
 
 from django.views.decorators.csrf import csrf_exempt
 
+from django.views.decorators.csrf import csrf_exempt
+from django_ratelimit.decorators import ratelimit
+
+
+# ── Rate limits ──
+@ratelimit(key='ip',                rate='60/m', method='POST', block=True)
+@ratelimit(key='header:x-kiosk-client', rate='30/m', method='POST', block=True)
 @csrf_exempt
 def kiosk_clock_api(request):
     """
     API: kiosk sends a match result. Server records attendance.
     POST JSON: { token, employee_id, action, confidence, descriptor, liveness_verified }
+
+    Security layers:
+    1. Rate limiting (IP + kiosk header)
+    2. Custom header check (X-Kiosk-Client)
+    3. Token validation (device_token)
+    4. Token expiry check
+    5. Stale kiosk warning (30 days no ping)
+    6. IP allowlist (if configured on kiosk)
+    7. Liveness verification (blink)
+    8. Descriptor format validation
+    9. Server-side face verification (Euclidean distance)
+    10. Cooldown + minimum hours between in/out
+    11. Full audit logging
     """
     from .models import KioskDevice, EmployeeProfile, Attendance, KioskAttendanceLog, FaceCredential
     from django.http import JsonResponse
     from django.utils import timezone
     from .utils import decrypt_face_vector
+    from datetime import timedelta
     import json
     import struct
     import math
     import logging
+    import ipaddress
 
     logger = logging.getLogger(__name__)
 
+    # ── 1. Method check ──
     if request.method != 'POST':
         return JsonResponse({'error': 'POST required'}, status=405)
 
+    # ── 2. Custom header check (real kiosk JS only) ──
+    if request.headers.get('X-Kiosk-Client') != 'nitohr-kiosk-v1':
+        logger.warning(f'[kiosk] Rejected request from {request.META.get("REMOTE_ADDR")} — missing/incorrect X-Kiosk-Client header')
+        return JsonResponse({'error': 'Invalid client'}, status=403)
+
+    # ── 3. Parse JSON ──
     try:
         data = json.loads(request.body)
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
-    token            = data.get('token', '').strip()
-    employee_id      = data.get('employee_id')
-    action           = data.get('action', 'auto')
-    confidence       = data.get('confidence')
-    live_descriptor  = data.get('descriptor')
+    token             = data.get('token', '').strip()
+    employee_id       = data.get('employee_id')
+    action            = data.get('action', 'auto')
+    confidence        = data.get('confidence')
+    live_descriptor   = data.get('descriptor')
     liveness_verified = data.get('liveness_verified', False)
 
-    # ── Validate descriptor format ──
+    # ── 4. Descriptor format ──
     if not isinstance(live_descriptor, list) or len(live_descriptor) != 128:
         return JsonResponse({'error': 'Face descriptor missing or invalid'}, status=400)
 
@@ -8264,22 +8293,47 @@ def kiosk_clock_api(request):
     except (TypeError, ValueError):
         return JsonResponse({'error': 'Descriptor values invalid'}, status=400)
 
-    # ── Liveness check ──
+    # ── 5. Liveness ──
     if not liveness_verified:
         return JsonResponse({
             'error': 'Liveness verification required. Please blink at the camera.',
         }, status=400)
 
-    # ── Validate kiosk ──
+    # ── 6. Kiosk token lookup ──
     kiosk = KioskDevice.objects.filter(device_token=token, is_active=True).first()
     if not kiosk:
         return JsonResponse({'error': 'Invalid kiosk token'}, status=403)
 
-    # ── Kiosk-level settings ──
+    # ── 7. Token expiry ──
+    kiosk_expires = getattr(kiosk, 'expires_at', None)
+    if kiosk_expires and kiosk_expires < timezone.localdate():
+        logger.warning(f'[kiosk] Expired token used: {kiosk.name} (expired {kiosk_expires})')
+        return JsonResponse({'error': 'Kiosk token expired. Contact HR.'}, status=403)
+
+    # ── 8. Stale kiosk warning ──
+    if kiosk.last_ping and (timezone.now() - kiosk.last_ping) > timedelta(days=30):
+        logger.warning(f'[kiosk] Stale kiosk accessed: {kiosk.name} (last ping {kiosk.last_ping})')
+
+    # ── 9. IP allowlist (if configured) ──
+    client_ip = (
+        request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip()
+        or request.META.get('REMOTE_ADDR', '')
+    )
+    allowed_ip_prefix = getattr(kiosk, 'allowed_ip_prefix', '')
+    if allowed_ip_prefix and client_ip:
+        if hasattr(kiosk, 'is_ip_allowed'):
+            try:
+                if not kiosk.is_ip_allowed(client_ip):
+                    logger.warning(f'[kiosk] IP {client_ip} not allowed for {kiosk.name}')
+                    return JsonResponse({'error': 'Kiosk not allowed from this IP'}, status=403)
+            except Exception as e:
+                logger.error(f'[kiosk] IP check error: {e}')
+
+    # ── 10. Kiosk-level settings ──
     MIN_HOURS_BETWEEN_IN_OUT = float(getattr(kiosk, 'min_hours_before_out', 2.0) or 2.0)
     COOLDOWN_SECONDS = 300
 
-    # ── Fetch employee ──
+    # ── 11. Employee (must belong to kiosk's company) ──
     employee = EmployeeProfile.objects.filter(
         id=employee_id, company=kiosk.company, is_active=True
     ).first()
@@ -8287,7 +8341,7 @@ def kiosk_clock_api(request):
     if not employee:
         return JsonResponse({'error': 'Employee not found'}, status=404)
 
-    # ── SERVER-SIDE FACE VERIFICATION ──
+    # ── 12. Server-side face verification ──
     credential = FaceCredential.objects.filter(
         employee=employee, is_active=True
     ).first()
@@ -8316,7 +8370,7 @@ def kiosk_clock_api(request):
                 action='in',
                 result='no_match',
                 confidence=best_distance,
-                ip_address=request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip() or request.META.get('REMOTE_ADDR'),
+                ip_address=client_ip,
             )
             return JsonResponse({
                 'error': f'Face does not match (distance {best_distance:.2f}, threshold {threshold})',
@@ -8326,7 +8380,7 @@ def kiosk_clock_api(request):
         logger.error(f'[kiosk-verify] verification failed: {e}')
         return JsonResponse({'error': 'Face verification error'}, status=500)
 
-    # ── Cooldown check ──
+    # ── 13. Cooldown ──
     last_log = KioskAttendanceLog.objects.filter(
         employee=employee,
         company=kiosk.company,
@@ -8338,27 +8392,25 @@ def kiosk_clock_api(request):
         if seconds_ago < COOLDOWN_SECONDS:
             minutes_ago = max(1, int(seconds_ago // 60))
             return JsonResponse({
-                'success':      True,
-                'employee_id':  employee.employee_id,
-                'full_name':    employee.full_name,
-                'action':       'cooldown',
-                'message':      f'Already processed {minutes_ago} min ago',
-                'time':         timezone.localtime().strftime('%I:%M %p'),
+                'success':     True,
+                'employee_id': employee.employee_id,
+                'full_name':   employee.full_name,
+                'action':      'cooldown',
+                'message':     f'Already processed {minutes_ago} min ago',
+                'time':        timezone.localtime().strftime('%I:%M %p'),
             }, status=200)
 
-    # ── Validate action ──
+    # ── 14. Validate action ──
     if action not in ('in', 'out', 'auto'):
         return JsonResponse({'error': 'action must be in, out, or auto'}, status=400)
 
     today = timezone.localdate()
     now   = timezone.now()
 
-    # ── Auto-decide action ──
+    # ── 15. Auto-decide action ──
     if action == 'auto':
         existing = Attendance.objects.filter(
-            user=employee.user,
-            company=kiosk.company,
-            date=today,
+            user=employee.user, company=kiosk.company, date=today,
         ).first()
 
         if not existing or not existing.check_in_time:
@@ -8367,25 +8419,23 @@ def kiosk_clock_api(request):
             action = 'out'
         else:
             return JsonResponse({
-                'success':      True,
-                'employee_id':  employee.employee_id,
-                'full_name':    employee.full_name,
-                'action':       'already_done',
-                'message':      'Already clocked in and out today',
-                'time':         timezone.localtime().strftime('%I:%M %p'),
+                'success':     True,
+                'employee_id': employee.employee_id,
+                'full_name':   employee.full_name,
+                'action':      'already_done',
+                'message':     'Already clocked in and out today',
+                'time':        timezone.localtime().strftime('%I:%M %p'),
             }, status=200)
 
-    # ── Kiosk permissions ──
+    # ── 16. Kiosk permissions ──
     if action == 'in' and not kiosk.allow_clock_in:
         return JsonResponse({'error': 'Clock-in disabled on this kiosk'}, status=403)
     if action == 'out' and not kiosk.allow_clock_out:
         return JsonResponse({'error': 'Clock-out disabled on this kiosk'}, status=403)
 
-    # ── Get or create attendance ──
+    # ── 17. Attendance row ──
     att, created = Attendance.objects.get_or_create(
-        user=employee.user,
-        company=kiosk.company,
-        date=today,
+        user=employee.user, company=kiosk.company, date=today,
         defaults={
             'shift':  employee.shift,
             'state':  '',
@@ -8393,12 +8443,7 @@ def kiosk_clock_api(request):
         }
     )
 
-    ip = (
-        request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip()
-        or request.META.get('REMOTE_ADDR')
-    )
-
-    # ── Clock IN ──
+    # ── 18. Clock IN ──
     if action == 'in':
         if att.check_in_time:
             response_msg = f'Already clocked in at {timezone.localtime(att.check_in_time).strftime("%I:%M %p")}'
@@ -8411,7 +8456,7 @@ def kiosk_clock_api(request):
             response_msg = f'Clocked in at {timezone.localtime(now).strftime("%I:%M %p")}'
             response_act = 'in'
 
-    # ── Clock OUT ──
+    # ── 19. Clock OUT ──
     else:
         if not att.check_in_time:
             response_msg = 'You have not clocked in yet'
@@ -8434,12 +8479,12 @@ def kiosk_clock_api(request):
                 req_str = f'{req_h}h {req_m}m' if (req_h and req_m) else (f'{req_h}h' if req_h else f'{req_m} min')
 
                 return JsonResponse({
-                    'success':      True,
-                    'employee_id':  employee.employee_id,
-                    'full_name':    employee.full_name,
-                    'action':       'too_soon',
-                    'message':      f'Clocked in {elapsed_str} ago · Minimum {req_str} required',
-                    'time':         timezone.localtime().strftime('%I:%M %p'),
+                    'success':     True,
+                    'employee_id': employee.employee_id,
+                    'full_name':   employee.full_name,
+                    'action':      'too_soon',
+                    'message':     f'Clocked in {elapsed_str} ago · Minimum {req_str} required',
+                    'time':        timezone.localtime().strftime('%I:%M %p'),
                 }, status=200)
 
             att.check_out_time = now
@@ -8449,7 +8494,7 @@ def kiosk_clock_api(request):
             response_msg = f'Clocked out at {timezone.localtime(now).strftime("%I:%M %p")}'
             response_act = 'out'
 
-    # ── Audit log ──
+    # ── 20. Audit log ──
     KioskAttendanceLog.objects.create(
         kiosk=kiosk,
         company=kiosk.company,
@@ -8458,20 +8503,21 @@ def kiosk_clock_api(request):
         result='match',
         confidence=confidence,
         attendance=att,
-        ip_address=ip,
+        ip_address=client_ip,
         user_agent=request.META.get('HTTP_USER_AGENT', '')[:500],
     )
 
     return JsonResponse({
-        'success':      True,
-        'employee_id':  employee.employee_id,
-        'full_name':    employee.full_name,
-        'action':       response_act,
-        'message':      response_msg,
-        'time':         timezone.localtime(now).strftime('%I:%M %p'),
-        'check_in':     timezone.localtime(att.check_in_time).strftime('%I:%M %p') if att.check_in_time else None,
-        'check_out':    timezone.localtime(att.check_out_time).strftime('%I:%M %p') if att.check_out_time else None,
+        'success':     True,
+        'employee_id': employee.employee_id,
+        'full_name':   employee.full_name,
+        'action':      response_act,
+        'message':     response_msg,
+        'time':        timezone.localtime(now).strftime('%I:%M %p'),
+        'check_in':    timezone.localtime(att.check_in_time).strftime('%I:%M %p') if att.check_in_time else None,
+        'check_out':   timezone.localtime(att.check_out_time).strftime('%I:%M %p') if att.check_out_time else None,
     })
+
 
 
         

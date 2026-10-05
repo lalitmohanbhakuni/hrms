@@ -7,60 +7,216 @@
     <title>Kiosk — {{ kiosk_name }}</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/line-awesome/1.3.0/line-awesome/css/line-awesome.min.css">
     <style>
-        *{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f172a;color:#fff;min-height:100vh;overflow:hidden}.k-wrap{display:flex;flex-direction:column;height:100vh;padding:20px}.k-header{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:rgb(255 255 255 / .05);border-radius:12px;margin-bottom:16px}.k-company{font-size:1.1rem;font-weight:700;display:flex;align-items:center;gap:10px}.k-company i{color:#10b981}.k-clock{font-family:monospace;font-size:1.3rem;font-weight:700;color:#94a3b8}.k-main{flex:1;display:flex;align-items:center;justify-content:center;position:relative}.k-video-wrap{position:relative;width:100%;max-width:960px;aspect-ratio:4 / 3;background:#000;border-radius:20px;overflow:hidden}.k-video-wrap video{width:100%;height:100%;object-fit:cover;display:block;transform:scaleX(-1)}.k-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}.k-target{width:40%;aspect-ratio:1 / 1.25;border:3px dashed rgb(255 255 255 / .4);border-radius:50% / 40%;transition:border-color 0.15s,border-style 0.15s}.k-target.detected{border-color:#10b981;border-style:solid;box-shadow:0 0 40px rgb(16 185 129 / .5)}.k-target.matched{border-color:#3b82f6;border-style:solid;box-shadow:0 0 60px rgb(59 130 246 / .8);animation:pulse 0.6s ease-out}@keyframes pulse{0%{transform:scale(1)}50%{transform:scale(1.05)}100%{transform:scale(1)}}.k-status{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);background:rgb(15 23 42 / .95);backdrop-filter:blur(10px);padding:16px 32px;border-radius:999px;font-size:1.15rem;font-weight:600;white-space:nowrap;box-shadow:0 10px 40px rgb(0 0 0 / .5)}.k-status.success{background:rgb(16 185 129 / .95);color:#fff}.k-status.error{background:rgb(239 68 68 / .95);color:#fff}.k-panel{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;text-align:center;padding:40px;opacity:0;visibility:hidden;transition:opacity 0.3s,visibility 0.3s;z-index:10}.k-panel.show{opacity:1;visibility:visible}.k-panel.state-success{background:#10b981}.k-panel.state-info{background:#3b82f6}.k-panel.state-warning{background:#f59e0b}.k-panel.state-danger{background:#ef4444}.k-panel-icon{font-size:5rem;margin-bottom:16px;line-height:1}.k-panel-name{font-size:2.5rem;font-weight:700;margin-bottom:8px}.k-panel-msg{font-size:1.3rem;opacity:.95;margin-bottom:12px}.k-panel-time{font-size:1.1rem;font-weight:600;background:rgb(255 255 255 / .2);padding:8px 22px;border-radius:999px;display:inline-block}.k-footer{display:flex;justify-content:space-between;align-items:center;padding:12px 20px;color:#64748b;font-size:.8rem}.k-video-wrap::after{content:'';position:absolute;inset:0;background:rgb(0 0 0 / .35);pointer-events:none;transition:opacity 0.3s}.k-video-wrap.cleared::after{opacity:0}
-        /* ── Liveness prompt ── */
-.k-liveness {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    background: rgba(15, 23, 42, 0.85);
-    backdrop-filter: blur(8px);
-    z-index: 5;
-    transition: opacity 0.3s, visibility 0.3s;
-}
-.k-liveness.hidden {
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-}
-.k-liveness-icon {
-    font-size: 5rem;
-    color: #fbbf24;
-    margin-bottom: 20px;
-    animation: blinkAnim 1.5s ease-in-out infinite;
-}
-@keyframes blinkAnim {
-    0%, 100% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(0.95); opacity: 0.5; }
-}
-.k-liveness-text {
-    font-size: 2rem;
-    font-weight: 700;
-    color: #fff;
-    margin-bottom: 10px;
-}
-.k-liveness-sub {
-    font-size: 1rem;
-    color: #94a3b8;
-}
-.k-liveness-progress {
-    width: 200px;
-    height: 6px;
-    background: rgba(255,255,255,0.15);
-    border-radius: 3px;
-    margin-top: 24px;
-    overflow: hidden;
-}
-.k-liveness-progress-bar {
-    height: 100%;
-    background: linear-gradient(90deg, #fbbf24, #10b981);
-    width: 0%;
-    transition: width 0.1s linear;
-}
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            color: #fff;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+                #kOkBtn:hover {
+            background: rgba(255,255,255,0.4);
+            transform: translateY(-2px);
+        }
 
+        .k-wrap { display: flex; flex-direction: column; height: 100vh; padding: 20px; }
+
+        .k-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 20px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            margin-bottom: 16px;
+        }
+        .k-company {
+            font-size: 1.1rem; font-weight: 700;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .k-company i { color: #10b981; }
+        .k-clock { font-family: monospace; font-size: 1.3rem; font-weight: 700; color: #94a3b8; }
+
+        .k-main { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; }
+
+        /* ── SCREEN 1: Button screen ── */
+        .k-screen {
+            width: 100%;
+            max-width: 900px;
+            display: none;
+        }
+        .k-screen.active { display: block; }
+
+        .k-btn-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            padding: 20px;
+        }
+        .k-big-btn {
+            border: none;
+            border-radius: 24px;
+            padding: 60px 30px;
+            font-size: 1.8rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+            color: #fff;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+        }
+        .k-big-btn:hover  { transform: translateY(-4px); }
+        .k-big-btn:active { transform: translateY(0); }
+        .k-big-btn .ico { font-size: 4rem; line-height: 1; }
+        .k-big-btn .lbl { font-size: 1.8rem; font-weight: 700; }
+        .k-big-btn .hint { font-size: 0.85rem; opacity: 0.85; font-weight: 500; }
+
+        .k-btn-in  { background: linear-gradient(135deg, #10b981, #059669); }
+        .k-btn-in:hover  { box-shadow: 0 16px 50px rgba(16,185,129,0.5); }
+        .k-btn-out { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        .k-btn-out:hover { box-shadow: 0 16px 50px rgba(59,130,246,0.5); }
+
+        .k-idle-info {
+            text-align: center;
+            margin-top: 24px;
+            color: #94a3b8;
+            font-size: 0.95rem;
+        }
+
+        /* ── SCREEN 2: Camera ── */
+        .k-video-wrap {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 4 / 3;
+            background: #000;
+            border-radius: 20px;
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+        .k-video-wrap video {
+            width: 100%; height: 100%;
+            object-fit: cover; display: block;
+            transform: scaleX(-1);
+        }
+        .k-overlay {
+            position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+            pointer-events: none;
+        }
+        .k-target {
+            width: 40%; aspect-ratio: 1 / 1.25;
+            border: 3px dashed rgba(255,255,255,0.4);
+            border-radius: 50% / 40%;
+            transition: all 0.15s;
+        }
+        .k-target.detected {
+            border-color: #10b981; border-style: solid;
+            box-shadow: 0 0 40px rgba(16,185,129,0.5);
+        }
+        .k-target.matched {
+            border-color: #3b82f6; border-style: solid;
+            box-shadow: 0 0 60px rgba(59,130,246,0.8);
+        }
+
+        .k-liveness {
+            position: absolute; inset: 0;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            background: rgba(15, 23, 42, 0.18);
+            backdrop-filter: blur(8px);
+            z-index: 5;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+        .k-liveness.hidden { opacity: 0; visibility: hidden; }
+        .k-liveness-icon {
+            font-size: 5rem; color: #fbbf24;
+            margin-bottom: 20px;
+            animation: blinkAnim 1.5s ease-in-out infinite;
+        }
+        @keyframes blinkAnim {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(0.95); opacity: 0.5; }
+        }
+        .k-liveness-text { font-size: 2rem; font-weight: 700; margin-bottom: 10px; }
+        .k-liveness-sub { font-size: 1rem; color: #94a3b8; }
+        .k-liveness-progress {
+            width: 200px; height: 6px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 3px; margin-top: 24px;
+            overflow: hidden;
+        }
+        .k-liveness-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #fbbf24, #10b981);
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+
+        .k-status {
+            position: absolute;
+            bottom: 16px; left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15,23,42,0.95);
+            backdrop-filter: blur(10px);
+            padding: 12px 24px;
+            border-radius: 999px;
+            font-size: 1rem;
+            font-weight: 600;
+            white-space: nowrap;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+        }
+
+        .k-cancel-btn {
+            display: block; width: 100%;
+            padding: 14px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: #fff;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .k-cancel-btn:hover { background: rgba(255,255,255,0.2); }
+
+        /* ── SCREEN 3: Success ── */
+        .k-panel {
+            width: 100%; max-width: 700px;
+            border-radius: 24px;
+            padding: 60px 40px;
+            text-align: center;
+            display: none;
+            animation: panelIn 0.4s ease-out;
+        }
+        .k-panel.active { display: block; }
+        @keyframes panelIn {
+            from { transform: scale(0.9); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        .k-panel.state-success { background: linear-gradient(135deg, #10b981, #059669); }
+        .k-panel.state-info    { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        .k-panel.state-warning { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .k-panel.state-danger  { background: linear-gradient(135deg, #ef4444, #dc2626); }
+
+        .k-panel-icon { font-size: 6rem; margin-bottom: 16px; line-height: 1; }
+        .k-panel-name { font-size: 2.5rem; font-weight: 700; margin-bottom: 12px; }
+        .k-panel-msg { font-size: 1.4rem; opacity: 0.95; margin-bottom: 20px; }
+        .k-panel-time {
+            font-size: 1.1rem; font-weight: 600;
+            background: rgba(255,255,255,0.2);
+            padding: 8px 22px;
+            border-radius: 999px;
+            display: inline-block;
+        }
+
+        .k-footer {
+            display: flex; justify-content: space-between;
+            align-items: center; padding: 12px 20px;
+            color: #64748b; font-size: 0.8rem;
+        }
     </style>
 </head>
 <body>
@@ -76,43 +232,85 @@
     </div>
 
     <div class="k-main">
-        <div class="k-video-wrap">
-            <video id="kVideo" autoplay muted playsinline></video>
-            <canvas id="kCanvas" style="display:none;"></canvas>
 
-            <div class="k-overlay">
+        <!-- ═══════════ SCREEN 1 — IDLE ═══════════ -->
+        <div class="k-screen active" id="kIdleScreen">
+            <div class="k-btn-grid">
+                <button class="k-big-btn k-btn-in" id="kBtnIn">
+                    <div class="ico">⬇</div>
+                    <div class="lbl">CHECK IN</div>
+                    <div class="hint">Tap to clock in</div>
+                </button>
+                <button class="k-big-btn k-btn-out" id="kBtnOut">
+                    <div class="ico">⬆</div>
+                    <div class="lbl">CHECK OUT</div>
+                    <div class="hint">Tap to clock out</div>
+                </button>
+            </div>
+            <div class="k-idle-info">
+                <i class="las la-info-circle"></i>
+                Tap a button, look at the camera, and blink to verify.
+            </div>
+        </div>
 
-                <!-- Liveness overlay -->
+        <!-- ═══════════ SCREEN 2 — CAMERA ═══════════ -->
+        <div class="k-screen" id="kCameraScreen">
+            <div class="k-video-wrap">
+                <video id="kVideo" autoplay muted playsinline></video>
+                <canvas id="kCanvas" style="display:none;"></canvas>
+
+                <div class="k-overlay">
+                    <div class="k-target" id="kTarget"></div>
+                </div>
+
                 <div class="k-liveness" id="kLiveness">
                     <div class="k-liveness-icon"><i class="las la-eye"></i></div>
                     <div class="k-liveness-text">Please BLINK</div>
-                    <div class="k-liveness-sub">Look at the camera and blink naturally</div>
+                    <div class="k-liveness-sub">Look at the camera and blink</div>
                     <div class="k-liveness-progress">
                         <div class="k-liveness-progress-bar" id="kLivenessProgress"></div>
                     </div>
                 </div>
 
-                <div class="k-target" id="kTarget"></div>
+                <div class="k-status" id="kStatus">
+                    <i class="las la-spinner la-spin"></i> Starting camera...
+                </div>
             </div>
 
-            <div class="k-status" id="kStatus">
-                <i class="las la-spinner la-spin"></i> Loading face models...
-            </div>
-
-            <div class="k-panel" id="kPanel">
-                <div class="k-panel-icon" id="kPanelIcon"><i class="las la-check-circle"></i></div>
-                <div class="k-panel-name" id="kPanelName"></div>
-                <div class="k-panel-msg" id="kPanelMsg"></div>
-                <div class="k-panel-time" id="kPanelTime"></div>
-            </div>
+            <button class="k-cancel-btn" id="kCancelBtn">
+                <i class="las la-times"></i> Cancel
+            </button>
         </div>
+
+                <!-- ═══════════ SCREEN 3 — RESULT ═══════════ -->
+        <div class="k-panel" id="kPanel">
+            <div class="k-panel-icon" id="kPanelIcon"><i class="las la-check-circle"></i></div>
+            <div class="k-panel-name" id="kPanelName"></div>
+            <div class="k-panel-msg" id="kPanelMsg"></div>
+            <div class="k-panel-time" id="kPanelTime"></div>
+
+            <button id="kOkBtn" style="
+                margin-top: 30px;
+                padding: 16px 60px;
+                border-radius: 14px;
+                background: rgba(255,255,255,0.25);
+                border: 2px solid rgba(255,255,255,0.5);
+                color: #fff;
+                font-size: 1.1rem;
+                font-weight: 700;
+                cursor: pointer;
+                transition: all 0.15s;
+            ">
+                <i class="las la-check"></i> OK — Next Employee
+            </button>
+        </div>
+
     </div>
 
     <div class="k-footer">
-        <div>Employees loaded: <strong id="kCount">0</strong></div>
-        <div id="kClockStatus">Initializing...</div>
+        <div>Employees: <strong id="kCount">0</strong></div>
+        <div id="kClockStatus">Ready</div>
     </div>
-
 </div>
 
 <script id="kData" type="application/json">
