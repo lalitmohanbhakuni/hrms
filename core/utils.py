@@ -6,6 +6,14 @@ from calendar import monthrange
 from django.utils import timezone
 
 
+import base64
+import hashlib
+from cryptography.fernet import Fernet
+from django.conf import settings
+
+
+
+
 def get_employee_attendance_for_pdf(employee, year, month, first_day, last_day):
     """
     Returns a dictionary with employee attendance data for PDF generation.
@@ -1092,4 +1100,41 @@ def sync_late_deductions(employee, year, month, calc=None):
 
     return created
 
+    
+
+def _get_face_cipher():
+    """
+    Derive a Fernet key from Django's SECRET_KEY.
+    Stable across restarts (same SECRET_KEY → same key).
+    """
+    key_source = (settings.SECRET_KEY or 'fallback-key').encode('utf-8')
+    digest = hashlib.sha256(key_source).digest()
+    fernet_key = base64.urlsafe_b64encode(digest)
+    return Fernet(fernet_key)
+
+
+def encrypt_face_vector(vector_bytes: bytes) -> bytes:
+    """Encrypt a 128-dim face vector (as bytes) for storage."""
+    if not vector_bytes:
+        return b''
+    cipher = _get_face_cipher()
+    return cipher.encrypt(vector_bytes)
+
+
+def decrypt_face_vector(encrypted: bytes) -> bytes:
+    """Decrypt a stored face vector."""
+    if not encrypted:
+        return b''
+    cipher = _get_face_cipher()
+    return cipher.decrypt(encrypted)
+
+
+def face_registration_available(company):
+    """
+    Returns True if the company has face registration enabled.
+    Safe even if company is None.
+    """
+    if not company:
+        return False
+    return bool(getattr(company, 'face_registration_enabled', False))
     

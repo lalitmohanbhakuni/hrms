@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 from decimal import Decimal
+import uuid
 
 # ---------- Company Model ----------
 class Company(models.Model):
@@ -10,6 +11,10 @@ class Company(models.Model):
     code_prefix = models.CharField(max_length=10)
     created_at = models.DateTimeField(auto_now_add=True)
     payroll_enabled = models.BooleanField(default=False)
+    face_registration_enabled = models.BooleanField(
+        default=False,
+        help_text="Enable face-recognition kiosk attendance for this company.",
+    )
     device_tracking_enabled = models.BooleanField(
         default=False,
         help_text="Enable employee device management feature (Manage Devices).",
@@ -1206,3 +1211,259 @@ class AttendanceDevicePolicy(models.Model):
     def __str__(self):
         status = "ON" if self.enabled else "OFF"
         return f"{self.company.name} — Device Verification {status}"
+
+
+# ═══════════════════════════════════════════════════════════════
+# FACE REGISTRATION & KIOSK MODELS
+# ═══════════════════════════════════════════════════════════════
+
+class KioskDevice(models.Model):
+    """
+    One record per physical kiosk tablet/PC at a factory gate.
+    Kiosk authenticates with a device_token — no user password needed.
+    """
+    company = models.ForeignKey(
+        Company, on_delete=models.CASCADE, related_name='kiosk_devices'
+    )
+    name = models.CharField(
+        max_length=100,
+        help_text="e.g. Main Gate, Factory Floor, Admin Block",
+    )
+    location = models.CharField(
+        max_length=200, blank=True,
+        help_text="Physical location description",
+    )
+    device_token = models.CharField(
+        max_length=64, unique=True,
+        help_text="Auto-generated secure token for device auth",
+    )
+    is_active = models.BooleanField(default=True)
+    allow_clock_in = models.BooleanField(default=True)
+    allow_clock_out = models.BooleanField(default=True)
+
+    # ← ADD THIS
+    min_hours_before_out = models.DecimalField(
+        max_digits=4,
+        decimal_places=1,
+        default=2.0,
+        help_text="Minimum hours between clock-in and clock-out",
+    )
+    
+
+    # Audit
+    last_ping = models.DateTimeField(null=True, blank=True)
+    last_ip = models.GenericIPAddressField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='created_kiosks',
+    )
+
+    class Meta:
+        unique_together = [('company', 'name')]
+        ordering = ['company', 'name']
+
+    def save(self, *args, **kwargs):
+        if not self.device_token:
+            self.device_token = uuid.uuid4().hex + uuid.uuid4().hex[:16]
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.company.name} — {self.name}"
+
+
+class FaceCredential(models.Model):
+    """
+    Stores 5 encrypted face vectors (128-dim each) for one employee.
+    Vectors are encrypted at rest using Fernet (see utils.py).
+    Raw photos are NEVER stored.
+    """
+    employee = models.OneToOneField(
+        EmployeeProfile, on_delete=models.CASCADE,
+        related_name='face_credential',
+    )
+    company = models.ForeignKey(
+        Company, on_delete=models.CASCADE,
+        related_name='face_credentials',
+    )
+
+    # 5 vectors for robustness (front, left, right, smile, neutral)
+    vector_1 = models.BinaryField(help_text="Encrypted 128-dim vector")
+    vector_2 = models.BinaryField()
+    vector_3 = models.BinaryField()
+    vector_4 = models.BinaryField()
+    vector_5 = models.BinaryField()
+
+    # Metadata
+    registered_at = models.DateTimeField(auto_now_add=True)
+    registered_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='registered_faces',
+    )
+    is_active = models.BooleanField(default=True)
+    last_matched_at = models.DateTimeField(null=True, blank=True)
+    match_count = models.PositiveIntegerField(default=0)
+    fail_count = models.PositiveIntegerField(default=0)
+
+    # Threshold: 0.4 = strict (few false positives), 0.7 = lenient
+    match_threshold = models.FloatField(
+        default=0.55,
+        help_text="face-api.js euclidean distance threshold",
+    )
+
+    # Model version tracking
+    model_version = models.CharField(
+        max_length=20, default='face-api-1.0',
+        help_text="Which face-api.js model was used to register",
+    )
+
+    # Re-registration reminder
+    re_register_after = models.DateField(
+        null=True, blank=True,
+        help_text="Re-register every 12 months to account for aging",
+    )
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['company', 'is_active']),
+            models.Index(fields=['last_matched_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.employee.employee_id} — face registered"
+
+
+class FaceRegistrationConsent(models.Model):
+    """
+    DPDP Act compliance — employee gives explicit consent for biometric data.
+    """
+    employee = models.OneToOneField(
+        EmployeeProfile, on_delete=models.CASCADE,
+        related_name='face_consent',
+    )
+    company = models.ForeignKey(
+        Company, on_delete=models.CASCADE,
+        related_name='face_consents',
+    )
+
+    # Consent details
+    consent_given = models.BooleanField(default=False)
+    consent_given_at = models.DateTimeField(null=True, blank=True)
+    consent_version = models.CharField(
+        max_length=20, default='1.0',
+        help_text="Version of the consent form shown to employee",
+    )
+
+    # Signatures
+    employee_signature = models.CharField(
+        max_length=200, blank=True,
+        help_text="Employee typed their full name as consent",
+    )
+    witnessed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='witnessed_consents',
+    )
+
+    # Revocation
+    revoked = models.BooleanField(default=False)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    revoked_reason = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        status = "✓" if self.consent_given and not self.revoked else "✗"
+        return f"{status} {self.employee.employee_id} consent"
+
+
+class KioskAttendanceLog(models.Model):
+    """
+    Audit log of every kiosk face scan — matched or failed.
+    """
+    ACTION_CHOICES = [
+        ('in', 'Clock In'),
+        ('out', 'Clock Out'),
+    ]
+    RESULT_CHOICES = [
+        ('match', 'Matched'),
+        ('no_match', 'No Match'),
+        ('liveness_fail', 'Liveness Failed'),
+        ('no_face', 'No Face Detected'),
+        ('error', 'Error'),
+    ]
+
+    kiosk = models.ForeignKey(
+        KioskDevice, on_delete=models.CASCADE,
+        related_name='attendance_logs',
+    )
+    company = models.ForeignKey(
+        Company, on_delete=models.CASCADE,
+        related_name='kiosk_logs',
+    )
+
+    # Matched employee (null if no match)
+    employee = models.ForeignKey(
+        EmployeeProfile, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='kiosk_scans',
+    )
+
+    # What happened
+    action = models.CharField(max_length=5, choices=ACTION_CHOICES)
+    result = models.CharField(max_length=20, choices=RESULT_CHOICES)
+    confidence = models.FloatField(
+        null=True, blank=True,
+        help_text="Euclidean distance — lower is better",
+    )
+
+    # Attendance record created (if matched)
+    attendance = models.ForeignKey(
+        'Attendance', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='kiosk_logs',
+    )
+
+    # Context
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['kiosk', '-timestamp']),
+            models.Index(fields=['company', '-timestamp']),
+            models.Index(fields=['employee', '-timestamp']),
+            models.Index(fields=['result']),
+        ]
+
+    def __str__(self):
+        emp = self.employee.employee_id if self.employee else 'unknown'
+        return f"{self.kiosk.name} | {self.timestamp:%d %b %H:%M} | {emp} | {self.result}"
+
+
+class KioskSession(models.Model):
+    """
+    Tracks active kiosk sessions for remote logout / revoke.
+    """
+    kiosk = models.ForeignKey(
+        KioskDevice, on_delete=models.CASCADE,
+        related_name='sessions',
+    )
+    session_key = models.CharField(max_length=64, unique=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    started_at = models.DateTimeField(auto_now_add=True)
+    last_seen_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-last_seen_at']
+        indexes = [
+            models.Index(fields=['kiosk', 'is_active']),
+        ]
+
+    def __str__(self):
+        status = "active" if self.is_active else "revoked"
+        return f"{self.kiosk.name} — {status} since {self.started_at:%d %b %H:%M}"
+
+        

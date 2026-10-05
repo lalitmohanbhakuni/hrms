@@ -151,6 +151,22 @@ urlpatterns = [
         name='pending_device_approvals',
     ),
 
+    # ─── Kiosk (face-recognition attendance) ───
+     path('kiosk/',                          views.kiosk_page,           name='kiosk_page'),
+     path('api/kiosk/vectors/',              views.kiosk_get_vectors,    name='kiosk_get_vectors'),
+     path('api/kiosk/clock/',                views.kiosk_clock_api,      name='kiosk_clock_api'),
+    # ─── Face Registration ───
+     path('face/register/<int:user_id>/', views.face_register,     name='face_register'),
+     path('face/manage/<int:user_id>/',   views.face_manage,       name='face_manage'),
+     path('api/face/save/',               views.face_save_api,     name='face_save_api'),
+
+     # ─── Face Management ───
+     path('face/manage/',                 views.face_manage_list,  name='face_manage_list'),
+     path('face/register/<int:user_id>/', views.face_register,     name='face_register'),
+     path('face/manage/<int:user_id>/',   views.face_manage,       name='face_manage'),
+     path('api/face/save/',               views.face_save_api,     name='face_save_api'),
+
+
 
 
     

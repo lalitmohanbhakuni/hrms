@@ -1,0 +1,234 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Face — {{ employee.full_name }}{% endblock %}
+{% block page_icon %}user-check{% endblock %}
+{% block page_title %}Face Credential{% endblock %}
+
+{% block content %}
+
+<style>
+    .fd-wrap { max-width: 900px; margin: 0 auto; }
+    .fd-hero {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 16px;
+        padding: 22px 26px;
+        color: #fff;
+        margin-bottom: 20px;
+    }
+    .fd-hero h2 { font-size: 1.25rem; font-weight: 700; margin: 0 0 4px; }
+    .fd-hero p { font-size: 0.85rem; opacity: 0.9; margin: 0; }
+    .fd-back {
+        display: inline-flex; align-items: center; gap: 6px;
+        color: rgba(255,255,255,0.9); font-size: 0.8rem;
+        font-weight: 600; text-decoration: none; margin-bottom: 10px;
+    }
+    .fd-back:hover { color: #fff; }
+
+    .fd-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        padding: 20px;
+        margin-bottom: 16px;
+    }
+    .fd-card-title {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        color: #64748b;
+        font-weight: 700;
+        margin-bottom: 14px;
+    }
+    .fd-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px 0;
+        border-bottom: 1px solid #f1f5f9;
+        font-size: 0.9rem;
+    }
+    .fd-row:last-child { border-bottom: none; }
+    .fd-row-label { color: #64748b; }
+    .fd-row-value { font-weight: 600; color: #0f172a; }
+
+    .fd-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 0.72rem;
+        padding: 3px 10px;
+        border-radius: 999px;
+        font-weight: 600;
+    }
+    .fd-badge.ok      { background: #dcfce7; color: #166534; }
+    .fd-badge.missing { background: #fef3c7; color: #92400e; }
+
+    .fd-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 8px;
+    }
+    .fd-btn {
+        padding: 10px 20px;
+        border-radius: 10px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-decoration: none;
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        color: #475569;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+    }
+    .fd-btn:hover { background: #f8fafc; color: #0f172a; }
+    .fd-btn.primary { background: #eef2ff; color: #4338ca; border-color: #c7d2fe; }
+    .fd-btn.primary:hover { background: #e0e7ff; }
+    .fd-btn.danger { color: #dc2626; border-color: #fecaca; }
+    .fd-btn.danger:hover { background: #fef2f2; }
+</style>
+
+<div class="fd-wrap">
+
+    <div class="fd-hero">
+        <a href="{% url 'face_manage_list' %}" class="fd-back">
+            <i class="las la-arrow-left"></i> Back to Face Management
+        </a>
+        <h2><i class="las la-user-check"></i> {{ employee.full_name }}</h2>
+        <p>{{ employee.employee_id }}{% if employee.designation %} · {{ employee.designation }}{% endif %}</p>
+    </div>
+
+    <!-- ═══════ CREDENTIAL STATUS ═══════ -->
+    <div class="fd-card">
+        <div class="fd-card-title">Face Credential</div>
+
+        {% if credential %}
+            <div class="fd-row">
+                <span class="fd-row-label">Status</span>
+                <span class="fd-badge ok"><i class="las la-check-circle"></i> Registered</span>
+            </div>
+            <div class="fd-row">
+                <span class="fd-row-label">Registered on</span>
+                <span class="fd-row-value">{{ credential.registered_at|date:"d M Y, H:i" }}</span>
+            </div>
+            <div class="fd-row">
+                <span class="fd-row-label">Registered by</span>
+                <span class="fd-row-value">{{ credential.registered_by.username|default:"—" }}</span>
+            </div>
+            <div class="fd-row">
+                <span class="fd-row-label">Model version</span>
+                <span class="fd-row-value">{{ credential.model_version }}</span>
+            </div>
+            <div class="fd-row">
+                <span class="fd-row-label">Match threshold</span>
+                <span class="fd-row-value">{{ credential.match_threshold }}</span>
+            </div>
+            <div class="fd-row">
+                <span class="fd-row-label">Matches</span>
+                <span class="fd-row-value" style="color:#10b981;">{{ credential.match_count }}</span>
+            </div>
+            <div class="fd-row">
+                <span class="fd-row-label">Failures</span>
+                <span class="fd-row-value" style="color:{% if credential.fail_count %}#ef4444{% else %}#0f172a{% endif %};">{{ credential.fail_count }}</span>
+            </div>
+            <div class="fd-row">
+                <span class="fd-row-label">Last matched</span>
+                <span class="fd-row-value">
+                    {% if credential.last_matched_at %}
+                        {{ credential.last_matched_at|date:"d M Y, H:i" }}
+                    {% else %}
+                        Never
+                    {% endif %}
+                </span>
+            </div>
+        {% else %}
+            <div class="fd-row">
+                <span class="fd-row-label">Status</span>
+                <span class="fd-badge missing"><i class="las la-exclamation-circle"></i> Not registered</span>
+            </div>
+        {% endif %}
+
+        <div class="fd-actions">
+            <a href="{% url 'face_register' employee.user_id %}" class="fd-btn primary">
+                <i class="las la-{% if credential %}redo-alt{% else %}plus{% endif %}"></i>
+                {% if credential %}Re-register Face{% else %}Register Face{% endif %}
+            </a>
+
+            {% if credential %}
+            <form method="post" style="margin:0;"
+                  onsubmit="return confirm('Delete face credential for {{ employee.full_name }}?\n\nThis cannot be undone. The employee will need to re-register.');">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete">
+                <button type="submit" class="fd-btn danger">
+                    <i class="las la-trash"></i> Delete Face
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ═══════ CONSENT ═══════ -->
+    <div class="fd-card">
+        <div class="fd-card-title">DPDP Consent</div>
+        {% if consent and consent.consent_given %}
+            <div class="fd-row">
+                <span class="fd-row-label">Consent</span>
+                <span class="fd-badge ok"><i class="las la-check"></i> Given</span>
+            </div>
+            <div class="fd-row">
+                <span class="fd-row-label">Signature</span>
+                <span class="fd-row-value">{{ consent.employee_signature }}</span>
+            </div>
+            <div class="fd-row">
+                <span class="fd-row-label">Given at</span>
+                <span class="fd-row-value">{{ consent.consent_given_at|date:"d M Y, H:i" }}</span>
+            </div>
+            <div class="fd-row">
+                <span class="fd-row-label">Witnessed by</span>
+                <span class="fd-row-value">{{ consent.witnessed_by.username|default:"—" }}</span>
+            </div>
+        {% else %}
+            <div class="fd-row">
+                <span class="fd-row-label">Consent</span>
+                <span class="fd-badge missing">Not recorded</span>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- ═══════ RECENT SCANS ═══════ -->
+    <div class="fd-card">
+        <div class="fd-card-title">Recent Kiosk Scans</div>
+        {% if recent_logs %}
+            <table style="width:100%; font-size:0.85rem; border-collapse:collapse;">
+                <tbody>
+                    {% for log in recent_logs %}
+                    <tr style="border-bottom:1px solid #f1f5f9;">
+                        <td style="padding:8px 0; color:#64748b;">{{ log.timestamp|date:"d M H:i:s" }}</td>
+                        <td style="padding:8px 0;">
+                            {% if log.result == 'match' %}
+                                <span class="fd-badge ok"><i class="las la-check"></i> Match</span>
+                            {% elif log.result == 'no_match' %}
+                                <span class="fd-badge missing"><i class="las la-times"></i> No match</span>
+                            {% else %}
+                                <span>{{ log.result }}</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding:8px 0; text-align:right; color:#94a3b8;">
+                            {% if log.confidence %}conf: {{ log.confidence|floatformat:2 }}{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div style="color:#94a3b8; font-size:0.85rem; padding:12px 0;">
+                No kiosk scans recorded yet.
+            </div>
+        {% endif %}
+    </div>
+
+</div>
+
+{% endblock %}

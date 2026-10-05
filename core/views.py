@@ -22,6 +22,8 @@ from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.auth.models import User
 
+from .models import EmployeeProfile, FaceCredential, FaceRegistrationConsent, KioskAttendanceLog
+
 
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
@@ -30,6 +32,14 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch, cm
 
 from django_ratelimit.decorators import ratelimit
+
+
+
+import struct
+import math
+import ipaddress
+from datetime import timedelta
+
 
 from .models import (
     Attendance, LeaveType, Holiday, LeaveRequest, Notification,
@@ -2256,7 +2266,7 @@ def employee_leaves(request):
         'today': today,
     }
     return render(request, 'employee_leaves.html', context)
-    
+
 
 # ---------- Apply for Leave ----------
 @login_required
@@ -7533,6 +7543,7 @@ def pending_device_approvals(request):
 
 # ═══════════════════════════════════════════════════════════════
 # BULK EMPLOYEE IMPORT
+# FACE REGISTRATION VIEWS
 # ═══════════════════════════════════════════════════════════════
 
 @login_required
@@ -7824,6 +7835,37 @@ def employee_import_template(request):
         'Office', '', '', '',
     ])
     return response
+def face_register(request, user_id):
+    """
+    HR registers an employee's face.
+    Renders camera UI. Vectors are computed client-side and
+    POSTed to face_save_api.
+    """
+    from .utils import get_user_company, face_registration_available
+
+    company = get_user_company(request)
+
+    # Feature must be enabled for this company
+    if not face_registration_available(company):
+        messages.error(request, 'Face registration is not enabled for your company.')
+        return redirect('employee_list')
+
+    # Employee must belong to this company
+    employee = get_object_or_404(
+        EmployeeProfile, user_id=user_id, company=company
+    )
+    employee_user = employee.user
+
+    # Check existing credential
+    existing = FaceCredential.objects.filter(employee=employee, is_active=True).first()
+
+    context = {
+        'employee':      employee,
+        'employee_user': employee_user,
+        'existing':      existing,
+        'action':        'Register',
+    }
+    return render(request, 'face/register.html', context)
 
 
 @login_required
@@ -7855,6 +7897,582 @@ def employee_import_credentials(request):
             c['employee_id'], c['full_name'], c['email'], c['username'], c['password'],
         ])
     return response
+def face_manage_list(request):
+    """
+    HR view: list all employees with their face registration status.
+    Shows: has face / not registered / stats / actions.
+    """
+    from .utils import get_user_company, face_registration_available
+    from django.db.models import Q
+
+    company = get_user_company(request)
+
+    if not face_registration_available(company):
+        messages.error(request, 'Face registration is not enabled for your company.')
+        return redirect('employee_list')
+
+    # Filters
+    search = (request.GET.get('search') or '').strip()
+    filter_status = request.GET.get('status', 'all')  # all | registered | missing
+
+    # All active employees
+    employees = EmployeeProfile.objects.filter(
+        company=company, is_active=True
+    ).select_related('user').order_by('employee_id')
+
+    if search:
+        employees = employees.filter(
+            Q(employee_id__icontains=search) |
+            Q(full_name__icontains=search)
+        )
+
+    # Annotate with credential
+    from .models import FaceCredential, FaceRegistrationConsent
+
+    employee_rows = []
+    for emp in employees:
+        cred = FaceCredential.objects.filter(employee=emp, is_active=True).first()
+        consent = FaceRegistrationConsent.objects.filter(employee=emp, revoked=False).first()
+
+        row = {
+            'employee': emp,
+            'has_face': bool(cred),
+            'credential': cred,
+            'consent': consent,
+            'registered_at': cred.registered_at if cred else None,
+            'match_count': cred.match_count if cred else 0,
+            'fail_count': cred.fail_count if cred else 0,
+            'last_matched_at': cred.last_matched_at if cred else None,
+        }
+
+        if filter_status == 'registered' and not cred:
+            continue
+        if filter_status == 'missing' and cred:
+            continue
+
+        employee_rows.append(row)
+
+    # Summary counts
+    total = EmployeeProfile.objects.filter(company=company, is_active=True).count()
+    registered = FaceCredential.objects.filter(
+        company=company, is_active=True
+    ).count()
+
+    context = {
+        'employee_rows': employee_rows,
+        'search': search,
+        'filter_status': filter_status,
+        'total_employees': total,
+        'total_registered': registered,
+        'total_missing': total - registered,
+    }
+    return render(request, 'face/manage_list.html', context)
+
+
+
+@login_required
+@hr_admin_required
+@company_required
+def face_manage(request, user_id):
+    """
+    HR view: face credential details for one employee.
+    Actions: re-register, delete.
+    """
+    from .utils import get_user_company, face_registration_available
+
+    company = get_user_company(request)
+
+    if not face_registration_available(company):
+        messages.error(request, 'Face registration is not enabled for your company.')
+        return redirect('employee_list')
+
+    employee = get_object_or_404(
+        EmployeeProfile, user_id=user_id, company=company
+    )
+
+    # Handle DELETE
+    if request.method == 'POST' and request.POST.get('action') == 'delete':
+        deleted_cred = FaceCredential.objects.filter(employee=employee).delete()
+        deleted_consent = FaceRegistrationConsent.objects.filter(employee=employee).delete()
+        messages.success(
+            request,
+            f'Face credential deleted for {employee.full_name}. '
+            f'They will need to re-register.'
+        )
+        return redirect('face_manage_list')
+
+    # Get credential and consent
+    credential = FaceCredential.objects.filter(employee=employee).first()
+    consent = FaceRegistrationConsent.objects.filter(employee=employee).first()
+
+    # Recent kiosk logs
+    recent_logs = KioskAttendanceLog.objects.filter(
+        employee=employee
+    ).order_by('-timestamp')[:15]
+
+    context = {
+        'employee': employee,
+        'credential': credential,
+        'consent': consent,
+        'recent_logs': recent_logs,
+    }
+    return render(request, 'face/manage.html', context)
+
+
+
+@login_required
+@hr_admin_required
+@company_required
+def face_save_api(request):
+    """
+    API endpoint: receives 5 face vectors from the client
+    (client-side face-api.js generates them).
+    Encrypts and stores.
+    """
+    import json
+    from django.http import JsonResponse
+    from .utils import (
+        get_user_company, face_registration_available,
+        encrypt_face_vector,
+    )
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    company = get_user_company(request)
+    if not face_registration_available(company):
+        return JsonResponse({'error': 'Feature not enabled'}, status=403)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    employee_id = data.get('employee_id')
+    vectors = data.get('vectors')   # list of 5 lists (each 128 floats)
+    consent_name = (data.get('consent_name') or '').strip()
+    model_version = data.get('model_version', 'face-api-1.0')
+
+    # Validation
+    if not employee_id:
+        return JsonResponse({'error': 'employee_id required'}, status=400)
+    if not vectors or len(vectors) != 5:
+        return JsonResponse({'error': 'Need exactly 5 face samples'}, status=400)
+    for v in vectors:
+        if not isinstance(v, list) or len(v) != 128:
+            return JsonResponse({'error': 'Each vector must have 128 floats'}, status=400)
+    if not consent_name:
+        return JsonResponse({'error': 'Consent name required'}, status=400)
+
+    # Employee must belong to this company
+    employee = EmployeeProfile.objects.filter(
+        id=employee_id, company=company
+    ).first()
+    if not employee:
+        return JsonResponse({'error': 'Employee not found'}, status=404)
+
+    # Convert vectors to bytes and encrypt
+    import struct
+    encrypted_vectors = []
+    for v in vectors:
+        raw_bytes = struct.pack('128f', *v)   # 128 floats = 512 bytes
+        encrypted_vectors.append(encrypt_face_vector(raw_bytes))
+
+    # Save or update credential
+    credential, created = FaceCredential.objects.update_or_create(
+        employee=employee,
+        defaults={
+            'company':        company,
+            'vector_1':       encrypted_vectors[0],
+            'vector_2':       encrypted_vectors[1],
+            'vector_3':       encrypted_vectors[2],
+            'vector_4':       encrypted_vectors[3],
+            'vector_5':       encrypted_vectors[4],
+            'is_active':      True,
+            'registered_by':  request.user,
+            'model_version':  model_version,
+        },
+    )
+
+    # Consent record
+    from django.utils import timezone
+    FaceRegistrationConsent.objects.update_or_create(
+        employee=employee,
+        defaults={
+            'company':              company,
+            'consent_given':        True,
+            'consent_given_at':     timezone.now(),
+            'employee_signature':   consent_name,
+            'witnessed_by':         request.user,
+            'revoked':              False,
+        },
+    )
+
+    return JsonResponse({
+        'success':      True,
+        'employee_id':  employee.employee_id,
+        'full_name':    employee.full_name,
+        'created':      created,
+        'message':      f'Face registered for {employee.full_name}',
+    })
+
+# ═══════════════════════════════════════════════════════════════
+# KIOSK VIEWS — Face-recognition attendance
+# ═══════════════════════════════════════════════════════════════
+
+def kiosk_page(request):
+    """
+    Renders the kiosk UI.
+    Auth: ?token=<device_token>
+    Public (no login required) — token is the credential.
+    """
+    from .models import KioskDevice
+    from .utils import face_registration_available
+
+    token = request.GET.get('token', '').strip()
+    if not token:
+        return render(request, 'kiosk/error.html', {
+            'error_title': 'Invalid Kiosk URL',
+            'error_msg': 'Missing device token. Please contact HR.',
+        }, status=400)
+
+    kiosk = KioskDevice.objects.filter(
+        device_token=token, is_active=True
+    ).select_related('company').first()
+
+    if not kiosk:
+        return render(request, 'kiosk/error.html', {
+            'error_title': 'Kiosk Not Found',
+            'error_msg': 'This device is not registered or has been deactivated. Please contact HR.',
+        }, status=404)
+
+    if not face_registration_available(kiosk.company):
+        return render(request, 'kiosk/error.html', {
+            'error_title': 'Feature Disabled',
+            'error_msg': f'Face registration is not enabled for {kiosk.company.name}.',
+        }, status=403)
+
+    # Update last ping
+    from django.utils import timezone
+    ip = request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip() or request.META.get('REMOTE_ADDR')
+    kiosk.last_ping = timezone.now()
+    kiosk.last_ip = ip
+    kiosk.save(update_fields=['last_ping', 'last_ip'])
+
+    context = {
+        'kiosk':         kiosk,
+        'kiosk_name':    kiosk.name,
+        'company_name':  kiosk.company.name,
+        'token':         token,
+        'static_base':   '/static/vendor/face-api',
+    }
+    return render(request, 'kiosk/index.html', context)
+
+
+def kiosk_get_vectors(request):
+    """
+    API: returns all active employee face vectors for the kiosk's company.
+    Auth: ?token=<device_token>
+    Returns JSON with vectors (decrypted) — client-side matching.
+    """
+    from .models import KioskDevice, FaceCredential
+    from .utils import decrypt_face_vector
+    import struct
+    from django.http import JsonResponse
+
+    token = request.GET.get('token', '').strip()
+    kiosk = KioskDevice.objects.filter(device_token=token, is_active=True).first()
+
+    if not kiosk:
+        return JsonResponse({'error': 'Invalid kiosk token'}, status=403)
+
+    credentials = FaceCredential.objects.filter(
+        company=kiosk.company, is_active=True
+    ).select_related('employee')
+
+    result = []
+    for cred in credentials:
+        try:
+            vectors = []
+            for i in range(1, 6):
+                enc = getattr(cred, f'vector_{i}')
+                raw = decrypt_face_vector(bytes(enc))
+                # Unpack 128 floats from bytes
+                floats = list(struct.unpack('128f', raw))
+                vectors.append(floats)
+
+            result.append({
+                'employee_id':   cred.employee.id,
+                'employee_code': cred.employee.employee_id,
+                'full_name':     cred.employee.full_name,
+                'designation':   cred.employee.designation or '',
+                'department':    cred.employee.department or '',
+                'threshold':     cred.match_threshold,
+                'vectors':       vectors,   # list of 5 arrays of 128 floats
+            })
+        except Exception as e:
+            # Skip corrupted credentials
+            continue
+
+    return JsonResponse({
+        'kiosk':   kiosk.name,
+        'company': kiosk.company.name,
+        'count':   len(result),
+        'employees': result,
+    })
+
+from django.views.decorators.csrf import csrf_exempt
+
+@csrf_exempt
+def kiosk_clock_api(request):
+    """
+    API: kiosk sends a match result. Server records attendance.
+    POST JSON: { token, employee_id, action, confidence, descriptor, liveness_verified }
+    """
+    from .models import KioskDevice, EmployeeProfile, Attendance, KioskAttendanceLog, FaceCredential
+    from django.http import JsonResponse
+    from django.utils import timezone
+    from .utils import decrypt_face_vector
+    import json
+    import struct
+    import math
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    token            = data.get('token', '').strip()
+    employee_id      = data.get('employee_id')
+    action           = data.get('action', 'auto')
+    confidence       = data.get('confidence')
+    live_descriptor  = data.get('descriptor')
+    liveness_verified = data.get('liveness_verified', False)
+
+    # ── Validate descriptor format ──
+    if not isinstance(live_descriptor, list) or len(live_descriptor) != 128:
+        return JsonResponse({'error': 'Face descriptor missing or invalid'}, status=400)
+
+    try:
+        live_descriptor = [float(x) for x in live_descriptor]
+    except (TypeError, ValueError):
+        return JsonResponse({'error': 'Descriptor values invalid'}, status=400)
+
+    # ── Liveness check ──
+    if not liveness_verified:
+        return JsonResponse({
+            'error': 'Liveness verification required. Please blink at the camera.',
+        }, status=400)
+
+    # ── Validate kiosk ──
+    kiosk = KioskDevice.objects.filter(device_token=token, is_active=True).first()
+    if not kiosk:
+        return JsonResponse({'error': 'Invalid kiosk token'}, status=403)
+
+    # ── Kiosk-level settings ──
+    MIN_HOURS_BETWEEN_IN_OUT = float(getattr(kiosk, 'min_hours_before_out', 2.0) or 2.0)
+    COOLDOWN_SECONDS = 300
+
+    # ── Fetch employee ──
+    employee = EmployeeProfile.objects.filter(
+        id=employee_id, company=kiosk.company, is_active=True
+    ).first()
+
+    if not employee:
+        return JsonResponse({'error': 'Employee not found'}, status=404)
+
+    # ── SERVER-SIDE FACE VERIFICATION ──
+    credential = FaceCredential.objects.filter(
+        employee=employee, is_active=True
+    ).first()
+
+    if not credential:
+        return JsonResponse({'error': 'Face not registered for this employee'}, status=404)
+
+    try:
+        best_distance = float('inf')
+        for i in range(1, 6):
+            encrypted = bytes(getattr(credential, f'vector_{i}'))
+            raw = decrypt_face_vector(encrypted)
+            stored = list(struct.unpack('128f', raw))
+
+            dist = math.sqrt(sum((a - b) ** 2 for a, b in zip(live_descriptor, stored)))
+            if dist < best_distance:
+                best_distance = dist
+
+        threshold = float(credential.match_threshold or 0.55)
+
+        if best_distance > threshold:
+            KioskAttendanceLog.objects.create(
+                kiosk=kiosk,
+                company=kiosk.company,
+                employee=employee,
+                action='in',
+                result='no_match',
+                confidence=best_distance,
+                ip_address=request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip() or request.META.get('REMOTE_ADDR'),
+            )
+            return JsonResponse({
+                'error': f'Face does not match (distance {best_distance:.2f}, threshold {threshold})',
+            }, status=403)
+
+    except Exception as e:
+        logger.error(f'[kiosk-verify] verification failed: {e}')
+        return JsonResponse({'error': 'Face verification error'}, status=500)
+
+    # ── Cooldown check ──
+    last_log = KioskAttendanceLog.objects.filter(
+        employee=employee,
+        company=kiosk.company,
+        result='match',
+    ).order_by('-timestamp').first()
+
+    if last_log:
+        seconds_ago = (timezone.now() - last_log.timestamp).total_seconds()
+        if seconds_ago < COOLDOWN_SECONDS:
+            minutes_ago = max(1, int(seconds_ago // 60))
+            return JsonResponse({
+                'success':      True,
+                'employee_id':  employee.employee_id,
+                'full_name':    employee.full_name,
+                'action':       'cooldown',
+                'message':      f'Already processed {minutes_ago} min ago',
+                'time':         timezone.localtime().strftime('%I:%M %p'),
+            }, status=200)
+
+    # ── Validate action ──
+    if action not in ('in', 'out', 'auto'):
+        return JsonResponse({'error': 'action must be in, out, or auto'}, status=400)
+
+    today = timezone.localdate()
+    now   = timezone.now()
+
+    # ── Auto-decide action ──
+    if action == 'auto':
+        existing = Attendance.objects.filter(
+            user=employee.user,
+            company=kiosk.company,
+            date=today,
+        ).first()
+
+        if not existing or not existing.check_in_time:
+            action = 'in'
+        elif not existing.check_out_time:
+            action = 'out'
+        else:
+            return JsonResponse({
+                'success':      True,
+                'employee_id':  employee.employee_id,
+                'full_name':    employee.full_name,
+                'action':       'already_done',
+                'message':      'Already clocked in and out today',
+                'time':         timezone.localtime().strftime('%I:%M %p'),
+            }, status=200)
+
+    # ── Kiosk permissions ──
+    if action == 'in' and not kiosk.allow_clock_in:
+        return JsonResponse({'error': 'Clock-in disabled on this kiosk'}, status=403)
+    if action == 'out' and not kiosk.allow_clock_out:
+        return JsonResponse({'error': 'Clock-out disabled on this kiosk'}, status=403)
+
+    # ── Get or create attendance ──
+    att, created = Attendance.objects.get_or_create(
+        user=employee.user,
+        company=kiosk.company,
+        date=today,
+        defaults={
+            'shift':  employee.shift,
+            'state':  '',
+            'status': 'Present',
+        }
+    )
+
+    ip = (
+        request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip()
+        or request.META.get('REMOTE_ADDR')
+    )
+
+    # ── Clock IN ──
+    if action == 'in':
+        if att.check_in_time:
+            response_msg = f'Already clocked in at {timezone.localtime(att.check_in_time).strftime("%I:%M %p")}'
+            response_act = 'already_in'
+        else:
+            att.check_in_time = now
+            att.state = 'checked_in'
+            att.status = att.status or 'Present'
+            att.save(update_fields=['check_in_time', 'state', 'status'])
+            response_msg = f'Clocked in at {timezone.localtime(now).strftime("%I:%M %p")}'
+            response_act = 'in'
+
+    # ── Clock OUT ──
+    else:
+        if not att.check_in_time:
+            response_msg = 'You have not clocked in yet'
+            response_act = 'not_in'
+        elif att.check_out_time:
+            response_msg = f'Already clocked out at {timezone.localtime(att.check_out_time).strftime("%I:%M %p")}'
+            response_act = 'already_out'
+        else:
+            elapsed = now - att.check_in_time
+            hours_since_in = elapsed.total_seconds() / 3600
+
+            if hours_since_in < MIN_HOURS_BETWEEN_IN_OUT:
+                total_minutes = int(elapsed.total_seconds() // 60)
+                h = total_minutes // 60
+                m = total_minutes % 60
+                elapsed_str = f'{h}h {m}m' if h else f'{m} min'
+
+                req_h = int(MIN_HOURS_BETWEEN_IN_OUT)
+                req_m = int(round((MIN_HOURS_BETWEEN_IN_OUT - req_h) * 60))
+                req_str = f'{req_h}h {req_m}m' if (req_h and req_m) else (f'{req_h}h' if req_h else f'{req_m} min')
+
+                return JsonResponse({
+                    'success':      True,
+                    'employee_id':  employee.employee_id,
+                    'full_name':    employee.full_name,
+                    'action':       'too_soon',
+                    'message':      f'Clocked in {elapsed_str} ago · Minimum {req_str} required',
+                    'time':         timezone.localtime().strftime('%I:%M %p'),
+                }, status=200)
+
+            att.check_out_time = now
+            att.state = 'checked_out'
+            att.total_working_time = now - att.check_in_time
+            att.save(update_fields=['check_out_time', 'state', 'total_working_time'])
+            response_msg = f'Clocked out at {timezone.localtime(now).strftime("%I:%M %p")}'
+            response_act = 'out'
+
+    # ── Audit log ──
+    KioskAttendanceLog.objects.create(
+        kiosk=kiosk,
+        company=kiosk.company,
+        employee=employee,
+        action=action,
+        result='match',
+        confidence=confidence,
+        attendance=att,
+        ip_address=ip,
+        user_agent=request.META.get('HTTP_USER_AGENT', '')[:500],
+    )
+
+    return JsonResponse({
+        'success':      True,
+        'employee_id':  employee.employee_id,
+        'full_name':    employee.full_name,
+        'action':       response_act,
+        'message':      response_msg,
+        'time':         timezone.localtime(now).strftime('%I:%M %p'),
+        'check_in':     timezone.localtime(att.check_in_time).strftime('%I:%M %p') if att.check_in_time else None,
+        'check_out':    timezone.localtime(att.check_out_time).strftime('%I:%M %p') if att.check_out_time else None,
+    })
+
 
         
     # **************texting 

@@ -194,6 +194,13 @@
                         <i class="las la-shield-alt"></i> Manage Devices
                     </a>
                     {% endif %}
+                    {% if profile.company.face_registration_enabled %}
+                    <a href="{% url 'face_register' employee_user.id %}"
+                    class="btn-emp btn-emp-primary"
+                    style="background:#f0fdf4;color:#166534;border:1px solid #86efac;">
+                        <i class="las la-user-check"></i> Register Face
+                    </a>
+                    {% endif %}
                     <a href="{% url 'employee_list' %}"
                        class="btn-emp btn-emp-outline" style="color:#fff; border-color:rgba(255,255,255,0.4);">
                         <i class="las la-arrow-left"></i> Back
