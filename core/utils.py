@@ -1007,8 +1007,25 @@ def sync_late_deductions(employee, year, month, calc=None):
             if slab and slab.penalty_days and slab.penalty_days > 0:
                 penalty_days = Decimal(str(slab.penalty_days))
             else:
-                # No slab matched → skip this day
-                continue
+                # Fallback: no slab matched (extreme lateness beyond the
+                # highest 'to_minutes'). Never silently skip — use the
+                # highest configured slab's penalty instead.
+                fallback = (
+                    rule.minute_slabs
+                    .exclude(to_minutes__isnull=True)
+                    .order_by('-to_minutes')
+                    .first()
+                )
+                if fallback and fallback.penalty_days and fallback.penalty_days > 0:
+                    penalty_days = Decimal(str(fallback.penalty_days))
+                    print(
+                        f"[late-deduction] WARNING: No slab for "
+                        f"{late['minutes']}m (rule v{rule.version}); "
+                        f"using top slab penalty {penalty_days}"
+                    )
+                else:
+                    # Truly no slabs at all — nothing to apply
+                    continue
         else:
             # ── Marks mode (existing) ──
             if rule.half_day_cutoff_minutes and late['minutes'] > rule.half_day_cutoff_minutes:

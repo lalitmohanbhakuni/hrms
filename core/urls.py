@@ -211,8 +211,5 @@ path('password-reset-complete/',
     path('attendance/webauthn/authenticate/complete/',
          webauthn_views.webauthn_authenticate_complete, name='webauthn_authenticate_complete'),
 
-
-    
-    # Test
-    path('test/', views.test_view, name='test'),
+         
 ]

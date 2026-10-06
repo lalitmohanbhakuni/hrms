@@ -8475,7 +8475,8 @@ def kiosk_clock_api(request):
                 logger.error(f'[kiosk] IP check error: {e}')
 
     # ── 10. Kiosk-level settings ──
-    MIN_HOURS_BETWEEN_IN_OUT = float(getattr(kiosk, 'min_hours_before_out', 2.0) or 2.0)
+    _min_h = getattr(kiosk, 'min_hours_before_out', None)
+    MIN_HOURS_BETWEEN_IN_OUT = float(_min_h) if _min_h is not None else 2.0
     COOLDOWN_SECONDS = 300
 
     # ── 11. Employee (must belong to kiosk's company) ──
@@ -8524,6 +8525,15 @@ def kiosk_clock_api(request):
     except Exception as e:
         logger.error(f'[kiosk-verify] verification failed: {e}')
         return JsonResponse({'error': 'Face verification error'}, status=500)
+
+    
+    # ── 12b. Update face credential metrics ──
+    try:
+        credential.match_count = (credential.match_count or 0) + 1
+        credential.last_matched_at = timezone.now()
+        credential.save(update_fields=['match_count', 'last_matched_at'])
+    except Exception as e:
+        logger.error(f'[kiosk] credential metric update failed: {e}')
 
     # ── 13. Cooldown ──
     last_log = KioskAttendanceLog.objects.filter(
@@ -8596,8 +8606,18 @@ def kiosk_clock_api(request):
         else:
             att.check_in_time = now
             att.state = 'checked_in'
-            att.status = att.status or 'Present'
+            # Bug B fix: don't let stale Absent/Missing Checkout status stick
+            if att.status in ('', 'Absent', 'Missing Checkout', None):
+                att.status = 'Present'
             att.save(update_fields=['check_in_time', 'state', 'status'])
+    
+            # Bug A fix: trigger late-deduction sync for this month
+            try:
+                from .utils import sync_late_deductions
+                sync_late_deductions(employee, now.year, now.month)
+            except Exception as e:
+                logger.error(f'[kiosk] sync_late_deductions failed for {employee.employee_id}: {e}')
+    
             response_msg = f'Clocked in at {timezone.localtime(now).strftime("%I:%M %p")}'
             response_act = 'in'
 
@@ -8662,10 +8682,3 @@ def kiosk_clock_api(request):
         'check_in':    timezone.localtime(att.check_in_time).strftime('%I:%M %p') if att.check_in_time else None,
         'check_out':   timezone.localtime(att.check_out_time).strftime('%I:%M %p') if att.check_out_time else None,
     })
-
-
-
-        
-    # **************texting 
-def test_view(request):
-    return HttpResponse("Django is working!")

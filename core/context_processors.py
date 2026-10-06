@@ -1,21 +1,23 @@
 from .models import Notification, LeaveRequest
 
 def notification_context(request):
-    if request.user.is_authenticated:
-        notifications = Notification.objects.filter(
-            user=request.user, is_read=False
-        ).order_by('-created_at')[:10]
-        pending_actions = []
-        if request.user.is_superuser:
-            pending_actions = LeaveRequest.objects.filter(
-                status='Pending'
-            ).order_by('-applied_on')[:10]
-        return {
-            'notifications': notifications,
-            'pending_actions': pending_actions,
-            'unread_count': notifications.count(),
-        }
-    return {}
+    user = getattr(request, 'user', None)
+    if user is None or not user.is_authenticated:
+        return {}
+    notifications = Notification.objects.filter(
+        user=user, is_read=False
+    ).order_by('-created_at')[:10]
+    pending_actions = []
+    if user.is_superuser:
+        pending_actions = LeaveRequest.objects.filter(
+            status='Pending'
+        ).order_by('-applied_on')[:10]
+    return {
+        'notifications': notifications,
+        'pending_actions': pending_actions,
+        'unread_count': notifications.count(),
+    }
+    
 
 def company_context(request):
     """
