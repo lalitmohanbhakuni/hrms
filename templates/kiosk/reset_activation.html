@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+
+{% block title %}Reset Kiosk Activation{% endblock %}
+
+{% block content %}
+<div style="max-width: 500px; margin: 60px auto; text-align: center; padding: 20px;">
+
+    <div style="background: #fef3c7; width: 80px; height: 80px; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
+        <i class="las la-exclamation-triangle" style="font-size: 2.5rem; color: #b45309;"></i>
+    </div>
+
+    <h2 style="color: #0f172a; margin-bottom: 12px;">Reset Kiosk Activation?</h2>
+    <p style="color: #64748b; margin-bottom: 24px;">
+        Kiosk: <strong>{{ kiosk.name }}</strong><br>
+        Company: <strong>{{ kiosk.company.name }}</strong>
+    </p>
+
+    <div style="background: #f8fafc; padding: 16px; border-radius: 12px; margin-bottom: 24px; text-align: left; font-size: 0.9rem; color: #475569;">
+        <strong>What happens:</strong>
+        <ul style="margin: 8px 0 0 20px; line-height: 1.8;">
+            <li>Device is marked as "not activated"</li>
+            <li>A new 4-digit PIN will be generated</li>
+            <li>The tablet must re-enter the PIN on next load</li>
+            <li>Face data stays safe</li>
+        </ul>
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit" style="
+            width: 100%; padding: 14px; border: none; border-radius: 10px;
+            background: #dc2626; color: #fff; font-size: 1rem;
+            font-weight: 700; cursor: pointer; margin-bottom: 12px;">
+            <i class="las la-redo-alt"></i> Yes, Reset Activation
+        </button>
+        <a href="{% url 'kiosk_device_list' %}" style="
+            display: block; padding: 12px; color: #64748b;
+            text-decoration: none; font-weight: 600;">
+            Cancel
+        </a>
+    </form>
+</div>
+{% endblock %}

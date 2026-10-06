@@ -163,6 +163,11 @@ urlpatterns = [
     path('face/manage/<int:user_id>/',   views.face_manage,       name='face_manage'),
     path('api/face/save/',               views.face_save_api,     name='face_save_api'),
 
+    path('api/kiosk/activate/',             views.kiosk_activate_api,   name='kiosk_activate_api'),
+    path('kiosk/<int:pk>/activate/',         views.kiosk_activate_manual, name='kiosk_activate_manual'),
+    path('kiosk/<int:pk>/reset-activation/', views.kiosk_reset_activation, name='kiosk_reset_activation'),
+    path('kiosk-devices/',                  views.kiosk_device_list,    name='kiosk_device_list'),
+
 
 
 

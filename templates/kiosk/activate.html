@@ -1,0 +1,175 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Kiosk Activation — {{ kiosk_name }}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/line-awesome/1.3.0/line-awesome/css/line-awesome.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            min-height: 100vh;
+            display: flex; align-items: center; justify-content: center;
+            padding: 20px;
+        }
+        .card {
+            background: #fff; border-radius: 24px;
+            padding: 48px 40px; max-width: 480px; width: 100%;
+            text-align: center; color: #0f172a;
+            box-shadow: 0 24px 80px rgba(0,0,0,0.3);
+        }
+        .icon {
+            width: 90px; height: 90px; margin: 0 auto 24px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-size: 2.5rem; color: #fff;
+        }
+        .title { font-size: 1.6rem; font-weight: 700; margin-bottom: 8px; }
+        .subtitle { font-size: 0.95rem; color: #64748b; margin-bottom: 32px; }
+        .info {
+            background: #f8fafc; border-radius: 12px; padding: 16px;
+            margin-bottom: 28px; font-size: 0.9rem; color: #475569;
+        }
+        .info strong { color: #0f172a; }
+        .pin-input {
+            width: 100%; padding: 18px;
+            font-size: 2rem; font-weight: 700; text-align: center;
+            letter-spacing: 16px; border: 2px solid #cbd5e1;
+            border-radius: 14px; background: #f8fafc; color: #0f172a;
+            margin-bottom: 20px; font-family: monospace;
+        }
+        .pin-input:focus { outline: none; border-color: #667eea; background: #eef2ff; }
+        .btn {
+            width: 100%; padding: 18px; border: none; border-radius: 14px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #fff; font-size: 1.1rem; font-weight: 700;
+            cursor: pointer; transition: all 0.15s;
+        }
+        .btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(102,126,234,0.4); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .error {
+            background: #fef2f2; color: #dc2626; padding: 12px;
+            border-radius: 10px; font-size: 0.9rem; font-weight: 600;
+            margin-bottom: 16px; display: none;
+        }
+        .error.show { display: block; }
+        .hint { margin-top: 20px; font-size: 0.8rem; color: #94a3b8; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <div class="icon"><i class="las la-lock"></i></div>
+    <h1 class="title">Kiosk Activation</h1>
+    <p class="subtitle">Enter the PIN provided by your HR admin</p>
+
+    <div class="info">
+        <strong>Kiosk:</strong> {{ kiosk_name }}<br>
+        <strong>Company:</strong> {{ company_name }}
+    </div>
+
+    <div class="error" id="errEl"></div>
+
+    <input type="tel" id="pinInput" class="pin-input" maxlength="4"
+           placeholder="••••" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+
+    <button id="actBtn" class="btn" disabled>
+        <i class="las la-check"></i> Activate
+    </button>
+
+    <p class="hint"><i class="las la-info-circle"></i> One-time setup. No PIN needed after activation.</p>
+</div>
+
+<script id="actData" type="application/json">
+{
+    "token":        "{{ token }}",
+    "activate_url": "{% url 'kiosk_activate_api' %}",
+    "csrf_token":   "{{ csrf_token }}"
+}
+</script>
+
+<script>
+(function() {
+    const data = JSON.parse(document.getElementById('actData').textContent);
+    const input = document.getElementById('pinInput');
+    const btn = document.getElementById('actBtn');
+    const errEl = document.getElementById('errEl');
+
+    input.addEventListener('input', function() {
+        this.value = this.value.replace(/\D/g, '').slice(0, 4);
+        btn.disabled = this.value.length !== 4;
+    });
+
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && this.value.length === 4) activate();
+    });
+
+    btn.addEventListener('click', activate);
+
+    function getFingerprint() {
+        try {
+            return btoa(
+                (screen.width + 'x' + screen.height) + '|' +
+                new Date().getTimezoneOffset() + '|' +
+                navigator.userAgent + '|' +
+                navigator.language + '|' +
+                (navigator.hardwareConcurrency || 0)
+            );
+        } catch (e) { return 'unknown'; }
+    }
+
+    async function activate() {
+        const pin = input.value.trim();
+        if (pin.length !== 4) return;
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="las la-spinner la-spin"></i> Activating...';
+        errEl.classList.remove('show');
+
+        try {
+            const res = await fetch(data.activate_url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': data.csrf_token,
+                },
+                body: JSON.stringify({
+                    token: data.token,
+                    pin: pin,
+                    fingerprint: getFingerprint(),
+                }),
+            });
+
+            const json = await res.json();
+
+            if (!res.ok || !json.success) {
+                errEl.textContent = json.error || 'Activation failed';
+                errEl.classList.add('show');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="las la-check"></i> Activate';
+                input.value = '';
+                input.focus();
+                return;
+            }
+
+            btn.innerHTML = '<i class="las la-check-circle"></i> Activated!';
+            setTimeout(() => window.location.reload(), 800);
+
+        } catch (e) {
+            errEl.textContent = 'Network error. Try again.';
+            errEl.classList.add('show');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="las la-check"></i> Activate';
+        }
+    }
+
+    input.focus();
+})();
+</script>
+
+</body>
+</html>

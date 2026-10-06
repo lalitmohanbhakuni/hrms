@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+
+{% block title %}Kiosk Devices{% endblock %}
+{% block page_icon %}tablet-alt{% endblock %}
+{% block page_title %}Kiosk Devices{% endblock %}
+
+{% block content %}
+
+<div style="max-width: 1000px; margin: 0 auto;">
+
+    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 16px; padding: 24px 28px; color: #fff; margin-bottom: 20px;">
+        <h2 style="font-size: 1.3rem; font-weight: 700; margin: 0 0 6px;">
+            <i class="las la-tablet-alt"></i> Kiosk Devices
+        </h2>
+        <p style="font-size: 0.9rem; opacity: 0.9; margin: 0;">
+            Each kiosk has its own PIN. Share it with the tablet at setup.
+        </p>
+    </div>
+
+    {% if kiosks %}
+    <div style="background: #fff; border-radius: 14px; overflow: hidden; border: 1px solid #e2e8f0;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+            <thead style="background: #f8fafc;">
+                <tr>
+                    <th style="text-align: left; padding: 12px 16px; font-size: 0.7rem; text-transform: uppercase; color: #64748b;">Kiosk</th>
+                    <th style="text-align: left; padding: 12px 16px; font-size: 0.7rem; text-transform: uppercase; color: #64748b;">Location</th>
+                    <th style="text-align: center; padding: 12px 16px; font-size: 0.7rem; text-transform: uppercase; color: #64748b;">Status</th>
+                    <th style="text-align: center; padding: 12px 16px; font-size: 0.7rem; text-transform: uppercase; color: #64748b;">PIN</th>
+                    <th style="text-align: right; padding: 12px 16px; font-size: 0.7rem; text-transform: uppercase; color: #64748b;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for k in kiosks %}
+                <tr style="border-top: 1px solid #f1f5f9;">
+                    <td style="padding: 14px 16px;">
+                        <div style="font-weight: 600; color: #0f172a;">{{ k.name }}</div>
+                        <div style="font-size: 0.75rem; color: #94a3b8;">{{ k.device_token|slice:":16" }}...</div>
+                    </td>
+                    <td style="padding: 14px 16px; color: #64748b;">{{ k.location|default:"—" }}</td>
+                    <td style="padding: 14px 16px; text-align: center;">
+                        {% if not k.is_active %}
+                            <span style="background: #f1f5f9; color: #64748b; padding: 4px 12px; border-radius: 999px; font-size: 0.72rem; font-weight: 600;">Disabled</span>
+                        {% elif k.is_activated %}
+                            <span style="background: #dcfce7; color: #166534; padding: 4px 12px; border-radius: 999px; font-size: 0.72rem; font-weight: 600;">✅ Activated</span>
+                        {% else %}
+                            <span style="background: #fef3c7; color: #92400e; padding: 4px 12px; border-radius: 999px; font-size: 0.72rem; font-weight: 600;">⏳ Pending</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 14px 16px; text-align: center;">
+                        <code style="background: #f1f5f9; padding: 4px 10px; border-radius: 6px; font-size: 0.95rem; font-weight: 700; color: #0f172a; letter-spacing: 2px;">{{ k.activation_pin }}</code>
+                    </td>
+                    <td style="padding: 14px 16px; text-align: right;">
+                        {% if k.is_activated %}
+                        <form method="post" action="{% url 'kiosk_reset_activation' k.id %}" style="display: inline; margin: 0;"
+                              onsubmit="return confirm('Reset activation for {{ k.name }}?\n\nNew PIN will be generated.');">
+                            {% csrf_token %}
+                            <button type="submit" style="background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; padding: 6px 14px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">
+                                <i class="las la-redo-alt"></i> Reset
+                            </button>
+                        </form>
+                        {% else %}
+                            <form method="post" action="{% url 'kiosk_activate_manual' k.id %}" style="display: inline; margin: 0;"
+                                onsubmit="return confirm('Activate {{ k.name }} from the HR side?\n\nUse only if the kiosk tablet cannot self-activate.');">
+                                {% csrf_token %}
+                                <button type="submit" style="background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; padding: 6px 14px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">
+                                    <i class="las la-check-circle"></i> Activate
+                                </button>
+                            </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div style="background: #fff; border-radius: 14px; padding: 60px 20px; text-align: center; border: 1px solid #e2e8f0;">
+        <i class="las la-tablet-alt" style="font-size: 3rem; color: #cbd5e1;"></i>
+        <h3 style="margin-top: 16px; color: #0f172a;">No kiosks</h3>
+    </div>
+    {% endif %}
+
+</div>
+
+{% endblock %}

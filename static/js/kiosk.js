@@ -7,6 +7,19 @@
 
     const data = JSON.parse(document.getElementById('kData').textContent);
 
+    function getFingerprint() {
+        try {
+            return btoa(
+                (screen.width + 'x' + screen.height) + '|' +
+                new Date().getTimezoneOffset() + '|' +
+                navigator.userAgent + '|' +
+                navigator.language + '|' +
+                (navigator.hardwareConcurrency || 0)
+            );
+        } catch (e) { return 'unknown'; }
+    }
+
+
     // Screens
     const idleScreen   = document.getElementById('kIdleScreen');
     const cameraScreen = document.getElementById('kCameraScreen');
@@ -341,6 +354,7 @@
                     confidence:        distance,
                     descriptor:        Array.from(descriptor),
                     liveness_verified: true,
+                    fingerprint:       getFingerprint(),
                 }),
             });
 

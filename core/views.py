@@ -22,7 +22,7 @@ from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.auth.models import User
 
-from .models import EmployeeProfile, FaceCredential, FaceRegistrationConsent, KioskAttendanceLog
+from .models import EmployeeProfile, FaceCredential, FaceRegistrationConsent, KioskAttendanceLog, KioskDevice
 
 
 from reportlab.lib.pagesizes import A4
@@ -8120,6 +8120,134 @@ def face_save_api(request):
 # KIOSK VIEWS — Face-recognition attendance
 # ═══════════════════════════════════════════════════════════════
 
+
+def kiosk_activate_api(request):
+    """
+    API: kiosk device activates itself with a one-time PIN.
+    POST JSON: { token, pin, fingerprint }
+    """
+    from django.http import JsonResponse
+    from .models import KioskDevice
+    from django.utils import timezone
+    import json
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    token       = data.get('token', '').strip()
+    pin         = (data.get('pin') or '').strip()
+    fingerprint = (data.get('fingerprint') or '').strip()
+
+    if not token or not pin:
+        return JsonResponse({'error': 'Token and PIN required'}, status=400)
+
+    kiosk = KioskDevice.objects.filter(device_token=token, is_active=True).first()
+    if not kiosk:
+        return JsonResponse({'error': 'Invalid kiosk token'}, status=403)
+
+    if kiosk.is_activated:
+        return JsonResponse({'error': 'Kiosk already activated'}, status=400)
+
+    if kiosk.activation_pin != pin:
+        logger.warning(f'[kiosk] Wrong PIN for {kiosk.name} from {request.META.get("REMOTE_ADDR")}')
+        return JsonResponse({'error': 'Invalid PIN'}, status=403)
+
+    kiosk.is_activated = True
+    kiosk.activated_at = timezone.now()
+    kiosk.device_fingerprint = fingerprint[:200]
+    kiosk.save(update_fields=['is_activated', 'activated_at', 'device_fingerprint'])
+
+    request.session['kiosk_session_token'] = token
+    request.session.set_expiry(60 * 60 * 24 * 365)
+
+    logger.info(f'[kiosk] Activated: {kiosk.name} ({kiosk.company.name})')
+
+    return JsonResponse({
+        'success': True,
+        'kiosk_name': kiosk.name,
+        'company_name': kiosk.company.name,
+    })
+
+
+
+@login_required
+@hr_admin_required
+@company_required
+def kiosk_activate_manual(request, pk):
+    """HR/superuser activates a kiosk without the tablet entering the PIN."""
+    from .models import KioskDevice
+    from django.utils import timezone
+
+    if request.method != 'POST':
+        return redirect('kiosk_device_list')
+
+    kiosk = get_object_or_404(KioskDevice, id=pk, company=request.user_company)
+
+    if kiosk.is_activated:
+        messages.info(request, f'"{kiosk.name}" is already activated.')
+    else:
+        kiosk.is_activated = True
+        kiosk.activated_at = timezone.now()
+        kiosk.device_fingerprint = 'hr-manual-activation'
+        kiosk.save(update_fields=['is_activated', 'activated_at', 'device_fingerprint'])
+        messages.success(request, f'"{kiosk.name}" activated from HR side.')
+
+    return redirect('kiosk_device_list')
+    
+
+@login_required
+@hr_admin_required
+@company_required
+def kiosk_reset_activation(request, pk):
+    """HR resets a kiosk activation → device must re-enter PIN with a new PIN."""
+    from .utils import get_user_company
+    import secrets
+
+    company = get_user_company(request)
+    kiosk = get_object_or_404(KioskDevice, id=pk, company=company)
+
+    if request.method == 'POST':
+        kiosk.is_activated = False
+        kiosk.activated_at = None
+        kiosk.device_fingerprint = ''
+        kiosk.activation_pin = str(secrets.randbelow(9000) + 1000)
+        kiosk.save()
+
+        messages.success(
+            request,
+            f'Kiosk "{kiosk.name}" activation reset. New PIN: {kiosk.activation_pin}'
+        )
+        return redirect('kiosk_device_list')
+
+    return render(request, 'kiosk/reset_activation.html', {'kiosk': kiosk})
+
+
+@login_required
+@hr_admin_required
+@company_required
+def kiosk_device_list(request):
+    """HR view: list all kiosks with activation status."""
+    from .utils import get_user_company, face_registration_available
+
+    company = get_user_company(request)
+    kiosks = KioskDevice.objects.filter(company=company).order_by('-created_at')
+
+    context = {
+        'kiosks': kiosks,
+        'face_enabled': face_registration_available(company),
+    }
+    return render(request, 'kiosk/device_list.html', context)
+
+
+
 def kiosk_page(request):
     """
     Renders the kiosk UI.
@@ -8146,11 +8274,15 @@ def kiosk_page(request):
             'error_msg': 'This device is not registered or has been deactivated. Please contact HR.',
         }, status=404)
 
-    if not face_registration_available(kiosk.company):
-        return render(request, 'kiosk/error.html', {
-            'error_title': 'Feature Disabled',
-            'error_msg': f'Face registration is not enabled for {kiosk.company.name}.',
-        }, status=403)
+    # ── Check activation ──
+    session_token = request.session.get('kiosk_session_token')
+
+    if not kiosk.is_activated or session_token != token:
+        return render(request, 'kiosk/activate.html', {
+            'kiosk_name':   kiosk.name,
+            'company_name': kiosk.company.name,
+            'token':        token,
+        })
 
     # Update last ping
     from django.utils import timezone
@@ -8303,6 +8435,19 @@ def kiosk_clock_api(request):
     kiosk = KioskDevice.objects.filter(device_token=token, is_active=True).first()
     if not kiosk:
         return JsonResponse({'error': 'Invalid kiosk token'}, status=403)
+
+    # ── Require activation ──
+    if not kiosk.is_activated:
+        return JsonResponse({'error': 'Kiosk not activated. Please enter PIN first.'}, status=403)
+
+    session_token = request.session.get('kiosk_session_token')
+    if session_token != token:
+        return JsonResponse({'error': 'Kiosk session required. Please reload.'}, status=403)
+
+    client_fp = (data.get('fingerprint') or '').strip()
+    if kiosk.device_fingerprint and client_fp and client_fp != kiosk.device_fingerprint:
+        logger.warning(f'[kiosk] Fingerprint mismatch for {kiosk.name}')
+        return JsonResponse({'error': 'Device mismatch'}, status=403)
 
     # ── 7. Token expiry ──
     kiosk_expires = getattr(kiosk, 'expires_at', None)

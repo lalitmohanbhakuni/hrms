@@ -175,6 +175,15 @@
                         </a>
                     {% endif %}
 
+                    {% if request.user.profile.role == 'hr_admin' or request.user.is_superuser %}
+                        {% if request.user.profile.company.face_registration_enabled %}
+                        <a href="{% url 'kiosk_device_list' %}" class="nav-item {% if 'kiosk-devices' in request.path %}active{% endif %}">
+                            <i class="las la-tablet-alt"></i>
+                            <span>Kiosk Devices</span>
+                        </a>
+                        {% endif %}
+                    {% endif %}
+
 
 
                 {% endif %}

@@ -1248,6 +1248,26 @@ class KioskDevice(models.Model):
         default=2.0,
         help_text="Minimum hours between clock-in and clock-out",
     )
+
+    # ── PIN-based device activation ──
+    activation_pin = models.CharField(
+        max_length=10,
+        blank=True,
+        help_text="Auto-generated 4-digit PIN for first-time activation",
+    )
+    is_activated = models.BooleanField(
+        default=False,
+        help_text="True after device enters correct PIN once",
+    )
+    activated_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When the device was first activated",
+    )
+    device_fingerprint = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Browser fingerprint stored at activation",
+    )
     
 
     # Audit
@@ -1266,6 +1286,9 @@ class KioskDevice(models.Model):
     def save(self, *args, **kwargs):
         if not self.device_token:
             self.device_token = uuid.uuid4().hex + uuid.uuid4().hex[:16]
+        if not self.activation_pin:
+            import secrets
+            self.activation_pin = str(secrets.randbelow(9000) + 1000)
         super().save(*args, **kwargs)
 
     def __str__(self):
