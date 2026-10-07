@@ -5992,10 +5992,10 @@ def payslip_pdf(request, pk):
     # Format helper for display (shows 23.5 instead of 23)
     def fmt_days(v):
         v = Decimal(str(v or 0))
-        s = str(v.normalize())
-        # Remove trailing zeros — 23.0 → 23, 23.5 → 23.5
-        if s.endswith('.0'):
-            s = s[:-2]
+        s = format(v, 'f')                # fixed-point: never scientific
+        # Remove trailing zeros — 23.0 → 23, 23.50 → 23.5, 20 → 20
+        if '.' in s:
+            s = s.rstrip('0').rstrip('.')
         return s
 
     gross     = d(payroll.gross_salary) + ot_amount

@@ -177,7 +177,7 @@
                                     {% if item.is_late and item.late_minutes > 0 %}
                                     <span style="display:inline-flex;align-items:center;gap:3px;margin-left:6px;padding:2px 8px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:.68rem;font-weight:600;"
                                         title="Late by {{ item.late_minutes }} minutes">
-                                        <i class="las la-clock"></i> +{{ item.late_minutes }}m
+                                           <i class="las la-clock"></i> Late {{ item.late_minutes }}m
                                     </span>
                                     {% endif %}
                                 </td>
