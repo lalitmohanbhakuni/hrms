@@ -92,6 +92,38 @@
                             {% if profile.shift.sun %}, Sun{% endif %}
                         </div>
                     </div>
+
+                    <div class="prf-policy-item" style="grid-column: 1 / -1;">
+                        <div class="prf-policy-lbl">Weekend / Holiday Work</div>
+                        <div class="prf-policy-val">
+                            {% if profile.shift.weekend_work_policy == 'overtime' %}
+                                <span class="prf-badge yes">Paid as Overtime</span>
+                                {% if profile.shift.weekend_ot_multiplier and profile.shift.weekend_ot_multiplier > 0 %}
+                                    <span style="margin-left:8px; color:#64748b; font-size:.85rem;">
+                                        {{ profile.shift.weekend_ot_multiplier }}× rate
+                                    </span>
+                                {% else %}
+                                    <span style="margin-left:8px; color:#64748b; font-size:.85rem;">
+                                        same as regular OT
+                                    </span>
+                                {% endif %}
+                            {% elif profile.shift.weekend_work_policy == 'comp_off' %}
+                                <span class="prf-badge" style="background:#eef2ff; color:#4f46e5;">Compensatory Off</span>
+                                <span style="margin-left:8px; color:#64748b; font-size:.85rem;">
+                                    earns a paid day off
+                                </span>
+                            {% elif profile.shift.weekend_work_policy == 'none' %}
+                                <span class="prf-badge no">Not Allowed</span>
+                                <span style="margin-left:8px; color:#64748b; font-size:.85rem;">
+                                    clock-in blocked
+                                </span>
+                            {% else %}
+                                <span class="prf-policy-val">—</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+
                 </div>
             </div>
 
@@ -305,8 +337,8 @@
                                 <div class="prf-note">
                                     <i class="fas fa-info-circle"></i>
                                     <span>
-                                        <strong>Username, Employee ID, Shift, Attendance Type & Office Location</strong>
-                                        are managed by HR/Admin. Contact your HR department if you need to update these.
+                                        <strong>Employee ID, Date of Joining, Designation, Department, Shift, Role & Office Location</strong>
+are managed by HR/Admin. Contact your HR department if you need to update these.
                                     </span>
                                 </div>
 
@@ -437,8 +469,13 @@
                                                 <label for="date_of_joining" class="prf-label">
                                                     <i class="las la-calendar-check"></i> Date of Joining
                                                 </label>
-                                                <input type="date" name="date_of_joining" id="date_of_joining" class="prf-input"
-                                                       value="{{ profile.date_of_joining|date:'Y-m-d' }}">
+                                                <input type="date" id="date_of_joining" class="prf-input"
+                                                       value="{{ profile.date_of_joining|date:'Y-m-d' }}"
+                                                       disabled readonly>
+                                                <div class="prf-readonly-hint">
+                                                    <i class="las la-lock"></i>
+                                                    <span>Date of Joining is managed by HR.</span>
+                                                </div>
                                             </div>
                                         </div>
 
@@ -447,8 +484,13 @@
                                                 <label for="designation" class="prf-label">
                                                     <i class="las la-briefcase"></i> Designation
                                                 </label>
-                                                <input type="text" name="designation" id="designation" class="prf-input"
-                                                       value="{{ profile.designation }}">
+                                                <input type="text" id="designation" class="prf-input"
+                                                       value="{{ profile.designation }}"
+                                                       disabled readonly>
+                                                <div class="prf-readonly-hint">
+                                                    <i class="las la-lock"></i>
+                                                    <span>Designation is managed by HR.</span>
+                                                </div>
                                             </div>
                                         </div>
 
@@ -457,8 +499,13 @@
                                                 <label for="department" class="prf-label">
                                                     <i class="las la-sitemap"></i> Department
                                                 </label>
-                                                <input type="text" name="department" id="department" class="prf-input"
-                                                       value="{{ profile.department }}">
+                                                <input type="text" id="department" class="prf-input"
+                                                       value="{{ profile.department }}"
+                                                       disabled readonly>
+                                                <div class="prf-readonly-hint">
+                                                    <i class="las la-lock"></i>
+                                                    <span>Department is managed by HR.</span>
+                                                </div>
                                             </div>
                                         </div>
 

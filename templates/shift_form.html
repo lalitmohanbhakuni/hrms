@@ -542,6 +542,78 @@
                             </div>
                         </div>
 
+
+                         <!-- ═══════════ SECTION 4: WEEKEND / HOLIDAY WORK ═══════════ -->
+                        <div class="shf-section">
+                            <div class="shf-section-hd">
+                                <span class="shf-section-ico"><i class="las la-calendar-check"></i></span>
+                                <h6 class="shf-section-title">Weekend / Holiday Work Policy</h6>
+                            </div>
+
+                            <p style="font-size:.78rem; color:#64748b; margin:-6px 0 14px;">
+                                What happens when an employee works on a non-working day (Sunday or a company holiday)?
+                            </p>
+
+                            <div style="display:flex; flex-direction:row; gap:16px;">
+                                <label style="display:flex; align-items:center; gap:12px; padding:14px 16px; background:#fafbfc; border:1px solid #e8eaee; border-radius:10px; cursor:pointer; transition:border-color .15s;">
+                                    <input type="radio" name="weekend_work_policy" value="none"
+                                           {% if not shift or shift.weekend_work_policy == 'none' %}checked{% endif %}
+                                           style="flex-shrink:0; cursor:pointer;">
+                                    <span style="display:flex; flex-direction:column; gap:2px;">
+                                        <strong style="font-size:.82rem; font-weight:600; color:#0f172a;">Not Allowed</strong>
+                                        <small style="font-size:.72rem; color:#64748b;">Reject weekend/holiday clock-ins — employee must contact HR</small>
+                                    </span>
+                                </label>
+                                
+                                <label style="display:flex; align-items:center; gap:12px; padding:14px 16px; background:#fafbfc; border:1px solid #e8eaee; border-radius:10px; cursor:pointer; transition:border-color .15s;">
+                                    <input type="radio" name="weekend_work_policy" value="overtime"
+                                           {% if shift and shift.weekend_work_policy == 'overtime' %}checked{% endif %}
+                                           style="flex-shrink:0; cursor:pointer;">
+                                    <span style="display:flex; flex-direction:column; gap:2px;">
+                                        <strong style="font-size:.82rem; font-weight:600; color:#0f172a;">Paid as Overtime</strong>
+                                        <small style="font-size:.72rem; color:#64748b;">Full hours worked × OT rate added to salary</small>
+                                    </span>
+                                </label>
+
+                                <label style="display:flex; align-items:center; gap:12px; padding:14px 16px; background:#fafbfc; border:1px solid #e8eaee; border-radius:10px; cursor:pointer; transition:border-color .15s;">
+                                    <input type="radio" name="weekend_work_policy" value="comp_off"
+                                           {% if shift and shift.weekend_work_policy == 'comp_off' %}checked{% endif %}
+                                           style="flex-shrink:0; cursor:pointer;">
+                                    <span style="display:flex; flex-direction:column; gap:2px;">
+                                        <strong style="font-size:.82rem; font-weight:600; color:#0f172a;">Compensatory Off</strong>
+                                        <small style="font-size:.72rem; color:#64748b;">Earns a paid day off (HR approves before crediting)</small>
+                                    </span>
+                                </label>
+
+                                
+
+                            </div>
+
+
+                            <!-- ─────────── Weekend OT Multiplier ─────────── -->
+                            <div class="col-md-4" id="weekend_ot_multiplier_div"
+                                 style="{% if not shift.overtime_allowed %}display: none;{% endif %}; margin-top:32px;">
+                                <div class="shf-field">
+                                    <label for="weekend_ot_multiplier" class="shf-label">
+                                        <i class="las la-calendar-week"></i> Weekend OT Multiplier
+                                        <span class="shf-optional">(× rate)</span>
+                                    </label>
+                                    <input type="number" name="weekend_ot_multiplier" id="weekend_ot_multiplier" class="shf-input"
+                                           value="{{ shift.weekend_ot_multiplier|default:0 }}"
+                                           min="0" max="5.00" step="0.01">
+                                    <div class="shf-hint">
+                                        <i class="las la-info-circle"></i>
+                                        <span>Leave 0 to use same as regular OT multiplier.</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                                
+
+                        </div>
+
+                        
+
                         <!-- ═══════════ SECTION 3: OVERTIME ═══════════ -->
                         <div class="shf-section">
                             <div class="shf-section-hd">
@@ -616,9 +688,17 @@
                                 </div>
                             </div>
 
+
+                            
+
+
                             </div>
 
                         </div>
+
+                       
+
+
 
                         <!-- ═══════════ SECTION 4: WORKING DAYS ═══════════ -->
                         <div class="shf-section">
@@ -693,29 +773,63 @@
 
 <!-- ===== JavaScript (unchanged) ===== -->
 
+<!-- ===== JavaScript ===== -->
+
 <script>
     // ═══════════════════════════════════════════════════════════
     //  OVERTIME TOGGLE
     // ═══════════════════════════════════════════════════════════
     function toggleOvertimeLimit() {
         const checkbox = document.getElementById('overtime_allowed');
+        if (!checkbox) return;
+
+        const show = checkbox.checked;
+
         const limitDiv = document.getElementById('overtime_limit_div');
         const multDiv  = document.getElementById('overtime_multiplier_div');
         const minOtDiv = document.getElementById('min_overtime_minutes_div');
 
-        const show = checkbox.checked;
         if (limitDiv) limitDiv.style.display = show ? 'block' : 'none';
         if (multDiv)  multDiv.style.display  = show ? 'block' : 'none';
         if (minOtDiv) minOtDiv.style.display = show ? 'block' : 'none';
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  WORKING DAYS PREVIEW
+    //  WEEKEND MULTIPLIER VISIBILITY (policy-driven)
     // ═══════════════════════════════════════════════════════════
-    document.addEventListener('DOMContentLoaded', function() {
+    function toggleWeekendMultiplier() {
+        const weekendMultDiv = document.getElementById('weekend_ot_multiplier_div');
+        if (!weekendMultDiv) return;
+
+        const policyRadio = document.querySelector('input[name="weekend_work_policy"]:checked');
+        const policy = policyRadio ? policyRadio.value : 'none';
+
+        // Show only when policy = 'overtime'
+        weekendMultDiv.style.display = (policy === 'overtime') ? 'block' : 'none';
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  INIT ON PAGE LOAD
+    // ═══════════════════════════════════════════════════════════
+    document.addEventListener('DOMContentLoaded', function () {
+        // 1. Set initial state of OT fields
         toggleOvertimeLimit();
 
-        const dayCheckboxes = document.querySelectorAll('.form-check-input[name="mon"], .form-check-input[name="tue"], .form-check-input[name="wed"], .form-check-input[name="thu"], .form-check-input[name="fri"], .form-check-input[name="sat"], .form-check-input[name="sun"]');
+        // 2. Set initial weekend multiplier visibility
+        toggleWeekendMultiplier();
+
+        // 3. Wire policy radios → toggle weekend multiplier
+        document.querySelectorAll('input[name="weekend_work_policy"]').forEach(function (radio) {
+            radio.addEventListener('change', toggleWeekendMultiplier);
+        });
+
+        // 4. Working days preview
+        const dayCheckboxes = document.querySelectorAll(
+            '.form-check-input[name="mon"], .form-check-input[name="tue"], ' +
+            '.form-check-input[name="wed"], .form-check-input[name="thu"], ' +
+            '.form-check-input[name="fri"], .form-check-input[name="sat"], ' +
+            '.form-check-input[name="sun"]'
+        );
         const previewText = document.getElementById('workingDaysPreviewText');
 
         function updateWorkingDaysPreview() {
@@ -724,10 +838,8 @@
                 thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun'
             };
             const days = [];
-            dayCheckboxes.forEach(cb => {
-                if (cb.checked) {
-                    days.push(dayMap[cb.name]);
-                }
+            dayCheckboxes.forEach(function (cb) {
+                if (cb.checked) days.push(dayMap[cb.name]);
             });
             if (days.length === 0) {
                 previewText.textContent = 'No days set';
@@ -738,19 +850,16 @@
             }
         }
 
-        dayCheckboxes.forEach(cb => {
+        dayCheckboxes.forEach(function (cb) {
             cb.addEventListener('change', updateWorkingDaysPreview);
         });
         updateWorkingDaysPreview();
     });
 </script>
 
-
-
 <script>
     // ═══════════════════════════════════════════════════════════
     //  AUTO-CALCULATE MIN WORKING HOURS FROM SHIFT TIMING
-    //  (Readonly field - HR cannot edit manually)
     // ═══════════════════════════════════════════════════════════
     document.addEventListener('DOMContentLoaded', function () {
         var startEl      = document.getElementById('start_time');
@@ -762,14 +871,12 @@
 
         if (!input || !display || !startEl || !endEl) return;
 
-        // Convert "HH:MM" to minutes
         function toMinutes(timeStr) {
             if (!timeStr) return null;
             var parts = timeStr.split(':');
             return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
         }
 
-        // Format minutes to "8h 30m"
         function formatDuration(mins) {
             if (!mins || mins < 0) return '= 0h 00m';
             var h = Math.floor(mins / 60);
@@ -788,11 +895,9 @@
                 return;
             }
 
-            // Total shift time (handle overnight shifts)
             var totalM = endM - startM;
             if (totalM < 0) totalM += 24 * 60;
 
-            // Subtract break time (if provided)
             var breakStartM = toMinutes(breakStartEl ? breakStartEl.value : '');
             var breakEndM   = toMinutes(breakEndEl   ? breakEndEl.value   : '');
 
@@ -802,13 +907,9 @@
                 totalM -= breakM;
             }
 
-            // Guard against negative
             if (totalM < 0) totalM = 0;
-
-            // Set value
             input.value = totalM;
 
-            // Update display
             if (totalM <= 0) {
                 display.textContent = '= 0h 00m';
                 display.style.color = '#dc2626';
@@ -818,7 +919,6 @@
             }
         }
 
-        // Attach listeners
         [startEl, endEl, breakStartEl, breakEndEl].forEach(function (el) {
             if (el) {
                 el.addEventListener('input', calculate);
@@ -826,7 +926,6 @@
             }
         });
 
-        // Initial calculation on page load
         calculate();
     });
 </script>

@@ -519,14 +519,27 @@
 
                 <div class="mt-4 d-flex flex-wrap align-items-center gap-3 sm-flex-col">
                     {% if not today_attendance %}
-                        {# No check-in yet → show Clock In #}
-                        <button id="clock-in-btn" class="btn btn-success btn-lg db-btn-pill px-5" onclick="getLocationAndClockIn()">
-                            <i class="las la-sign-in-alt me-2"></i> Clock In
-                        </button>
-                        <span class="text-muted small">
-                            <i class="fas fa-info-circle me-1"></i>
-                            You haven't clocked in today.
-                        </span>
+                        {% if today_offday_block %}
+                            {# Weekend / holiday with policy=none → disable clock-in #}
+                            <button id="clock-in-btn" type="button"
+                                    class="btn btn-secondary btn-lg db-btn-pill px-5" disabled
+                                    title="{{ today_offday_label }} work is not allowed on your shift. Contact HR.">
+                                <i class="las la-ban me-2"></i> {{ today_offday_label }} — Not Allowed
+                            </button>
+                            <span class="text-muted small">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Weekend/holiday work is not allowed on your shift. Contact HR if you need to work today.
+                            </span>
+                        {% else %}
+                            {# No check-in yet → show Clock In #}
+                            <button id="clock-in-btn" class="btn btn-success btn-lg db-btn-pill px-5" onclick="getLocationAndClockIn()">
+                                <i class="las la-sign-in-alt me-2"></i> Clock In
+                            </button>
+                            <span class="text-muted small">
+                                <i class="fas fa-info-circle me-1"></i>
+                                You haven't clocked in today.
+                            </span>
+                        {% endif %}
 
                     {% elif today_attendance.state == 'checked_in' %}
                         {# Checked in, not out → show Clock Out #}
@@ -1763,7 +1776,7 @@ function proceedClockIn(btn) {
     }
 
     // ═══════════════════════════════════════════════════
-    //  DESKTOP — try IP first, fall back to GPS
+    //  DESKTOP — office IP only (no GPS fallback)
     // ═══════════════════════════════════════════════════
     btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Checking in...';
     submitCheckIn(null, null, null, function (responseText) {
@@ -1771,8 +1784,16 @@ function proceedClockIn(btn) {
             window.location.href = '/dashboard/';
             return;
         }
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Getting GPS...';
-        tryGPS();
+
+        resetButton(btn);
+        alert(
+            'Laptop clock-in requires office network.\n\n' +
+            'Working from the office?\n' +
+            '• Connect your laptop to the office Wi-Fi\n\n' +
+            'Working from home?\n' +
+            '• Use your mobile phone to clock in\n\n' +
+            'Contact HR if you need help.'
+        );
     });
 
     function tryGPS() {
@@ -1915,7 +1936,8 @@ function proceedClockOut(btn) {
     }
 
     // ═══════════════════════════════════════════════════
-    //  DESKTOP — try IP first, fall back to GPS
+    //  DESKTOP — office IP only (no GPS fallback)
+    //  Laptops lack real GPS. Require office network.
     // ═══════════════════════════════════════════════════
     btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Checking out...';
     submitClockOut(null, null, null, function (data) {
@@ -1923,8 +1945,16 @@ function proceedClockOut(btn) {
             window.location.href = '/dashboard/';
             return;
         }
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Getting GPS...';
-        tryGPSOut();
+
+        resetOutButton(btn);
+        alert(
+            'Laptop clock-out requires office network.\n\n' +
+            'Working from the office?\n' +
+            '• Connect your laptop to the office Wi-Fi\n\n' +
+            'Working from home?\n' +
+            '• Use your mobile phone to clock out\n\n' +
+            'Contact HR if you need help.'
+        );
     });
 
     function tryGPSOut() {

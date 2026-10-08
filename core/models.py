@@ -216,6 +216,26 @@ class Shift(models.Model):
     )
     # ──────────────────────────────
 
+    weekend_work_policy = models.CharField(
+        max_length=20,
+        choices=[
+            ('none',     'Not Allowed'),
+            ('overtime', 'Paid as Overtime'),
+            ('comp_off', 'Compensatory Off'),
+        ],
+        default='overtime',
+        help_text="What happens when employee works on a weekend/holiday",
+    )
+
+    weekend_ot_multiplier = models.DecimalField(
+        max_digits=4,
+        decimal_places=2,
+        default=0,
+        help_text="Weekend/holiday OT multiplier. Leave 0 to use same as regular OT.",
+    )
+
+
+
     # ──────────────────────────────
 
     mon = models.BooleanField(default=True)
@@ -947,6 +967,13 @@ class Payroll(models.Model):
     overtime_rate = models.DecimalField(max_digits=10, decimal_places=2, default=0)   # ✅ NEW
     overtime_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0) # ✅ NEW
 
+    # ── Split OT: regular vs weekend ──
+    regular_ot_hours  = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    weekend_ot_hours  = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    regular_ot_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    weekend_ot_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    weekend_ot_rate   = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
     # ── Deductions ──
     unpaid_leave_deduction = models.DecimalField(max_digits=12, decimal_places=2, default=0)  # ✅ NEW
     other_deduction = models.DecimalField(max_digits=12, decimal_places=2, default=0)         # ✅ NEW
@@ -980,9 +1007,10 @@ class Payroll(models.Model):
 
     @property
     def total_deduction(self):
+        # (see calculate_monthly_payroll). Do NOT add half_day_deduction
+        # here — it would double-count.
         return (
             (self.absent_deduction or 0)
-            + (self.half_day_deduction or 0)
             + (self.unpaid_leave_deduction or 0)
             + (self.other_deduction or 0)
             + (self.late_deduction or 0)
@@ -1489,4 +1517,50 @@ class KioskSession(models.Model):
         status = "active" if self.is_active else "revoked"
         return f"{self.kiosk.name} — {status} since {self.started_at:%d %b %H:%M}"
 
+        
+
+class CompOffCredit(models.Model):
+    """
+    Earned when an employee works a weekend/holiday on a 'comp_off' policy shift.
+    Credits expire after `expires_at`. Used to offset future leave.
+    """
+    employee = models.ForeignKey(
+        EmployeeProfile, on_delete=models.CASCADE, related_name='comp_offs'
+    )
+    company = models.ForeignKey(
+        Company, on_delete=models.CASCADE, related_name='comp_offs'
+    )
+    attendance = models.OneToOneField(
+        'Attendance', on_delete=models.CASCADE, related_name='comp_off_credit',
+        null=True, blank=True,
+    )
+
+    earned_on = models.DateField()
+    days_credited = models.DecimalField(max_digits=4, decimal_places=1, default=Decimal('1.0'))
+    expires_at = models.DateField(null=True, blank=True)
+
+    used_on = models.DateField(null=True, blank=True)
+    used_in_leave = models.ForeignKey(
+        'LeaveRequest', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='consumed_comp_offs',
+    )
+
+    status = models.CharField(max_length=15, choices=[
+        ('ACTIVE', 'Active'),
+        ('USED', 'Used'),
+        ('EXPIRED', 'Expired'),
+        ('CANCELLED', 'Cancelled'),
+    ], default='ACTIVE')
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-earned_on']
+        indexes = [
+            models.Index(fields=['employee', 'status']),
+            models.Index(fields=['company', 'status']),
+        ]
+
+    def __str__(self):
+        return f"{self.employee.employee_id} — {self.earned_on} ({self.status})"
         

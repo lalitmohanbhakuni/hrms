@@ -164,13 +164,18 @@
                                     </div>
 
                                     {% if payroll.overtime_amount and payroll.overtime_amount > 0 %}
-                                    <div class="psl-item">
-                                        <span class="psl-item-label">
-                                            Overtime Earnings
-                                            <small>{{ payroll.overtime_hours|floatformat:2 }} hrs × ₹{{ payroll.overtime_rate|floatformat:2 }}</small>
-                                        </span>
-                                        <span class="psl-item-value primary">₹{{ payroll.overtime_amount|floatformat:2 }}</span>
-                                    </div>
+                                        <div class="psl-item">
+                                            <span class="psl-item-label">
+                                                Overtime Earnings
+                                                {% if payroll.regular_ot_hours and payroll.regular_ot_hours > 0 %}
+                                                <small>Regular OT: {{ payroll.regular_ot_hours|floatformat:2 }} hrs × ₹{{ payroll.overtime_rate|floatformat:2 }} = ₹{{ payroll.regular_ot_amount|floatformat:2 }}</small>
+                                                {% endif %}
+                                                {% if payroll.weekend_ot_hours and payroll.weekend_ot_hours > 0 %}
+                                                <small>Weekend OT: {{ payroll.weekend_ot_hours|floatformat:2 }} hrs × ₹{{ payroll.weekend_ot_rate|floatformat:2 }} = ₹{{ payroll.weekend_ot_amount|floatformat:2 }}</small>
+                                                {% endif %}
+                                            </span>
+                                            <span class="psl-item-value primary">₹{{ payroll.overtime_amount|floatformat:2 }}</span>
+                                        </div>
                                     {% endif %}
                                 </div>
 

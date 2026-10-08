@@ -202,7 +202,22 @@ def dashboard(request):
     if hasattr(user, 'profile') and user.profile and user.profile.shift:
         employee_shift = user.profile.shift
 
-    
+    # ---------- Offday policy block (weekend/holiday with policy=none) ----------
+    today_offday_block = False
+    today_offday_label = ''
+    if employee_shift:
+        from .utils import is_weekend_for_shift
+        from .models import Holiday
+        _is_weekend = is_weekend_for_shift(today, employee_shift)
+        _is_holiday = Holiday.objects.filter(
+            company=current_company, date=today
+        ).exists()
+        if _is_weekend or _is_holiday:
+            _policy = getattr(employee_shift, 'weekend_work_policy', 'overtime') or 'overtime'
+            if _policy == 'none':
+                today_offday_block = True
+                today_offday_label = 'Holiday' if _is_holiday else 'Weekend'
+
     # ---------- Late minutes ----------
     late_minutes = 0
     if today_attendance and today_attendance.state == 'checked_in':
@@ -960,6 +975,8 @@ def dashboard(request):
         'employee_attendance_rate': employee_attendance_rate,
         'employee_present_month': employee_present_month,
         'employee_working_days_month': employee_working_days_month,
+        'today_offday_block': today_offday_block,
+        'today_offday_label': today_offday_label,
     }
     return render(request, 'dashboard.html', context)
 
@@ -1005,6 +1022,25 @@ def clock_in(request):
         return err('Employee profile not found.')
 
     company = profile.company
+
+    # ═══════════════════════════════════════════════════
+    #  WEEKEND / HOLIDAY POLICY CHECK
+    #  Reject web clock-in if shift policy = 'none'
+    # ═══════════════════════════════════════════════════
+    if profile.shift:
+        from .utils import is_weekend_for_shift
+        from .models import Holiday
+
+        _is_weekend = is_weekend_for_shift(today, profile.shift)
+        _is_holiday = Holiday.objects.filter(
+            company=company, date=today
+        ).exists()
+
+        if _is_weekend or _is_holiday:
+            _policy = getattr(profile.shift, 'weekend_work_policy', 'overtime') or 'overtime'
+            if _policy == 'none':
+                return err('Weekend/holiday work not allowed on this shift. Contact HR.')
+
     attendance_type = profile.attendance_type
     check_in_lat = None
     check_in_lng = None
@@ -1147,53 +1183,30 @@ def clock_in(request):
             check_in_dist = int(distance)
 
         # ═══════════════════════════════════════════════════
-        # DESKTOP — IP first, GPS fallback
+        # DESKTOP — office IP only (no GPS fallback)
+        # Laptops lack real GPS chips; Wi-Fi location is unreliable.
         # ═══════════════════════════════════════════════════
         else:
+            # Defense in depth: reject if a laptop submits GPS coords
+            if request.POST.get('latitude'):
+                return err(
+                    'Laptop clock-in requires office network. '
+                    'Connect to office Wi-Fi, or use your mobile phone.'
+                )
+
             xff = request.META.get('HTTP_X_FORWARDED_FOR')
             client_ip = xff.split(',')[0].strip() if xff else request.META.get('REMOTE_ADDR')
             ip_allowed = office.matches_ip(client_ip)
 
-            if ip_allowed:
-                check_in_lat = None
-                check_in_lng = None
-                check_in_dist = None
-            else:
-                lat = request.POST.get('latitude')
-                lng = request.POST.get('longitude')
-                accuracy = request.POST.get('accuracy')
+            if not ip_allowed:
+                return err(
+                    'Laptop clock-in requires office network. '
+                    'Connect to office Wi-Fi, or use your mobile phone to clock in.'
+                )
 
-                if not lat or not lng:
-                    return err(
-                        'Please allow location access in your browser, '
-                        'or connect to office WiFi.'
-                    )
-
-                try:
-                    lat = float(lat)
-                    lng = float(lng)
-                    accuracy = float(accuracy) if accuracy else 0
-                except ValueError:
-                    return err('Invalid location data.')
-
-                distance = haversine(lat, lng, float(office.latitude), float(office.longitude))
-
-                if accuracy > 500 and distance > office.allowed_radius:
-                    return err(
-                        f'Location accuracy too low (±{accuracy:.0f}m). '
-                        'Enable "Precise Location" in your browser, '
-                        'or connect to office WiFi.'
-                    )
-
-                if distance > office.allowed_radius:
-                    return err(
-                        f'You are not in the office location. '
-                        f'(Distance: {distance:.0f}m, Allowed: {office.allowed_radius}m)'
-                    )
-
-                check_in_lat = lat
-                check_in_lng = lng
-                check_in_dist = int(distance)
+            check_in_lat = None
+            check_in_lng = None
+            check_in_dist = None
     else:
         # Remote / Flexible — capture location if provided
         lat = request.POST.get('latitude')
@@ -1417,49 +1430,27 @@ def clock_out(request):
             check_out_lat = lat
             check_out_lng = lng
 
+        # DESKTOP — office IP only (no GPS fallback)
         else:
+            # Defense in depth: reject if a laptop submits GPS coords
+            if request.POST.get('latitude'):
+                return err(
+                    'Laptop clock-out requires office network. '
+                    'Connect to office Wi-Fi, or use your mobile phone.'
+                )
+
             xff = request.META.get('HTTP_X_FORWARDED_FOR')
             client_ip = xff.split(',')[0].strip() if xff else request.META.get('REMOTE_ADDR')
             ip_allowed = office.matches_ip(client_ip)
 
-            if ip_allowed:
-                check_out_lat = None
-                check_out_lng = None
-            else:
-                lat = request.POST.get('latitude')
-                lng = request.POST.get('longitude')
-                accuracy = request.POST.get('accuracy')
+            if not ip_allowed:
+                return err(
+                    'Laptop clock-out requires office network. '
+                    'Connect to office Wi-Fi, or use your mobile phone to clock out.'
+                )
 
-                if not lat or not lng:
-                    return err(
-                        'Please allow location access in your browser, '
-                        'or connect to office WiFi.'
-                    )
-
-                try:
-                    lat = float(lat)
-                    lng = float(lng)
-                    accuracy = float(accuracy) if accuracy else 0
-                except ValueError:
-                    return err('Invalid location data.')
-
-                distance = haversine(lat, lng, float(office.latitude), float(office.longitude))
-
-                if accuracy > 500 and distance > office.allowed_radius:
-                    return err(
-                        f'Location accuracy too low (±{accuracy:.0f}m). '
-                        'Enable "Precise Location" in your browser, '
-                        'or connect to office WiFi.'
-                    )
-
-                if distance > office.allowed_radius:
-                    return err(
-                        f'You are not in the office location. '
-                        f'(Distance: {distance:.0f}m, Allowed: {office.allowed_radius}m)'
-                    )
-
-                check_out_lat = lat
-                check_out_lng = lng
+            check_out_lat = None
+            check_out_lng = None
     else:
         lat = request.POST.get('latitude')
         lng = request.POST.get('longitude')
@@ -2166,7 +2157,7 @@ def holiday_delete(request, pk):
 
 @login_required
 def employee_leaves(request):
-    from .utils import get_leave_balance
+    from .utils import get_leave_balance, get_comp_off_balance, get_active_comp_offs
     from .models import LateDeduction
     from django.db.models import Sum
     from datetime import date
@@ -2224,6 +2215,10 @@ def employee_leaves(request):
     else:
         base_qs = LateDeduction.objects.none()
 
+    # ── Comp-Off balance ──
+    comp_off_balance = get_comp_off_balance(profile) if profile else 0
+    comp_offs_active = list(get_active_comp_offs(profile)) if profile else []
+
     late_deductions = base_qs.filter(
         attendance_date__year=sel_year,
         attendance_date__month=sel_month,
@@ -2252,6 +2247,8 @@ def employee_leaves(request):
         'leave_balance': leave_balance,
         'requests': requests,
         'holidays': holidays,
+        'comp_off_balance': comp_off_balance,
+        'comp_offs_active': comp_offs_active,
         'filter_status': filter_status,
         'late_deductions': late_deductions,
         'month_summary': month_summary,
@@ -4361,9 +4358,6 @@ def profile(request):
 
         profile.full_name = request.POST.get('full_name')
         profile.date_of_birth = request.POST.get('date_of_birth') or None
-        profile.date_of_joining = request.POST.get('date_of_joining') or None
-        profile.designation = request.POST.get('designation')
-        profile.department = request.POST.get('department')
         profile.phone = request.POST.get('phone')
         profile.address = request.POST.get('address')
 
@@ -4743,6 +4737,16 @@ def shift_create(request):
     from .utils import get_user_company   # ✅ Added local import
     
     if request.method == 'POST':
+        _policy = request.POST.get('weekend_work_policy', 'overtime').strip()
+        if _policy not in ('none', 'overtime', 'comp_off'):
+            _policy = 'overtime'
+        try:
+            _weekend_mult = float(request.POST.get('weekend_ot_multiplier', 0) or 0)
+            if _weekend_mult < 0 or _weekend_mult > 5:
+                _weekend_mult = 0
+        except (TypeError, ValueError):
+            _weekend_mult = 0
+
         Shift.objects.create(
             company=get_user_company(request),
             name=request.POST.get('name'),
@@ -4755,6 +4759,8 @@ def shift_create(request):
             overtime_allowed=request.POST.get('overtime_allowed') == 'on',
             overtime_limit=float(request.POST.get('overtime_limit', 2)),
             min_overtime_minutes=int(request.POST.get('min_overtime_minutes', 0)),
+            weekend_work_policy=_policy,
+            weekend_ot_multiplier=_weekend_mult,
             mon=request.POST.get('mon') == 'on',
             tue=request.POST.get('tue') == 'on',
             wed=request.POST.get('wed') == 'on',
@@ -4766,8 +4772,7 @@ def shift_create(request):
         messages.success(request, 'Shift created successfully.')
         return redirect('shift_list')
     return render(request, 'shift_form.html', {'action': 'Create'})
-
-
+    
 
 @login_required
 @hr_admin_required
@@ -4783,6 +4788,16 @@ def shift_edit(request, pk):
         shift = get_object_or_404(Shift, id=pk, company=company)
     
     if request.method == 'POST':
+        _policy = request.POST.get('weekend_work_policy', 'overtime').strip()
+        if _policy not in ('none', 'overtime', 'comp_off'):
+            _policy = 'overtime'
+        try:
+            _weekend_mult = float(request.POST.get('weekend_ot_multiplier', 0) or 0)
+            if _weekend_mult < 0 or _weekend_mult > 5:
+                _weekend_mult = 0
+        except (TypeError, ValueError):
+            _weekend_mult = 0
+
         shift.name = request.POST.get('name')
         shift.start_time = request.POST.get('start_time')
         shift.end_time = request.POST.get('end_time')
@@ -4793,6 +4808,8 @@ def shift_edit(request, pk):
         shift.overtime_allowed = request.POST.get('overtime_allowed') == 'on'
         shift.overtime_limit = float(request.POST.get('overtime_limit', 2))
         shift.min_overtime_minutes = int(request.POST.get('min_overtime_minutes', 0))
+        shift.weekend_work_policy = _policy
+        shift.weekend_ot_multiplier = _weekend_mult
         shift.mon = request.POST.get('mon') == 'on'
         shift.tue = request.POST.get('tue') == 'on'
         shift.wed = request.POST.get('wed') == 'on'
@@ -4805,6 +4822,8 @@ def shift_edit(request, pk):
         return redirect('shift_list')
     
     return render(request, 'shift_form.html', {'action': 'Edit', 'shift': shift})
+
+    
 
 @login_required
 @hr_admin_required
@@ -5693,10 +5712,48 @@ def payroll_generate(request):
     created = 0
     for salary in salaries:
         emp = salary.employee
+
+        # ═══════════════════════════════════════════════════════════
+        #  Step 0 — Regeneration-safe cleanup (X1 + X2 fixes)
+        # ═══════════════════════════════════════════════════════════
+        # Skip only if payroll is already PAID (protect finalized records)
         if Payroll.objects.filter(
-            company=company, employee=emp, month=month, year=year
+            company=company, employee=emp, month=month, year=year,
+            status='paid',
         ).exists():
             continue
+
+        # Delete existing DRAFT payroll — will be regenerated below
+        Payroll.objects.filter(
+            company=company, employee=emp, month=month, year=year,
+            status='draft',
+        ).delete()
+
+        # Reset PROCESSED LateDeductions back to PENDING_PAYROLL so
+        # sync_late_deductions can rebuild them (X2 fix).
+        # Preserves CANCELLED rows.
+        try:
+            from datetime import date as _date_c
+            from calendar import monthrange as _mr
+            from .models import LateDeduction as _LD_CLEANUP
+
+            _, _last_num = _mr(year, month)
+            _first_c = _date_c(year, month, 1)
+            _last_c  = _date_c(year, month, _last_num)
+
+            _n_reset = _LD_CLEANUP.objects.filter(
+                employee=emp,
+                attendance_date__gte=_first_c,
+                attendance_date__lte=_last_c,
+                status='PROCESSED',
+            ).update(
+                status='PENDING_PAYROLL',
+                payroll=None,
+            )
+            if _n_reset:
+                print(f"[late-deduction] {emp.employee_id} {month:02d}/{year}: {_n_reset} reset to PENDING")
+        except Exception as e:
+            print(f"[late-deduction] reset PROCESSED ERROR for {emp.employee_id}: {e}")
 
         # ─── Step 1: Sync late deduction ledger FIRST ───
         try:
@@ -5728,7 +5785,16 @@ def payroll_generate(request):
             overtime_hours=calc['overtime_hours'],
             overtime_rate=calc['overtime_rate'],
             overtime_amount=calc['overtime_amount'],
+            # ── Split OT (regular vs weekend) ──
+            regular_ot_hours=calc.get('regular_ot_hours', Decimal('0')),
+            weekend_ot_hours=calc.get('weekend_ot_hours', Decimal('0')),
+            regular_ot_amount=calc.get('regular_ot_amount', Decimal('0')),
+            weekend_ot_amount=calc.get('weekend_ot_amount', Decimal('0')),
+            weekend_ot_rate=calc.get('weekend_ot_rate', Decimal('0')),
             absent_deduction=calc['absent_deduction'],
+            # ── Half-Day (snapshot for display) ──
+            half_day_days=calc.get('half_day_days', Decimal('0')),
+            half_day_deduction=calc.get('half_day_deduction', Decimal('0')),
             unpaid_leave_deduction=calc['unpaid_leave_deduction'],
             other_deduction=calc['other_deduction'],
             deduction=calc['other_deduction'],  # keep old field in sync
@@ -5748,6 +5814,7 @@ def payroll_generate(request):
             status='draft',
         )
         created += 1
+
 
         # ─── Step 4: Mark late deduction transactions as PROCESSED ───
         try:
@@ -5809,7 +5876,7 @@ def payroll_generate(request):
 
     messages.success(request, f'Generated {created} payroll records for {month}/{year}')
     return redirect('payroll_processing')
-
+    
 
 @login_required
 @hr_admin_required
@@ -5966,8 +6033,7 @@ def payslip_pdf(request, pk):
     present_display = Decimal('0')
     half_day_count  = 0
     for att in att_records:
-        if att.status in ('Present', 'Under Review', 'Missing Checkout',
-                        'Weekend Work', 'Holiday Work'):
+        if att.status in ('Present', 'Under Review', 'Missing Checkout'):
             present_display += Decimal('1')
         elif att.status == 'Half-Day':
             present_display += Decimal('0.5')
@@ -8588,13 +8654,35 @@ def kiosk_clock_api(request):
     if action == 'out' and not kiosk.allow_clock_out:
         return JsonResponse({'error': 'Clock-out disabled on this kiosk'}, status=403)
 
-    # ── 17. Attendance row ──
+        # ── 17. Attendance row (detect weekend/holiday) ──
+    from .utils import is_weekend_for_shift
+    from .models import Holiday
+
+    _is_weekend = is_weekend_for_shift(today, employee.shift) if employee.shift else False
+    _is_holiday = Holiday.objects.filter(company=kiosk.company, date=today).exists()
+
+    if _is_holiday:
+        _offday_status = 'Holiday Work'
+    elif _is_weekend:
+        _offday_status = 'Weekend Work'
+    else:
+        _offday_status = None
+
+    # If offday work is not allowed, reject the clock-in
+    if _offday_status:
+        _policy = getattr(employee.shift, 'weekend_work_policy', 'overtime') or 'overtime'
+        if _policy == 'none':
+            logger.warning(f'[kiosk] Rejected {employee.employee_id} on {_offday_status} — policy=none')
+            return JsonResponse({
+                'error': 'Weekend/holiday work not allowed on this shift. Contact HR.',
+            }, status=403)
+
     att, created = Attendance.objects.get_or_create(
         user=employee.user, company=kiosk.company, date=today,
         defaults={
             'shift':  employee.shift,
             'state':  '',
-            'status': 'Present',
+            'status': _offday_status or 'Present',
         }
     )
 
@@ -8608,7 +8696,7 @@ def kiosk_clock_api(request):
             att.state = 'checked_in'
             # Bug B fix: don't let stale Absent/Missing Checkout status stick
             if att.status in ('', 'Absent', 'Missing Checkout', None):
-                att.status = 'Present'
+                att.status = _offday_status or 'Present'
             att.save(update_fields=['check_in_time', 'state', 'status'])
     
             # Bug A fix: trigger late-deduction sync for this month
@@ -8656,6 +8744,33 @@ def kiosk_clock_api(request):
             att.state = 'checked_out'
             att.total_working_time = now - att.check_in_time
             att.save(update_fields=['check_out_time', 'state', 'total_working_time'])
+
+            # ── Weekend/Holiday comp-off credit ──
+            if att.status in ('Weekend Work', 'Holiday Work'):
+                _policy = getattr(employee.shift, 'weekend_work_policy', 'overtime') or 'overtime'
+                if _policy == 'comp_off':
+                    try:
+                        from .models import CompOffCredit
+                        from datetime import timedelta as _td
+                        # Require at least half a shift
+                        _min_half = int((employee.shift.min_working_hours or 480) // 2)
+                        _worked_min = int((att.total_working_time.total_seconds() // 60) if att.total_working_time else 0)
+                        if _worked_min >= _min_half:
+                            # Idempotent: only one credit per attendance row
+                            if not CompOffCredit.objects.filter(attendance=att).exists():
+                                CompOffCredit.objects.create(
+                                    employee=employee,
+                                    company=kiosk.company,
+                                    attendance=att,
+                                    earned_on=att.date,
+                                    days_credited=Decimal('1.0'),
+                                    expires_at=att.date + _td(days=90),
+                                    status='ACTIVE',
+                                )
+                                logger.info(f'[kiosk] CompOffCredited {employee.employee_id} for {att.date}')
+                    except Exception as e:
+                        logger.error(f'[kiosk] comp-off credit failed: {e}')
+
             response_msg = f'Clocked out at {timezone.localtime(now).strftime("%I:%M %p")}'
             response_act = 'out'
 

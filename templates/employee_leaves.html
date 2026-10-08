@@ -120,6 +120,54 @@
                         </div>
                     </div>
                 {% endfor %}
+
+
+                {# ── Comp-Off card (only if balance > 0) ── #}
+                {% if comp_off_balance > 0 %}
+                <div class="col-12 col-md-6 col-lg-4">
+                    <div class="mlv-balance comp-off">
+
+                        <div class="mlv-balance-hd">
+                            <h6 class="mlv-balance-name">
+                                <i class="las la-calendar-plus" style="color:#0e9f6e;"></i> Comp-Off
+                            </h6>
+                            <span class="mlv-left-pill ok">
+                                <span class="num">{{ comp_off_balance|floatformat:2 }}</span> left
+                            </span>
+                        </div>
+
+                        <div class="mlv-balance-visual">
+                            <span class="mlv-balance-big" style="color:#0e9f6e;">{{ comp_off_balance|floatformat:2 }}</span>
+                            <span class="mlv-balance-of">days earned</span>
+                        </div>
+
+                        <div class="mlv-balance-bar">
+                            <div style="width: 100%; background: #0e9f6e;"></div>
+                        </div>
+
+                        <div class="mlv-balance-foot">
+                            <div class="mlv-balance-foot-item">
+                                <span class="mlv-balance-foot-label">Credits</span>
+                                <span class="mlv-balance-foot-value">{{ comp_offs_active|length }}</span>
+                            </div>
+                            <div class="mlv-balance-foot-item used">
+                                <span class="mlv-balance-foot-label">Earliest</span>
+                                <span class="mlv-balance-foot-value">
+                                    {% if comp_offs_active %}{{ comp_offs_active.0.earned_on|date:"d M" }}{% else %}—{% endif %}
+                                </span>
+                            </div>
+                            <div class="mlv-balance-foot-item pending">
+                                <span class="mlv-balance-foot-label">Expires</span>
+                                <span class="mlv-balance-foot-value">
+                                    {% if comp_offs_active.0.expires_at %}{{ comp_offs_active.0.expires_at|date:"d M Y" }}{% else %}—{% endif %}
+                                </span>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+                {% endif %}
+                
             </div>
 
         </div>

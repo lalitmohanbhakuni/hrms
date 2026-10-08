@@ -402,6 +402,16 @@ def calculate_monthly_payroll(employee, year, month, salary):
         ot_rate = (basic / _monthly_hours * _multiplier).quantize(Decimal('0.01'))
     else:
         ot_rate = Decimal('0')
+    
+    # ── Weekend OT rate (uses weekend_ot_multiplier if set, else falls back) ──
+    if shift and shift.overtime_allowed:
+        _weekend_mult = Decimal(str(getattr(shift, 'weekend_ot_multiplier', 0) or 0))
+        if _weekend_mult > 0:
+            weekend_ot_rate = (basic / _monthly_hours * _weekend_mult).quantize(Decimal('0.01'))
+        else:
+            weekend_ot_rate = ot_rate
+    else:
+        weekend_ot_rate = Decimal('0')
 
     # ── Holidays ──
     holidays = set(
@@ -421,28 +431,33 @@ def calculate_monthly_payroll(employee, year, month, salary):
     if year == _today.year and month == _today.month:
         _end_day = min(last_day, _today)
 
+    # ── Terminated employees: stop counting at termination date ──
+    _terminated_at = getattr(employee, 'terminated_at', None)
+    if _terminated_at and _terminated_at < _end_day:
+        _end_day = _terminated_at
+
     _start_day = first_day
     if employee.date_of_joining and employee.date_of_joining > first_day:
         _start_day = employee.date_of_joining
 
     working_days = 0
-    for n in range((_end_day - _start_day).days + 1):
-        d = _start_day + timedelta(n)
-        if d in holidays:
-            continue
-        if shift:
-            day_abbr = d.strftime('%a').lower()[:3]
-            if not getattr(shift, day_abbr, False):
+    if _start_day <= _end_day:
+        for n in range((_end_day - _start_day).days + 1):
+            d = _start_day + timedelta(n)
+            if d in holidays:
                 continue
-        working_days += 1
+            if shift:
+                day_abbr = d.strftime('%a').lower()[:3]
+                if not getattr(shift, day_abbr, False):
+                    continue
+            working_days += 1
 
     # ═══════════════════════════════════════════════════════════════
     # FIX #2 — Present days (count all "worked" statuses)
     # ═══════════════════════════════════════════════════════════════
     present_days = Decimal('0')
     for att in attendances:
-        if att.status in ('Present', 'Under Review', 'Missing Checkout',
-                        'Weekend Work', 'Holiday Work'):
+        if att.status in ('Present', 'Under Review', 'Missing Checkout'):
             present_days += Decimal('1')
         elif att.status == 'Half-Day':
             present_days += Decimal('0.5')
@@ -465,36 +480,61 @@ def calculate_monthly_payroll(employee, year, month, salary):
     late_halfday_days  = 0
     total_late_minutes = 0
 
-    # ── Overtime (uses per-day shift for accuracy) ──
+    # ── Overtime (regular OT + weekend/holiday work) ──
     overtime_minutes = 0
+    weekend_overtime_minutes = 0
     for att in attendances:
         day_shift = att.shift if att.shift else shift
-        if att.check_in_time and att.check_out_time and day_shift:
-            if not day_shift.overtime_allowed:
-                continue
+        if not (att.check_in_time and att.check_out_time and day_shift):
+            continue
 
-            shift_end = timezone.make_aware(
-                datetime.combine(att.date, day_shift.end_time)
-            )
+        policy = getattr(day_shift, 'weekend_work_policy', 'overtime') or 'overtime'
 
-            if att.check_out_time > shift_end:
-                ot_min = int((att.check_out_time - shift_end).total_seconds() // 60)
+        # ── Weekend / Holiday work ──
+        if att.status in ('Weekend Work', 'Holiday Work'):
+            if policy == 'overtime':
+                if not day_shift.overtime_allowed:
+                    print(
+                        f"[payroll] WARNING: {att.date} is {att.status} "
+                        f"but shift '{day_shift.name}' has overtime_allowed=False. "
+                        f"Hours NOT paid. Set weekend_work_policy='none' to reject."
+                    )
+                    continue
+                full_min = int((att.check_out_time - att.check_in_time).total_seconds() // 60)
+                if full_min > 0:
+                    weekend_overtime_minutes += full_min
+            continue
 
-                # Enforce minimum OT threshold — below this, ignore
-                _min_ot = int(getattr(day_shift, 'min_overtime_minutes', 0) or 0)
-                if ot_min < _min_ot:
-                    ot_min = 0
+        # ── Regular working day ──
+        if not day_shift.overtime_allowed:
+            continue
 
-                # Cap at daily OT limit
-                if day_shift.overtime_limit and ot_min > 0:
-                    limit_min = int(day_shift.overtime_limit * 60)
-                    if ot_min > limit_min:
-                        ot_min = limit_min
+        shift_end = timezone.make_aware(
+            datetime.combine(att.date, day_shift.end_time)
+        )
 
-                overtime_minutes += ot_min
+        if att.check_out_time > shift_end:
+            ot_min = int((att.check_out_time - shift_end).total_seconds() // 60)
 
-    overtime_hours = Decimal(str(round(overtime_minutes / 60, 2)))
-    overtime_amount = overtime_hours * ot_rate
+            _min_ot = int(getattr(day_shift, 'min_overtime_minutes', 0) or 0)
+            if ot_min < _min_ot:
+                ot_min = 0
+
+            if day_shift.overtime_limit and ot_min > 0:
+                limit_min = int(day_shift.overtime_limit * 60)
+                if ot_min > limit_min:
+                    ot_min = limit_min
+
+            overtime_minutes += ot_min
+
+    # ── Split OT into regular + weekend, apply separate rates ──
+    _regular_ot_hours = Decimal(str(round(overtime_minutes / 60, 2)))
+    _weekend_ot_hours = Decimal(str(round(weekend_overtime_minutes / 60, 2)))
+    overtime_hours    = _regular_ot_hours + _weekend_ot_hours
+
+    _regular_ot_amount = (_regular_ot_hours * ot_rate).quantize(Decimal('0.01'))
+    _weekend_ot_amount = (_weekend_ot_hours * weekend_ot_rate).quantize(Decimal('0.01'))
+    overtime_amount    = _regular_ot_amount + _weekend_ot_amount
 
     # ── Leaves ──
     leaves = LeaveRequest.objects.filter(
@@ -620,6 +660,13 @@ def calculate_monthly_payroll(employee, year, month, salary):
         'overtime_hours': overtime_hours,
         'overtime_rate': ot_rate,
         'overtime_amount': overtime_amount,
+        # ── Split OT (regular vs weekend) ──
+        'regular_ot_hours': _regular_ot_hours,
+        'weekend_ot_hours': _weekend_ot_hours,
+        'regular_ot_amount': _regular_ot_amount,
+        'weekend_ot_amount': _weekend_ot_amount,
+        'weekend_ot_rate': weekend_ot_rate,
+
         'absent_deduction': absent_deduction,
         'unpaid_leave_deduction': unpaid_leave_deduction,
         'other_deduction': other_deduction,
@@ -995,7 +1042,7 @@ def sync_late_deductions(employee, year, month, calc=None):
                     f"'minutes' mode but has NO slabs. Skipping lates for "
                     f"{employee.employee_id} {month:02d}/{year}."
                 )
-                return 0
+                continue
 
             # Slab lookup for this day's minutes
             slab = rule.minute_slabs.filter(
@@ -1155,3 +1202,37 @@ def face_registration_available(company):
         return False
     return bool(getattr(company, 'face_registration_enabled', False))
     
+
+def get_comp_off_balance(employee):
+    from datetime import date as _date
+    from decimal import Decimal
+    from django.db.models import Sum, Q
+    from .models import CompOffCredit
+
+    if employee is None:
+        return Decimal('0')
+
+    today = _date.today()
+    qs = CompOffCredit.objects.filter(
+        employee=employee,
+        status='ACTIVE',
+    ).filter(Q(expires_at__isnull=True) | Q(expires_at__gte=today))
+    return qs.aggregate(s=Sum('days_credited'))['s'] or Decimal('0')
+
+
+def get_active_comp_offs(employee):
+    """Return queryset of active, non-expired comp-off credits (for display)."""
+    from datetime import date as _date
+    from django.db.models import Q
+    from .models import CompOffCredit
+
+    if employee is None:
+        return CompOffCredit.objects.none()
+
+    today = _date.today()
+    return CompOffCredit.objects.filter(
+        employee=employee,
+        status='ACTIVE',
+    ).filter(
+        Q(expires_at__isnull=True) | Q(expires_at__gte=today)
+    ).order_by('earned_on')
