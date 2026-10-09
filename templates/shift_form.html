@@ -501,6 +501,28 @@
                                                value="{{ shift.break_end|time:'H:i'|default:'' }}">
                                     </div>
                                 </div>
+                            
+                            </div>
+                            <!-- ── Overnight shift toggle ── -->
+                            <div class="col-12" style="margin-top:12px;">
+                                <div class="shf-toggle-row" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px 16px;">
+                                    <div class="shf-toggle-label">
+                                        <strong>
+                                            <i class="las la-moon" style="margin-right:6px; color:#4f46e5;"></i>
+                                            Overnight Shift
+                                        </strong>
+                                        <small>Check if shift crosses midnight (e.g., 22:00 → 06:00)</small>
+                                    </div>
+                                    <label class="shf-switch" for="is_overnight">
+                                        <input type="checkbox" name="is_overnight" id="is_overnight"
+                                                {% if shift.is_overnight %}checked{% endif %}>
+                                        <span class="shf-switch-track"></span>
+                                    </label>
+                                </div>
+                            </div>
+                           
+
+                            <div class="row g-3" style="margin-top: 16px;">
 
                                 <div class="col-md-6">
                                     <div class="shf-field">

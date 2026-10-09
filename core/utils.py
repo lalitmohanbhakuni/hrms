@@ -146,8 +146,8 @@ def get_employee_attendance_for_pdf(employee, year, month, first_day, last_day):
 
                 # Overtime (uses shift active on that day)
                 if day_shift and att.check_out_time:
-                    shift_end = timezone.make_aware(datetime.combine(d, day_shift.end_time))
-                    if att.check_out_time > shift_end:
+                    shift_end = get_shift_end_dt(d, day_shift)
+                    if shift_end and att.check_out_time > shift_end:
                         ot = int((att.check_out_time - shift_end).total_seconds() // 60)
 
                         # Minimum OT threshold
@@ -509,11 +509,9 @@ def calculate_monthly_payroll(employee, year, month, salary):
         if not day_shift.overtime_allowed:
             continue
 
-        shift_end = timezone.make_aware(
-            datetime.combine(att.date, day_shift.end_time)
-        )
+        shift_end = get_shift_end_dt(att.date, day_shift)
 
-        if att.check_out_time > shift_end:
+        if shift_end and att.check_out_time > shift_end:
             ot_min = int((att.check_out_time - shift_end).total_seconds() // 60)
 
             _min_ot = int(getattr(day_shift, 'min_overtime_minutes', 0) or 0)
@@ -1236,3 +1234,40 @@ def get_active_comp_offs(employee):
     ).filter(
         Q(expires_at__isnull=True) | Q(expires_at__gte=today)
     ).order_by('earned_on')
+
+
+
+
+def is_overnight_shift(shift):
+    """
+    Return True if shift crosses midnight.
+    Example: 22:00 → 06:00 returns True (end <= start)
+             09:00 → 18:00 returns False
+    """
+    if not shift or not shift.start_time or not shift.end_time:
+        return False
+    return shift.end_time <= shift.start_time
+
+
+def get_shift_end_dt(att_date, shift):
+    """
+    Return timezone-aware datetime for shift end.
+    Handles overnight shifts — if shift crosses midnight, end is next day.
+
+    Example:
+        att_date=Oct 15, shift 22:00→06:00
+        → returns Oct 16 06:00 (timezone-aware)
+    """
+    from datetime import datetime, timedelta
+    from django.utils import timezone
+
+    if not shift or not shift.end_time:
+        return None
+
+    end_date = att_date
+    if is_overnight_shift(shift):
+        end_date = att_date + timedelta(days=1)
+
+    naive = datetime.combine(end_date, shift.end_time)
+    return timezone.make_aware(naive)
+

@@ -516,54 +516,13 @@
     <!-- ═══════════ Card ═══════════ -->
     <div class="ash-card">
         <div class="ash-card-bd">
-            <form method="post">
-                {% csrf_token %}
 
-                <!-- ═══ SECTION 1: Shift + Effective Date ═══ -->
-                <div class="ash-section">
-                    <div class="ash-section-hd">
-                        <span class="ash-section-ico"><i class="las la-clock"></i></span>
-                        <h6 class="ash-section-title">Shift & Schedule</h6>
-                    </div>
+            <!-- ═══════════════════════════════════════════════════
+                 FORM 1: FILTERS (GET) — separate from assign form
+                 Changing a filter reloads the page with new employees
+                 ═══════════════════════════════════════════════════ -->
+            <form method="get" action="{% url 'assign_shift' %}" id="filterForm">
 
-                    <div class="row g-3">
-                        <div class="col-md-5">
-                            <div class="ash-field">
-                                <label for="shift" class="ash-label">
-                                    <i class="las la-business-time"></i> Select Shift <span class="ash-req">*</span>
-                                </label>
-                                <select name="shift" id="shift" class="ash-select" required>
-                                    <option value="">-- Choose a shift --</option>
-                                    {% for shift in shifts %}
-                                        <option value="{{ shift.id }}">{{ shift.name }} ({{ shift.start_time|time:"h:i A" }} – {{ shift.end_time|time:"h:i A" }})</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="col-md-5">
-                            <div class="ash-field">
-                                <label for="effective_from" class="ash-label">
-                                    <i class="las la-calendar-check"></i> Effective From
-                                </label>
-                                <input type="date" name="effective_from" id="effective_from"
-                                       class="ash-input" value="{{ today|date:'Y-m-d' }}">
-                                <div class="ash-hint">
-                                    <i class="las la-info-circle"></i>
-                                    <span>Date when this shift assignment starts.</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="col-md-2 d-flex align-items-end">
-                            <a href="{% url 'assign_shift' %}" class="ash-btn ash-btn-ghost" title="Reset all filters">
-                                <i class="fas fa-times"></i> Clear
-                            </a>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- ═══ SECTION 2: Filters ═══ -->
                 <div class="ash-section">
                     <div class="ash-section-hd">
                         <span class="ash-section-ico"><i class="las la-filter"></i></span>
@@ -576,7 +535,8 @@
                                 <label for="department_filter" class="ash-label">
                                     <i class="las la-sitemap"></i> Department
                                 </label>
-                                <select name="department" id="department_filter" class="ash-select" onchange="this.form.submit()">
+                                <select name="department" id="department_filter" class="ash-select"
+                                        onchange="this.form.submit()">
                                     <option value="">All Departments</option>
                                     {% for dept in distinct_departments %}
                                         <option value="{{ dept }}" {% if department_filter == dept %}selected{% endif %}>{{ dept }}</option>
@@ -590,7 +550,8 @@
                                 <label for="designation_filter" class="ash-label">
                                     <i class="las la-briefcase"></i> Designation
                                 </label>
-                                <select name="designation" id="designation_filter" class="ash-select" onchange="this.form.submit()">
+                                <select name="designation" id="designation_filter" class="ash-select"
+                                        onchange="this.form.submit()">
                                     <option value="">All Designations</option>
                                     {% for desig in distinct_designations %}
                                         <option value="{{ desig }}" {% if designation_filter == desig %}selected{% endif %}>{{ desig }}</option>
@@ -599,7 +560,7 @@
                             </div>
                         </div>
 
-                        <div class="col-md-3">
+                        <!-- <div class="col-md-3">
                             <div class="ash-field">
                                 <label for="location_filter" class="ash-label">
                                     <i class="las la-map-marker-alt"></i> Location
@@ -617,12 +578,68 @@
                                 <input type="text" name="team" id="team_filter" class="ash-input"
                                        value="{{ team_filter }}" placeholder="Filter by team...">
                             </div>
+                        </div> -->
+
+                        <div class="col-6 d-flex justify-content-end gap-2">
+                            <!-- <button type="submit" class="ash-btn ash-btn-ghost">
+                                <i class="las la-search"></i> Apply Filters
+                            </button> -->
+                            <div>
+                            <a href="{% url 'assign_shift' %}" class="ash-btn ash-btn-ghost">
+                                <i class="fas fa-times"></i> Clear Filters
+                            </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+
+            <!-- ═══════════════════════════════════════════════════
+                 FORM 2: ASSIGN (POST) — shift + employees + date
+                 ═══════════════════════════════════════════════════ -->
+            <form method="post" action="{% url 'assign_shift' %}" style="margin-top: 32px;">
+                {% csrf_token %}
+
+                <!-- ═══ SECTION 1: Shift + Effective Date ═══ -->
+                <div class="ash-section">
+                    <div class="ash-section-hd">
+                        <span class="ash-section-ico"><i class="las la-clock"></i></span>
+                        <h6 class="ash-section-title">Shift & Schedule</h6>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="ash-field">
+                                <label for="shift" class="ash-label">
+                                    <i class="las la-business-time"></i> Select Shift <span class="ash-req">*</span>
+                                </label>
+                                <select name="shift" id="shift" class="ash-select" required>
+                                    <option value="">-- Choose a shift --</option>
+                                    {% for shift in shifts %}
+                                        <option value="{{ shift.id }}">{{ shift.name }} ({{ shift.start_time|time:"h:i A" }} – {{ shift.end_time|time:"h:i A" }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="ash-field">
+                                <label for="effective_from" class="ash-label">
+                                    <i class="las la-calendar-check"></i> Effective From
+                                </label>
+                                <input type="date" name="effective_from" id="effective_from"
+                                       class="ash-input" value="{{ today|date:'Y-m-d' }}">
+                                <div class="ash-hint">
+                                    <i class="las la-info-circle"></i>
+                                    <span>Date when this shift assignment starts.</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- ═══ SECTION 3: Employee Selection ═══ -->
-                <div class="ash-section  row" style="border-width: 0px;">
+                <!-- ═══ SECTION 2: Employee Selection ═══ -->
+                <div class="ash-section row" style="border-width: 0px;">
                     <div class="ash-section-hd col-md-4">
                         <span class="ash-section-ico"><i class="las la-user-check"></i></span>
                         <h6 class="ash-section-title">Select Employees</h6>
@@ -647,9 +664,6 @@
                             </button>
                         </div>
                     </div>
-
-                    
-
 
                     <div class="ash-selectall">
                         <label class="ash-selectall-left" for="selectAll">

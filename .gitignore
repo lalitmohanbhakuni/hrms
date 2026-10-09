@@ -20,3 +20,7 @@ logs/
 .vscode/
 .idea/
 *.swp
+# Local test scripts — not for repo
+bug_hunt.py
+payroll_audit.py
+security_audit.py

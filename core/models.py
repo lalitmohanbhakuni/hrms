@@ -194,6 +194,10 @@ class Shift(models.Model):
     name = models.CharField(max_length=100)
     start_time = models.TimeField()
     end_time = models.TimeField()
+    is_overnight = models.BooleanField(
+        default=False,
+        help_text="Check if this shift crosses midnight (e.g., 22:00 → 06:00)"
+    )
     break_start = models.TimeField(null=True, blank=True)
     break_end = models.TimeField(null=True, blank=True)
     grace_period = models.IntegerField(default=0, help_text="Minutes")
@@ -234,10 +238,6 @@ class Shift(models.Model):
         help_text="Weekend/holiday OT multiplier. Leave 0 to use same as regular OT.",
     )
 
-
-
-    # ──────────────────────────────
-
     mon = models.BooleanField(default=True)
     tue = models.BooleanField(default=True)
     wed = models.BooleanField(default=True)
@@ -245,6 +245,34 @@ class Shift(models.Model):
     fri = models.BooleanField(default=True)
     sat = models.BooleanField(default=False)
     sun = models.BooleanField(default=False)
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        # ── At least one working day required ──
+        if not any([self.mon, self.tue, self.wed, self.thu, self.fri, self.sat, self.sun]):
+            raise ValidationError(
+                'Shift must have at least one working day. '
+                'Currently all Mon–Sun flags are unchecked.'
+            )
+
+        # ── Overnight consistency check ──
+        if self.start_time and self.end_time:
+            _crosses_midnight = self.end_time <= self.start_time
+            if _crosses_midnight and not self.is_overnight:
+                raise ValidationError({
+                    'is_overnight': (
+                        'This shift ends before it starts (crosses midnight). '
+                        'Please check the "Overnight Shift" box.'
+                    )
+                })
+            if not _crosses_midnight and self.is_overnight:
+                raise ValidationError({
+                    'is_overnight': (
+                        'This shift does not cross midnight, but "Overnight Shift" '
+                        'is checked. Please uncheck it.'
+                    )
+                })
 
     def __str__(self):
         return self.name
@@ -271,8 +299,6 @@ class Shift(models.Model):
             return f"{days[0]} - {days[-1]}"
         return ", ".join(days)
         
-
-
 # ---------- Office Location Model ----------
 # ---------- Office Location Model ----------
 
@@ -721,6 +747,7 @@ class Notification(models.Model):
 
 
 # ---------- Employee Salary Model ----------
+
 # ---------- Employee Salary Model ----------
 class EmployeeSalary(models.Model):
     SALARY_TYPES = [
@@ -758,6 +785,18 @@ class EmployeeSalary(models.Model):
 
     def __str__(self):
         return f"{self.employee.full_name} - {self.effective_from}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        if self.basic_salary is not None and self.basic_salary < 0:
+            raise ValidationError({'basic_salary': 'Basic salary cannot be negative.'})
+        if self.hra is not None and self.hra < 0:
+            raise ValidationError({'hra': 'HRA cannot be negative.'})
+        if self.allowance is not None and self.allowance < 0:
+            raise ValidationError({'allowance': 'Allowance cannot be negative.'})
+        if self.overtime_rate is not None and self.overtime_rate < 0:
+            raise ValidationError({'overtime_rate': 'Overtime rate cannot be negative.'})
 
     def save(self, *args, **kwargs):
         basic = Decimal(str(self.basic_salary or 0))

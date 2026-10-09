@@ -1285,9 +1285,13 @@ def clock_out(request):
         return redirect('dashboard')
 
     today = date.today()
+    yesterday = today - timedelta(days=1)
     attendance = Attendance.objects.filter(
-        user=request.user, date=today, state='checked_in'
-    ).first()
+        user=request.user,
+        date__in=[today, yesterday],
+        state='checked_in',
+        check_out_time__isnull=True,
+    ).order_by('-date').first()
 
     if not attendance:
         return err('You are not checked in.')
@@ -1496,10 +1500,8 @@ def clock_out(request):
             final_status = 'Present'
 
         
-        # Shift end reference
-        shift_end_dt = timezone.make_aware(
-            datetime.combine(attendance.date, shift.end_time)
-        )
+        from .utils import get_shift_end_dt
+        shift_end_dt = get_shift_end_dt(attendance.date, shift)
         
         # Overtime calculation
         if now > shift_end_dt and shift.overtime_allowed:
@@ -4735,7 +4737,8 @@ def shift_list(request):
 @company_required
 def shift_create(request):
     from .utils import get_user_company   # ✅ Added local import
-    
+    from django.core.exceptions import ValidationError
+
     if request.method == 'POST':
         _policy = request.POST.get('weekend_work_policy', 'overtime').strip()
         if _policy not in ('none', 'overtime', 'comp_off'):
@@ -4747,7 +4750,7 @@ def shift_create(request):
         except (TypeError, ValueError):
             _weekend_mult = 0
 
-        Shift.objects.create(
+        _shift = Shift(
             company=get_user_company(request),
             name=request.POST.get('name'),
             start_time=request.POST.get('start_time'),
@@ -4761,6 +4764,7 @@ def shift_create(request):
             min_overtime_minutes=int(request.POST.get('min_overtime_minutes', 0)),
             weekend_work_policy=_policy,
             weekend_ot_multiplier=_weekend_mult,
+            is_overnight=request.POST.get('is_overnight') == 'on',
             mon=request.POST.get('mon') == 'on',
             tue=request.POST.get('tue') == 'on',
             wed=request.POST.get('wed') == 'on',
@@ -4769,9 +4773,20 @@ def shift_create(request):
             sat=request.POST.get('sat') == 'on',
             sun=request.POST.get('sun') == 'on',
         )
+
+        try:
+            _shift.full_clean()
+        except ValidationError as e:
+            # Flatten the error message for display
+            first_error = e.messages[0] if e.messages else 'Invalid shift data.'
+            messages.error(request, f'Invalid shift: {first_error}')
+            return redirect('shift_create')
+
+        _shift.save()
         messages.success(request, 'Shift created successfully.')
         return redirect('shift_list')
     return render(request, 'shift_form.html', {'action': 'Create'})
+
     
 
 @login_required
@@ -4810,6 +4825,7 @@ def shift_edit(request, pk):
         shift.min_overtime_minutes = int(request.POST.get('min_overtime_minutes', 0))
         shift.weekend_work_policy = _policy
         shift.weekend_ot_multiplier = _weekend_mult
+        shift.is_overnight = request.POST.get('is_overnight') == 'on'
         shift.mon = request.POST.get('mon') == 'on'
         shift.tue = request.POST.get('tue') == 'on'
         shift.wed = request.POST.get('wed') == 'on'
@@ -4817,6 +4833,14 @@ def shift_edit(request, pk):
         shift.fri = request.POST.get('fri') == 'on'
         shift.sat = request.POST.get('sat') == 'on'
         shift.sun = request.POST.get('sun') == 'on'
+
+        try:
+            shift.full_clean()
+        except ValidationError as e:
+            first_error = e.messages[0] if e.messages else 'Invalid shift data.'
+            messages.error(request, f'Invalid shift: {first_error}')
+            return redirect('shift_edit', pk=pk)
+
         shift.save()
         messages.success(request, 'Shift updated successfully.')
         return redirect('shift_list')
@@ -5586,7 +5610,7 @@ def employee_salary_create(request):
             messages.error(request, 'Salary is already configured for this employee.')
             return redirect('employee_salary_edit', pk=existing.id)
 
-        EmployeeSalary.objects.create(
+        _sal = EmployeeSalary(
             company=company,
             employee=employee,
             salary_type=salary_type,
@@ -5598,6 +5622,14 @@ def employee_salary_create(request):
             effective_from=effective_from,
             status='active',
         )
+        try:
+            _sal.full_clean()
+        except ValidationError as e:
+            first_error = e.messages[0] if e.messages else 'Invalid salary data.'
+            messages.error(request, f'Invalid salary: {first_error}')
+            return redirect('employee_salary_create')
+
+        _sal.save()
         messages.success(request, f'Salary added for {employee.full_name}')
         return redirect('employee_salary_list')
 
@@ -5631,6 +5663,14 @@ def employee_salary_edit(request, pk):
         # ❌ REMOVED: salary.deduction = ...
         salary.effective_from = request.POST.get('effective_from')
         salary.status = request.POST.get('status')
+
+        try:
+            salary.full_clean()
+        except ValidationError as e:
+            first_error = e.messages[0] if e.messages else 'Invalid salary data.'
+            messages.error(request, f'Invalid salary: {first_error}')
+            return redirect('employee_salary_edit', pk=pk)
+
         salary.save()
         messages.success(request, 'Salary updated successfully')
         return redirect('employee_salary_list')
@@ -8626,27 +8666,40 @@ def kiosk_clock_api(request):
         return JsonResponse({'error': 'action must be in, out, or auto'}, status=400)
 
     today = timezone.localdate()
+    yesterday = today - timedelta(days=1)
     now   = timezone.now()
 
     # ── 15. Auto-decide action ──
     if action == 'auto':
-        existing = Attendance.objects.filter(
-            user=employee.user, company=kiosk.company, date=today,
-        ).first()
+        # Look for an OPEN attendance (in progress) — today or yesterday.
+        # Yesterday is needed for overnight shifts (started 22:00, still open).
+        _open = Attendance.objects.filter(
+            user=employee.user, company=kiosk.company,
+            date__in=[today, yesterday],
+            check_in_time__isnull=False,
+            check_out_time__isnull=True,
+        ).order_by('-date').first()
 
-        if not existing or not existing.check_in_time:
-            action = 'in'
-        elif not existing.check_out_time:
+        if _open:
             action = 'out'
         else:
-            return JsonResponse({
-                'success':     True,
-                'employee_id': employee.employee_id,
-                'full_name':   employee.full_name,
-                'action':      'already_done',
-                'message':     'Already clocked in and out today',
-                'time':        timezone.localtime().strftime('%I:%M %p'),
-            }, status=200)
+            # No open row. Check if today's row is already complete.
+            _today_row = Attendance.objects.filter(
+                user=employee.user, company=kiosk.company,
+                date=today,
+            ).first()
+
+            if _today_row and _today_row.check_out_time:
+                return JsonResponse({
+                    'success':     True,
+                    'employee_id': employee.employee_id,
+                    'full_name':   employee.full_name,
+                    'action':      'already_done',
+                    'message':     'Already clocked in and out today',
+                    'time':        timezone.localtime().strftime('%I:%M %p'),
+                }, status=200)
+
+            action = 'in'
 
     # ── 16. Kiosk permissions ──
     if action == 'in' and not kiosk.allow_clock_in:
@@ -8677,14 +8730,27 @@ def kiosk_clock_api(request):
                 'error': 'Weekend/holiday work not allowed on this shift. Contact HR.',
             }, status=403)
 
-    att, created = Attendance.objects.get_or_create(
-        user=employee.user, company=kiosk.company, date=today,
-        defaults={
-            'shift':  employee.shift,
-            'state':  '',
-            'status': _offday_status or 'Present',
-        }
-    )
+    # ── Overnight shift: reuse yesterday's open row (don't create a new one) ──
+    _is_overnight = bool(employee.shift and getattr(employee.shift, 'is_overnight', False))
+    _open_yesterday = None
+    if _is_overnight:
+        _open_yesterday = Attendance.objects.filter(
+            user=employee.user, company=kiosk.company,
+            date=yesterday, check_out_time__isnull=True,
+        ).first()
+
+    if _open_yesterday:
+        att = _open_yesterday
+        created = False
+    else:
+        att, created = Attendance.objects.get_or_create(
+            user=employee.user, company=kiosk.company, date=today,
+            defaults={
+                'shift':  employee.shift,
+                'state':  '',
+                'status': _offday_status or 'Present',
+            }
+        )
 
     # ── 18. Clock IN ──
     if action == 'in':
