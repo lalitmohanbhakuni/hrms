@@ -29,7 +29,7 @@ class Command(BaseCommand):
                 attendance_date__gte=first,
                 attendance_date__lte=last,
                 source='REG_OVERAGE',
-            ).exclude(status='PROCESSED').delete()
+            ).exclude(status__in=['CANCELLED', 'PROCESSED']).delete()
             if deleted:
                 self.stdout.write(f"Cleared {deleted} previous REG_OVERAGE rows.")
 
@@ -87,9 +87,26 @@ class Command(BaseCommand):
             company=emp.company, system_type=sys_type, is_active=True,
         ).first()
 
-    def _create_penalty(self, emp, att, cat, year, month, dry):
+        def _create_penalty(self, emp, att, cat, year, month, dry):
         penalty = Decimal(str(cat.penalty_days or Decimal('0.50')))
         if penalty <= 0:
+            return False
+
+        # ── Skip if a LateDeduction already exists for this date+source ──
+        # This respects HR's manual decisions (CANCELLED) and preserves
+        # already-processed rows (PROCESSED). Prevents unique constraint crash.
+        existing = LateDeduction.objects.filter(
+            employee=emp,
+            attendance_date=att.date,
+            source='REG_OVERAGE',
+        ).first()
+
+        if existing:
+            if not dry:
+                self.stdout.write(
+                    f"  SKIP {emp.employee_id} {att.date} — already exists "
+                    f"(status={existing.status})"
+                )
             return False
 
         _sal = EmployeeSalary.objects.filter(employee=emp, status='active').first()

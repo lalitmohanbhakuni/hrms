@@ -22,8 +22,7 @@ from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.auth.models import User
 
-from .models import EmployeeProfile, FaceCredential, FaceRegistrationConsent, KioskAttendanceLog, KioskDevice
-
+from .models import EmployeeProfile, FaceCredential, FaceRegistrationConsent, KioskAttendanceLog, KioskDevice, Holiday
 
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
@@ -207,7 +206,7 @@ def dashboard(request):
     today_offday_label = ''
     if employee_shift:
         from .utils import is_weekend_for_shift
-        from .models import Holiday
+        # from .models import Holiday
         _is_weekend = is_weekend_for_shift(today, employee_shift)
         _is_holiday = Holiday.objects.filter(
             company=current_company, date=today
@@ -1029,7 +1028,7 @@ def clock_in(request):
     # ═══════════════════════════════════════════════════
     if profile.shift:
         from .utils import is_weekend_for_shift
-        from .models import Holiday
+        # from .models import Holiday
 
         _is_weekend = is_weekend_for_shift(today, profile.shift)
         _is_holiday = Holiday.objects.filter(
@@ -2083,7 +2082,7 @@ def leave_type_delete(request, pk):
 @company_required
 def holiday_list(request):
     from .utils import get_company_filtered
-    from .models import Holiday
+    # from .models import Holiday
     
     holidays = get_company_filtered(
         request, 
@@ -8709,7 +8708,7 @@ def kiosk_clock_api(request):
 
         # ── 17. Attendance row (detect weekend/holiday) ──
     from .utils import is_weekend_for_shift
-    from .models import Holiday
+    # from .models import Holiday
 
     _is_weekend = is_weekend_for_shift(today, employee.shift) if employee.shift else False
     _is_holiday = Holiday.objects.filter(company=kiosk.company, date=today).exists()
