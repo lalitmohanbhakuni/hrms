@@ -337,8 +337,8 @@
                             </label>
                             <select name="leave_type" id="leave_type" class="lva-select" required>
                                 <option value="">Select...</option>
-                                {% for lt in leave_types %}
-                                    <option value="{{ lt.id }}">{{ lt.name }} ({{ lt.days_allowed }} days)</option>
+                                {% for item in leave_types %}
+                                    <option value="{{ item.lt.id }}">{{ item.lt.name }} ({{ item.balance }} days)</option>
                                 {% endfor %}
                             </select>
                         </div>

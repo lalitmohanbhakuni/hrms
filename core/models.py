@@ -746,7 +746,6 @@ class Notification(models.Model):
         return f"{self.user.username} - {self.message[:30]}..."
 
 
-# ---------- Employee Salary Model ----------
 
 # ---------- Employee Salary Model ----------
 class EmployeeSalary(models.Model):
@@ -767,12 +766,53 @@ class EmployeeSalary(models.Model):
     basic_salary = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     hra = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     allowance = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    
     overtime_rate = models.DecimalField(                    # ✅ NEW
         max_digits=10, decimal_places=2, default=0,
         help_text="Pay per overtime hour in ₹"
     )
+
+    # ── City & statutory deductions (Stage 2) ──
+    CITY_CHOICES = [
+        ('metro',     'Metro'),
+        ('non_metro', 'Non-Metro'),
+    ]
+    city_type = models.CharField(
+        max_length=10, choices=CITY_CHOICES, default='non_metro',
+        help_text="Metro = 50% Basic, Non-Metro = 40% Basic"
+    )
+
+    enable_epf_esi = models.BooleanField(
+        default=False,
+        help_text="Enable EPF + ESI deductions"
+    )
+    epf_rate = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('12.00'),
+        help_text="EPF % of Basic (statutory 12%)"
+    )
+    apply_epf_ceiling = models.BooleanField(
+        default=True,
+        help_text="Cap EPF base at ₹15,000 Basic (statutory)"
+    )
+    esi_rate = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('0.75'),
+        help_text="ESI % of Gross (statutory 0.75% employee share)"
+    )
+
+    enable_tds = models.BooleanField(
+        default=False,
+        help_text="Enable monthly TDS deduction"
+    )
+    monthly_tds = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text="Manual TDS amount per month (₹)"
+    )
+
     # ❌ REMOVED: deduction
     gross_salary = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+
+
     net_salary = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     effective_from = models.DateField()
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
@@ -1018,6 +1058,20 @@ class Payroll(models.Model):
     other_deduction = models.DecimalField(max_digits=12, decimal_places=2, default=0)         # ✅ NEW
     deduction = models.DecimalField(max_digits=12, decimal_places=2, default=0)               # old field — keep for migration, will mirror other_deduction
 
+    # ── Statutory deductions (Stage 3) ──
+    epf_deduction = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+        help_text="EPF deducted this month (₹)"
+    )
+    esi_deduction = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+        help_text="ESI deducted this month (₹)"
+    )
+    tds_deduction = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+        help_text="TDS deducted this month (₹)"
+    )
+
     net_salary = models.DecimalField(max_digits=12, decimal_places=2, default=0)  # This is Net Payable
 
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='draft')
@@ -1054,6 +1108,9 @@ class Payroll(models.Model):
             + (self.other_deduction or 0)
             + (self.late_deduction or 0)
             + (self.late_halfday_deduction or 0)
+            + (self.epf_deduction or 0)
+            + (self.esi_deduction or 0)
+            + (self.tds_deduction or 0)
         )
 
     @property

@@ -457,8 +457,8 @@ def calculate_monthly_payroll(employee, year, month, salary):
     # ═══════════════════════════════════════════════════════════════
     present_days = Decimal('0')
     for att in attendances:
-        if att.status in ('Present', 'Under Review', 'Missing Checkout'):
-            present_days += Decimal('1')
+        if att.status == 'Present':
+            present_days += 1
         elif att.status == 'Half-Day':
             present_days += Decimal('0.5')
 
@@ -636,12 +636,41 @@ def calculate_monthly_payroll(employee, year, month, salary):
     
     late_halfday_deduction = Decimal('0')
     late_penalty_days = late_leave_days + late_lop_days
+
+    # ═══════════════════════════════════════════════════════════════
+    # STAGE 7 — Statutory deductions (EPF / ESI / TDS)
+    # ═══════════════════════════════════════════════════════════════
+    epf_deduction = Decimal('0')
+    esi_deduction = Decimal('0')
+    tds_deduction = Decimal('0')
+
+    if salary:
+        # ── EPF + ESI ──
+        if getattr(salary, 'enable_epf_esi', False):
+            _epf_base = Decimal(str(salary.basic_salary or 0))
+            if getattr(salary, 'apply_epf_ceiling', True):
+                _epf_base = min(_epf_base, Decimal('15000'))
+            _epf_rate = Decimal(str(salary.epf_rate or '12'))
+            epf_deduction = (_epf_base * _epf_rate / Decimal('100')).quantize(Decimal('0.01'))
+
+            _esi_gross = Decimal(str(salary.gross_salary or 0))
+            if _esi_gross <= Decimal('21000'):
+                _esi_rate = Decimal(str(salary.esi_rate or '0.75'))
+                esi_deduction = (_esi_gross * _esi_rate / Decimal('100')).quantize(Decimal('0.01'))
+
+        # ── TDS ──
+        if getattr(salary, 'enable_tds', False):
+            tds_deduction = Decimal(str(salary.monthly_tds or 0)).quantize(Decimal('0.01'))
+
     total_deduction = (
         absent_deduction
         + unpaid_leave_deduction
         + other_deduction
         + late_deduction
         + reg_deduction
+        + epf_deduction
+        + esi_deduction
+        + tds_deduction
     )
     net_payable = (gross + overtime_amount - total_deduction).quantize(Decimal('0.01'))
 
@@ -688,6 +717,10 @@ def calculate_monthly_payroll(employee, year, month, salary):
         'reg_lop_days': reg_lop_days,
         'reg_deduction': reg_deduction,
         'reg_marks': reg_marks,
+        # ── Stage 7: statutory deductions ──
+        'epf_deduction': epf_deduction,
+        'esi_deduction': esi_deduction,
+        'tds_deduction': tds_deduction,
     }
 
 
@@ -780,6 +813,20 @@ def get_leave_balance(user, leave_type, year=None):
 
     if year is None:
         year = _date.today().year
+
+    # ── Comp-Off special case ─────────────────────────────────────
+    if leave_type and (leave_type.name or '').strip().lower() == 'comp-off':
+        profile = getattr(user, 'profile', None)
+        available = get_comp_off_balance(profile) if profile else 0
+        available = Decimal(str(available)).quantize(Decimal('0.01'))
+        return {
+            'total':     available,
+            'used':      Decimal('0'),
+            'pending':   Decimal('0'),
+            'late_used': Decimal('0'),
+            'available': available,
+        }
+    # ──────────────────────────────────────────────────────────────
 
     total = Decimal(str(leave_type.days_allowed or 0))
 

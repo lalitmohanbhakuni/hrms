@@ -402,10 +402,33 @@
                             </div>
 
                             <div class="row g-3">
+                                <!-- ⚡ Gross Salary (input) → auto-splits below -->
+                                <div class="col-md-12">
+                                    <div class="esf-field col-md-6">
+                                        <label class="esf-label" for="gross_salary_input">
+                                            <i class="las la-rupee-sign"></i> Gross Salary <span class="esf-req">*</span>
+                                            <span style="color:#4f46e5; font-size:.7rem; margin-left:6px;">
+                                                <i class="las la-magic"></i> Auto-splits below
+                                            </span>
+                                        </label>
+                                        <div class="esf-money">
+                                            <input type="number" name="gross_salary_input" id="gross_salary_input"
+                                                   step="0.01" min="0" class="esf-input"
+                                                   value="{{ salary.gross_salary|default:0 }}"
+                                                   placeholder="e.g. 30000">
+                                        </div>
+                                        <div class="esf-hint">
+                                            <i class="las la-info-circle"></i>
+                                            <span>Enter total monthly gross. Basic, HRA, and Allowance auto-calculate based on City Type.</span>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div class="col-md-4">
                                     <div class="esf-field">
                                         <label class="esf-label" for="basic_salary">
                                             <i class="las la-rupee-sign"></i> Basic Salary <span class="esf-req">*</span>
+                                            <small id="basic-pct-hint" style="color:#64748b; font-weight:500; font-size:.72rem; margin-left:4px;">(40% of gross)</small>
                                         </label>
                                         <div class="esf-money">
                                             <input type="number" name="basic_salary" id="basic_salary"
@@ -419,6 +442,7 @@
                                     <div class="esf-field">
                                         <label class="esf-label" for="hra">
                                             <i class="las la-home"></i> HRA <span class="esf-req">*</span>
+                                            <small id="hra-pct-hint" style="color:#64748b; font-weight:500; font-size:.72rem; margin-left:4px;">(40% of basic)</small>
                                         </label>
                                         <div class="esf-money">
                                             <input type="number" name="hra" id="hra"
@@ -436,6 +460,7 @@
                                     <div class="esf-field">
                                         <label class="esf-label" for="allowance">
                                             <i class="las la-plus-circle"></i> Allowance <span class="esf-req">*</span>
+                                            <small style="color:#64748b; font-weight:500; font-size:.72rem; margin-left:4px;">(balance)</small>
                                         </label>
                                         <div class="esf-money">
                                             <input type="number" name="allowance" id="allowance"
@@ -451,53 +476,186 @@
                             </div>
                         </div>
 
-                        <!-- ═══ SECTION 3: Overtime & Effective Date ═══ -->
+
+                        <script>
+                            document.addEventListener('DOMContentLoaded', function () {
+                                var grossInput     = document.getElementById('gross_salary_input');
+                                var citySelect     = document.getElementById('city_type');
+                                var basicInput     = document.getElementById('basic_salary');
+                                var hraInput       = document.getElementById('hra');
+                                var allowanceInput = document.getElementById('allowance');
+                                var basicHint      = document.getElementById('basic-pct-hint');
+                                var hraHint        = document.getElementById('hra-pct-hint');
+
+                                if (!grossInput || !citySelect || !basicInput || !hraInput || !allowanceInput) return;
+
+                                function round2(n) { return Math.round(n * 100) / 100; }
+
+                                function updateHints() {
+                                    var isMetro = citySelect.value === 'metro';
+                                    var basicPct = isMetro ? 50 : 40;
+                                    var hraPct   = isMetro ? 50 : 40;
+                                    if (basicHint) basicHint.textContent = '(' + basicPct + '% of gross)';
+                                    if (hraHint)   hraHint.textContent   = '(' + hraPct + '% of basic)';
+                                }
+
+                                function autoSplit() {
+                                    var gross = parseFloat(grossInput.value) || 0;
+                                    if (gross <= 0) return;
+
+                                    var isMetro = citySelect.value === 'metro';
+                                    var basicPct = isMetro ? 0.50 : 0.40;
+                                    var hraPct   = isMetro ? 0.50 : 0.40;
+
+                                    var basic = round2(gross * basicPct);
+                                    var hra   = round2(basic * hraPct);
+                                    var allow = round2(gross - basic - hra);
+
+                                    basicInput.value     = basic.toFixed(2);
+                                    hraInput.value       = hra.toFixed(2);
+                                    allowanceInput.value = allow.toFixed(2);
+                                }
+
+                                // Edit mode: backfill Gross from components
+                                if (parseFloat(grossInput.value || 0) === 0) {
+                                    var b = parseFloat(basicInput.value)     || 0;
+                                    var h = parseFloat(hraInput.value)       || 0;
+                                    var a = parseFloat(allowanceInput.value) || 0;
+                                    if (b + h + a > 0) grossInput.value = (b + h + a).toFixed(2);
+                                }
+
+                                updateHints();
+
+                                grossInput.addEventListener('input', function () {
+                                    autoSplit();
+                                });
+
+                                citySelect.addEventListener('change', function () {
+                                    updateHints();
+                                    autoSplit();
+                                });
+                            });
+                            </script>
+
+
+                        <!-- ═══ SECTION 3: Statutory Deductions ═══ -->
                         <div class="esf-section">
                             <div class="esf-section-hd">
-                                <span class="esf-section-ico"><i class="las la-business-time"></i></span>
-                                <h6 class="esf-section-title">Overtime & Effective Date</h6>
+                                <span class="esf-section-ico"><i class="las la-file-invoice-dollar"></i></span>
+                                <h6 class="esf-section-title">Statutory Deductions</h6>
                             </div>
 
                             <div class="row g-3">
-                                
-                                <!-- <div class="col-md-4">
-                                    <div class="esf-field">
-                                        <label class="esf-label" for="overtime_rate">
-                                            <i class="las la-clock"></i> Overtime Rate
-                                            <span class="esf-optional">(₹ / hour)</span>
-                                        </label>
-                                        <div class="esf-money">
-                                            <input type="number" name="overtime_rate" id="overtime_rate"
-                                                   step="0.01" min="0" class="esf-input"
-                                                   value="{{ salary.overtime_rate|default:0 }}" required>
-                                        </div>
-                                        <div class="esf-hint">
-                                            <i class="las la-info-circle"></i>
-                                            <span>Amount paid per hour of approved overtime.</span>
-                                        </div>
-                                    </div>
-                                </div> -->
-
                                 <div class="col-md-4">
                                     <div class="esf-field">
-                                        <label class="esf-label">
-                                            <i class="las la-clock"></i> Overtime Rate
-                                            <span style="color:#059669; font-size:.7rem; margin-left:6px;">
-                                                <i class="las la-magic"></i> Auto-calculated
-                                            </span>
+                                        <label class="esf-label" for="city_type">
+                                            <i class="las la-city"></i> City Type
                                         </label>
-                                        <input type="text" class="esf-input"
-                                            value="Auto from Shift (Basic / Monthly Hours × Multiplier)"
-                                            readonly
-                                            style="background:#f1f5f9; cursor:not-allowed; font-size:.75rem;">
+                                        <select name="city_type" id="city_type" class="esf-select">
+                                            <option value="metro"     {% if salary.city_type == 'metro' %}selected{% endif %}>Metro</option>
+                                            <option value="non_metro" {% if salary.city_type == 'non_metro' or not salary %}selected{% endif %}>Non-Metro</option>
+                                        </select>
                                         <div class="esf-hint">
                                             <i class="las la-info-circle"></i>
-                                            <span>OT rate is calculated automatically from the employee's shift multiplier.</span>
+                                            <span>Used for HRA calculation (Metro = 50% Basic, Non-Metro = 40%).</span>
                                         </div>
                                     </div>
                                 </div>
 
                                 <div class="col-md-4">
+                                    <div class="esf-field">
+                                        <label class="esf-label" for="epf_rate">
+                                            <i class="las la-percent"></i> EPF Rate (%)
+                                        </label>
+                                        <div class="esf-money">
+                                            <input type="number" name="epf_rate" id="epf_rate"
+                                                   step="0.01" min="0" max="100" class="esf-input"
+                                                   value="{{ salary.epf_rate|default:'12.00' }}">
+                                        </div>
+                                        <div class="esf-hint">
+                                            <i class="las la-info-circle"></i>
+                                            <span>Statutory 12% of Basic.</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <div class="esf-field">
+                                        <label class="esf-label" for="esi_rate">
+                                            <i class="las la-percent"></i> ESI Rate (%)
+                                        </label>
+                                        <div class="esf-money">
+                                            <input type="number" name="esi_rate" id="esi_rate"
+                                                   step="0.01" min="0" max="100" class="esf-input"
+                                                   value="{{ salary.esi_rate|default:'0.75' }}">
+                                        </div>
+                                        <div class="esf-hint">
+                                            <i class="las la-info-circle"></i>
+                                            <span>Statutory 0.75% of Gross (only if Gross ≤ ₹21,000).</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <div class="esf-field">
+                                        <label class="esf-label" for="enable_epf_esi">
+                                            <i class="las la-check-square"></i> Enable EPF / ESI
+                                        </label>
+                                        <div style="padding:8px 0;">
+                                            <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer;">
+                                                <input type="checkbox" name="enable_epf_esi" id="enable_epf_esi"
+                                                       {% if salary.enable_epf_esi %}checked{% endif %}>
+                                                <span style="font-size:.85rem;">Deduct EPF and ESI from payroll</span>
+                                            </label>
+                                        </div>
+                                        <div style="padding:4px 0 8px;">
+                                            <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer;">
+                                                <input type="checkbox" name="apply_epf_ceiling" id="apply_epf_ceiling"
+                                                       {% if salary.apply_epf_ceiling or not salary %}checked{% endif %}>
+                                                <span style="font-size:.85rem;">Apply ₹15,000 EPF ceiling on Basic</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <div class="esf-field">
+                                        <label class="esf-label" for="enable_tds">
+                                            <i class="las la-check-square"></i> Enable TDS
+                                        </label>
+                                        <div style="padding:8px 0;">
+                                            <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer;">
+                                                <input type="checkbox" name="enable_tds" id="enable_tds"
+                                                       {% if salary.enable_tds %}checked{% endif %}>
+                                                <span style="font-size:.85rem;">Deduct TDS from payroll</span>
+                                            </label>
+                                        </div>
+                                        <div class="esf-money" style="margin-top:6px;">
+                                            <input type="number" name="monthly_tds" id="monthly_tds"
+                                                   step="0.01" min="0" class="esf-input"
+                                                   placeholder="Monthly TDS amount (₹)"
+                                                   value="{{ salary.monthly_tds|default:0 }}">
+                                        </div>
+                                        <div class="esf-hint">
+                                            <i class="las la-info-circle"></i>
+                                            <span>Manual amount per month. Employee enters from their tax projection.</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+
+
+                        <!-- ═══ SECTION 4: Effective Date & Status ═══ -->
+                        <div class="esf-section" style="border: 0px;">
+                            <div class="esf-section-hd">
+                                <span class="esf-section-ico"><i class="las la-calendar-check"></i></span>
+                                <h6 class="esf-section-title">Effective Date & Status</h6>
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-md-6">
                                     <div class="esf-field">
                                         <label class="esf-label" for="effective_from">
                                             <i class="las la-calendar-check"></i> Effective From <span class="esf-req">*</span>
@@ -513,7 +671,7 @@
                                 </div>
 
                                 {% if action == 'Edit' %}
-                                    <div class="col-md-4">
+                                    <div class="col-md-6">
                                         <div class="esf-field">
                                             <label class="esf-label" for="status">
                                                 <i class="las la-toggle-on"></i> Status
@@ -532,6 +690,7 @@
                             </div>
                         </div>
 
+
                         <!-- ═══ FOOTER ═══ -->
                         <div class="esf-foot">
                             <a href="{% url 'employee_salary_list' %}" class="esf-btn esf-btn-ghost">
@@ -545,6 +704,7 @@
 
                 </div>
             </div>
+
         </div>
     </div>
 </div>

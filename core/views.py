@@ -825,8 +825,7 @@ def dashboard(request):
             user=user,
             date__year=today.year,
             date__month=today.month,
-            status__in=['Present', 'Under Review', 'Missing Checkout',
-                        'Weekend Work', 'Holiday Work']
+            status='Present'
         ).count()
 
         if employee_working_days_month > 0:
@@ -2168,7 +2167,7 @@ def employee_leaves(request):
 
     leave_types = get_company_filtered(
         request,
-        LeaveType.objects.filter(is_active=True)
+        LeaveType.objects.filter(is_active=True).exclude(name__iexact='Comp-Off')
     )
     leave_balance = []
     for lt in leave_types:
@@ -2364,7 +2363,19 @@ def leave_apply(request):
         request,
         LeaveType.objects.filter(is_active=True)
     )
-    return render(request, 'leave_apply.html', {'leave_types': leave_types})
+
+    from .utils import get_leave_balance
+
+    leave_types_with_balance = []
+    for lt in leave_types:
+        try:
+            bal = get_leave_balance(request.user, lt)['available']
+        except Exception:
+            bal = lt.days_allowed or 0
+        leave_types_with_balance.append({'lt': lt, 'balance': bal})
+    return render(request, 'leave_apply.html', {
+        'leave_types': leave_types_with_balance,
+    })
 
 
 # ---------- Admin Leave Approvals ----------
@@ -2706,7 +2717,9 @@ def attendance_report(request):
         emp_records = attendances.filter(user=emp)
         emp_leaves = [l for l in all_leaves if l.user == emp]
 
-        present = emp_records.filter(status='Present').count()
+        present = emp_records.filter(
+            status='Present'
+        ).count()
         absent = emp_records.filter(status='Absent').count()
         half_day = emp_records.filter(status='Half-Day').count()
 
@@ -2735,6 +2748,14 @@ def attendance_report(request):
                 status_label = 'Absent'
             elif att.status == 'Half-Day':
                 status_label = 'Half Day'
+            elif att.status == 'Missing Checkout':
+                status_label = 'Missing Checkout'
+            elif att.status == 'Under Review':
+                status_label = 'Under Review'
+            elif att.status == 'Weekend Work':
+                status_label = 'Weekend Work'
+            elif att.status == 'Holiday Work':
+                status_label = 'Holiday Work'
 
             if any(start <= att.date <= end for l in emp_leaves for start, end in [(max(l.start_date, first_day), min(l.end_date, end_date))]):
                 status_label = 'On Leave'
@@ -2742,14 +2763,16 @@ def attendance_report(request):
             # ─── Historical shift for this attendance row ───
             day_shift = att.shift if att.shift else shift
 
-            if att.check_in_time and att.check_out_time and day_shift:
+            if att.check_in_time and day_shift:
                 shift_start = timezone.make_aware(datetime.combine(att.date, day_shift.start_time))
-                shift_end = timezone.make_aware(datetime.combine(att.date, day_shift.end_time))
-
-                if att.check_in_time > shift_start:
+                _grace = int(getattr(day_shift, 'grace_period', 0) or 0)
+                _threshold = shift_start + timedelta(minutes=_grace)
+                if att.check_in_time > _threshold:
                     late_days += 1
-                    if status_label == 'Present':
-                        status_label = 'Late'
+                    # DO NOT override status_label — the template shows the +Nm badge separately
+
+            if att.check_in_time and att.check_out_time and day_shift:
+                shift_end = timezone.make_aware(datetime.combine(att.date, day_shift.end_time))
 
                 if att.check_out_time < shift_end:
                     early_out_days += 1
@@ -2791,13 +2814,31 @@ def attendance_report(request):
                 'out_time': timezone.localtime(att.check_out_time).strftime('%I:%M %p') if att.check_out_time else '--:--',
                 'hours': hours_str,
                 'status': status_label,
+                'is_late': att.late_minutes and att.late_minutes > 0,
+                'late_minutes': att.late_minutes or 0,
             })
 
         # Skip employee if status filter is on and no records match
         if status_filter and status_filter != 'all' and not daily_records:
             continue
 
-        working_days = present + half_day + leave_days
+        # Compute working_days from shift weekday flags (matches detail view)
+        if shift:
+            working_days = 0
+            _today = date.today()
+            _d = first_day
+            while _d <= end_date:
+                if _d <= _today:
+                    doj_ok = not (profile and profile.date_of_joining and _d < profile.date_of_joining)
+                    term_ok = not (profile and profile.terminated_at and _d > profile.terminated_at)
+                    if doj_ok and term_ok:
+                        _wd = ['mon','tue','wed','thu','fri','sat','sun'][_d.weekday()]
+                        if getattr(shift, _wd, False):
+                            working_days += 1
+                _d += timedelta(days=1)
+        else:
+            working_days = present + half_day + leave_days
+
         rate = round((present / working_days) * 100, 1) if working_days > 0 else 0
 
         total_working_days += working_days
@@ -3439,11 +3480,13 @@ def employee_attendance_detail(request, user_id):
                         record_ot_minutes = ot_min
 
             # ─── Stats ───
-            if status_label in ('Present', 'Late', 'Early Out', 'Under Review'):
+            # ─── Stats (strict: only 'Present' counts) ───
+            if status_label == 'Present':
                 present += 1
             elif status_label == 'Missing Checkout':
-                present += 1
                 missing_checkout += 1
+            elif status_label == 'Under Review':
+                pass  # not counted as present
             elif status_label == 'Half Day':
                 half_day += 1
             elif status_label == 'Weekend Work':
@@ -5588,6 +5631,15 @@ def employee_salary_create(request):
         # overtime_rate = Decimal(request.POST.get('overtime_rate') or 0)   # ✅ NEW
         effective_from = request.POST.get('effective_from')
 
+        # ── Stage 5: statutory deduction fields ──
+        city_type = request.POST.get('city_type', 'non_metro')
+        enable_epf_esi = request.POST.get('enable_epf_esi') == 'on'
+        epf_rate = Decimal(request.POST.get('epf_rate') or '12.00')
+        apply_epf_ceiling = request.POST.get('apply_epf_ceiling') == 'on'
+        esi_rate = Decimal(request.POST.get('esi_rate') or '0.75')
+        enable_tds = request.POST.get('enable_tds') == 'on'
+        monthly_tds = Decimal(request.POST.get('monthly_tds') or 0)
+
         if not employee_id:
             messages.error(request, 'Please select an employee.')
             return redirect('employee_salary_create')
@@ -5620,6 +5672,14 @@ def employee_salary_create(request):
             # ❌ REMOVED: deduction=deduction,
             effective_from=effective_from,
             status='active',
+            # ── Stage 5: statutory fields ──
+            city_type=city_type,
+            enable_epf_esi=enable_epf_esi,
+            epf_rate=epf_rate,
+            apply_epf_ceiling=apply_epf_ceiling,
+            esi_rate=esi_rate,
+            enable_tds=enable_tds,
+            monthly_tds=monthly_tds,
         )
         try:
             _sal.full_clean()
@@ -5654,6 +5714,10 @@ def employee_salary_edit(request, pk):
         salary = get_object_or_404(EmployeeSalary, id=pk, company=company)
 
     if request.method == 'POST':
+        print(f"[SALARY EDIT DEBUG] POST keys = {list(request.POST.keys())}")
+        print(f"[SALARY EDIT DEBUG] effective_from = {request.POST.get('effective_from')!r}")
+        print(f"[SALARY EDIT DEBUG] status         = {request.POST.get('status')!r}")
+        print(f"[SALARY EDIT DEBUG] salary_type    = {request.POST.get('salary_type')!r}")
         salary.salary_type = request.POST.get('salary_type')
         salary.basic_salary = Decimal(request.POST.get('basic_salary') or 0)
         salary.hra = Decimal(request.POST.get('hra') or 0)
@@ -5663,9 +5727,22 @@ def employee_salary_edit(request, pk):
         salary.effective_from = request.POST.get('effective_from')
         salary.status = request.POST.get('status')
 
+        # ── Stage 5: statutory deduction fields ──
+        salary.city_type = request.POST.get('city_type', 'non_metro')
+        salary.enable_epf_esi = request.POST.get('enable_epf_esi') == 'on'
+        salary.epf_rate = Decimal(request.POST.get('epf_rate') or '12.00')
+        salary.apply_epf_ceiling = request.POST.get('apply_epf_ceiling') == 'on'
+        salary.esi_rate = Decimal(request.POST.get('esi_rate') or '0.75')
+        salary.enable_tds = request.POST.get('enable_tds') == 'on'
+        salary.monthly_tds = Decimal(request.POST.get('monthly_tds') or 0)
+
         try:
             salary.full_clean()
         except ValidationError as e:
+            print(f"[SALARY EDIT DEBUG] message_dict = {e.message_dict}")
+            print(f"[SALARY EDIT DEBUG] effective_from = {salary.effective_from!r}")
+            print(f"[SALARY EDIT DEBUG] city_type = {salary.city_type!r}")
+            print(f"[SALARY EDIT DEBUG] status = {salary.status!r}")
             first_error = e.messages[0] if e.messages else 'Invalid salary data.'
             messages.error(request, f'Invalid salary: {first_error}')
             return redirect('employee_salary_edit', pk=pk)
@@ -5848,6 +5925,10 @@ def payroll_generate(request):
             late_leave_days=calc['late_leave_days'],
             late_lop_days=calc['late_lop_days'],
 
+            # ── Stage 7: statutory deductions ──
+            epf_deduction=calc.get('epf_deduction', Decimal('0')),
+            esi_deduction=calc.get('esi_deduction', Decimal('0')),
+            tds_deduction=calc.get('tds_deduction', Decimal('0')),
 
             net_salary=calc['net_payable'],
             status='draft',
@@ -6069,13 +6150,12 @@ def payslip_pdf(request, pk):
         date__month=payroll.month,
     )
 
-    present_display = Decimal('0')
-    half_day_count  = 0
+    # Use the payroll's stored snapshot — already computed with strict policy
+    present_display = Decimal(str(payroll.present_days or 0))
+
+    half_day_count = 0
     for att in att_records:
-        if att.status in ('Present', 'Under Review', 'Missing Checkout'):
-            present_display += Decimal('1')
-        elif att.status == 'Half-Day':
-            present_display += Decimal('0.5')
+        if att.status == 'Half-Day':
             half_day_count += 1
 
     half_day_units    = Decimal(str(half_day_count)) * Decimal('0.5')
@@ -6104,12 +6184,18 @@ def payslip_pdf(request, pk):
         return s
 
     gross     = d(payroll.gross_salary) + ot_amount
+    epf_ded   = d(payroll.epf_deduction)
+    esi_ded   = d(payroll.esi_deduction)
+    tds_ded   = d(payroll.tds_deduction)
     total_ded = (
         abs_ded
         + ul_ded
         + other_ded
         + d(payroll.late_deduction)
         + d(payroll.late_halfday_deduction)
+        + epf_ded
+        + esi_ded
+        + tds_ded
     )
     net       = d(payroll.net_salary)
 
@@ -6410,11 +6496,49 @@ def payslip_pdf(request, pk):
         ],
         # Late Penalty row (empty on earnings side, value on deductions side)
         # Late Penalty row (leave + LOP split awareness)
+        # Late Penalty row (empty on earnings side, value on deductions side)
+        # Late Penalty row (leave + LOP split awareness)
         [
             Paragraph("", cell_style),
             Paragraph("", cell_amount_style),
             Paragraph(_late_label_html, cell_style),
             Paragraph(f"Rs. {_late_amt:,.2f}", cell_amount_style),
+        ],
+        # EPF row
+        [
+            Paragraph("", cell_style),
+            Paragraph("", cell_amount_style),
+            Paragraph(
+                "EPF<br/>"
+                "<font size='7' color='#64748b'>12% of Basic (statutory)</font>"
+                if epf_ded > 0 else "EPF",
+                cell_style,
+            ),
+            Paragraph(f"Rs. {epf_ded:,.2f}", cell_amount_style),
+        ],
+        # ESI row
+        [
+            Paragraph("", cell_style),
+            Paragraph("", cell_amount_style),
+            Paragraph(
+                "ESI<br/>"
+                "<font size='7' color='#64748b'>0.75% of Gross (statutory)</font>"
+                if esi_ded > 0 else "ESI",
+                cell_style,
+            ),
+            Paragraph(f"Rs. {esi_ded:,.2f}", cell_amount_style),
+        ],
+        # TDS row
+        [
+            Paragraph("", cell_style),
+            Paragraph("", cell_amount_style),
+            Paragraph(
+                "TDS<br/>"
+                "<font size='7' color='#64748b'>Income Tax Deduction</font>"
+                if tds_ded > 0 else "TDS",
+                cell_style,
+            ),
+            Paragraph(f"Rs. {tds_ded:,.2f}", cell_amount_style),
         ],
         # Total row
         [
@@ -6593,7 +6717,14 @@ def payslip_view(request, pk):
     pure_absent_deduction = (per_day * pure_absent_days).quantize(Decimal('0.01'))
     half_day_deduction    = (per_day * half_day_units).quantize(Decimal('0.01'))
 
-    net_words = number_to_words(payroll.net_salary) + ' Rupees Only'
+    # Split rupees + paise so "In words" matches the PDF
+    _net_dec = Decimal(str(payroll.net_salary or 0))
+    _rupees  = int(_net_dec)
+    _paise   = int(round((_net_dec - _rupees) * 100))
+    if _paise > 0:
+        net_words = f"{number_to_words(_rupees)} Rupees and {number_to_words(_paise)} Paise Only"
+    else:
+        net_words = f"{number_to_words(_rupees)} Rupees Only"
 
     return render(request, 'payroll/payslip.html', {
         'payroll': payroll,

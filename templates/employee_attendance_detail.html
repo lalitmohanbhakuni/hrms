@@ -686,10 +686,8 @@
             <div class="ead-kpi-ico danger"><i class="las la-times-circle"></i></div>
             <div class="ead-kpi-body">
                 <div class="ead-kpi-label">Absent</div>
-                <div class="ead-kpi-value" style="display: inline-flex;
-    align-items: center;
-    gap: 8px;">
-                    <span> {{ absent_weighted|floatformat:"-1" }} </span> <span> {% if half_day > 0 and absent > 0 %}
+                <div class="ead-kpi-value" style="display: inline-flex; align-items: center; gap: 8px;">
+                    <span> {{ absent_weighted|floatformat:"-1" }}  <small class="rate-pill" style="background: #eee;"> {{ missing_checkout }} Missing Checkout  </small></span> <span> {% if half_day > 0 and absent > 0 %}
                         <small style="display:block;font-size:.75rem;font-weight:400;color:#94a3b8;margin-top:2px;">
                             {{ absent }} full + {{ half_day }} half
                         </small>

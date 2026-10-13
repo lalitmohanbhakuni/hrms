@@ -308,7 +308,7 @@
                                     </div>
                                     {% endif %}
 
-                                    {# Other Deduction — highlighted when > 0 #}
+                                                                        {# Other Deduction — highlighted when > 0 #}
                                     {% if payroll.other_deduction and payroll.other_deduction > 0 %}
                                     <div class="psl-item">
                                         <span class="psl-item-label">Other Deduction</span>
@@ -316,8 +316,41 @@
                                     </div>
                                     {% endif %}
 
+                                    {# ─── EPF ─── #}
+                                    {% if payroll.epf_deduction and payroll.epf_deduction > 0 %}
+                                    <div class="psl-item">
+                                        <span class="psl-item-label">
+                                            EPF
+                                            <small>12% of Basic (statutory)</small>
+                                        </span>
+                                        <span class="psl-item-value danger">₹{{ payroll.epf_deduction|floatformat:2 }}</span>
+                                    </div>
+                                    {% endif %}
+
+                                    {# ─── ESI ─── #}
+                                    {% if payroll.esi_deduction and payroll.esi_deduction > 0 %}
+                                    <div class="psl-item">
+                                        <span class="psl-item-label">
+                                            ESI
+                                            <small>0.75% of Gross (statutory)</small>
+                                        </span>
+                                        <span class="psl-item-value danger">₹{{ payroll.esi_deduction|floatformat:2 }}</span>
+                                    </div>
+                                    {% endif %}
+
+                                    {# ─── TDS ─── #}
+                                    {% if payroll.tds_deduction and payroll.tds_deduction > 0 %}
+                                    <div class="psl-item">
+                                        <span class="psl-item-label">
+                                            TDS
+                                            <small>Income Tax Deduction</small>
+                                        </span>
+                                        <span class="psl-item-value danger">₹{{ payroll.tds_deduction|floatformat:2 }}</span>
+                                    </div>
+                                    {% endif %}
+
                                     <!-- {# Zero-deduction case — show all rows muted #} -->
-                                    {% if not payroll.absent_deduction and not payroll.unpaid_leave_deduction and not payroll.other_deduction and not payroll.late_deduction and not payroll.late_leave_days and not payroll.reg_deduction and not payroll.reg_leave_days %}
+                                    {% if not payroll.absent_deduction and not payroll.unpaid_leave_deduction and not payroll.other_deduction and not payroll.late_deduction and not payroll.late_leave_days and not payroll.reg_deduction and not payroll.reg_leave_days and not payroll.epf_deduction and not payroll.esi_deduction and not payroll.tds_deduction %}
                                     <div class="psl-item">
                                         <span class="psl-item-label">Absent Deduction</span>
                                         <span class="psl-item-value empty">₹0.00</span>

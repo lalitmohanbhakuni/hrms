@@ -69,9 +69,12 @@
         border: 1px solid #e2e8f0;
         border-radius: 14px;
         overflow: hidden;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
     }
     .fm-table {
         width: 100%;
+        min-width: 720px;
         border-collapse: collapse;
         font-size: 0.875rem;
     }
@@ -148,6 +151,22 @@
         color: #94a3b8;
     }
     .fm-empty i { font-size: 3rem; opacity: 0.5; }
+
+    @media (max-width: 640px) {
+        .fm-table { min-width: 0; }
+        .fm-table thead th:nth-child(4),
+        .fm-table thead th:nth-child(5),
+        .fm-table tbody td:nth-child(4),
+        .fm-table tbody td:nth-child(5) {
+            display: none;
+        }
+        .fm-filter input { min-width: 0; width: 100%; }
+        .fm-filter { gap: 8px; }
+        .fm-stat-value { font-size: 1.3rem; }
+        .fm-emp small { font-size: 0.7rem; }
+        .fm-actions { flex-wrap: wrap; }
+    }
+
 </style>
 
 <div class="fm-wrap">
@@ -184,7 +203,7 @@
             <option value="missing" {% if filter_status == 'missing' %}selected{% endif %}>Only not registered</option>
         </select>
         <button type="submit" class="fm-btn primary">
-            <i class="las la-search"></i> Filter
+            <i class="las la-search"></i> Apply
         </button>
         {% if search or filter_status != 'all' %}
         <a href="{% url 'face_manage_list' %}" class="fm-btn">

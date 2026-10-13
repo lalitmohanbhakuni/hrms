@@ -596,6 +596,21 @@
     letter-spacing: .02em;
 }
 
+.ar-late-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 6px;
+    padding: 2px 8px;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 999px;
+    font-size: .68rem;
+    font-weight: 600;
+    color: #b45309;
+    font-variant-numeric: tabular-nums;
+}
+
 
 
     /* ─── Responsive ─── */
@@ -926,7 +941,7 @@
 
                         <!-- Detail Row -->
                         <tr class="detail-row" id="details-{{ item.employee.id }}" style="display: none;">
-                            <td colspan="10">
+                            <td colspan="12">
                                 <div class="ar-detail-hd">
                                     <span class="ar-detail-name">{{ item.employee.username }}</span>
                                     {% if item.department %}
@@ -960,11 +975,20 @@
                                                             {% if rec.status == 'Present' %}present
                                                             {% elif rec.status == 'Absent' %}absent
                                                             {% elif rec.status == 'On Leave' %}onleave
-                                                            {% elif rec.status == 'Late' %}late
+                                                            {% elif rec.status == 'Missing Checkout' %}default
+                                                            {% elif rec.status == 'Under Review' %}default
+                                                            {% elif rec.status == 'Half Day' %}default
+                                                            {% elif rec.status == 'Weekend' %}default
+                                                            {% elif rec.status == 'Holiday' %}default
                                                             {% elif rec.status == 'Early Out' %}earlyout
                                                             {% else %}default{% endif %}">
                                                             {{ rec.status }}
                                                         </span>
+                                                        {% if rec.is_late and rec.late_minutes > 0 %}
+                                                            <span class="ar-late-tag" title="Late by {{ rec.late_minutes }} minute{{ rec.late_minutes|pluralize }}">
+                                                                +{{ rec.late_minutes }}m
+                                                            </span>
+                                                        {% endif %}
                                                     </td>
                                                 </tr>
                                             {% empty %}
