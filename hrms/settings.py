@@ -35,7 +35,7 @@ def env_list(name, default=''):
 #  Production MUST set env var: DEBUG=False
 # ═══════════════════════════════════════════════════════════
 
-DEBUG = env_bool('DEBUG', default=True)
+DEBUG = env_bool('DEBUG', default=False)
 IS_PRODUCTION = not DEBUG
 
 
