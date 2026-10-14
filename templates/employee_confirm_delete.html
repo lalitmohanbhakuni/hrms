@@ -1,26 +1,392 @@
 {% extends 'base.html' %}
 
-{% block title %}Delete Employee - HRMS{% endblock %}
+{% block title %}Terminate Employee - HRMS{% endblock %}
 
 {% block content %}
-<div class="max-w-md mx-auto mt-10">
-    <div class="glass-card border-2 border-red-500 p-6 text-center">
-        <div class="mb-4">
-            <i class="fas fa-exclamation-triangle text-red-500 text-6xl"></i>
-        </div>
-        <h3 class="text-2xl font-bold text-red-500">Confirm Delete</h3>
-        <p class="text-gray-600 my-4">
-            Are you sure you want to delete <strong>{{ employee.username }}</strong>?
-            <br>
-            <span class="text-red-500 text-sm">This action cannot be undone!</span>
+
+<style>
+    .term-wrap {
+        max-width: 640px;
+        margin: 40px auto;
+        padding: 0 16px;
+    }
+
+    /* ─── Hero warning banner ─── */
+    .term-hero {
+        background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+        border-radius: 16px;
+        padding: 28px 32px;
+        color: #fff;
+        margin-bottom: 20px;
+        position: relative;
+        overflow: hidden;
+    }
+    .term-hero::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image:
+            linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px);
+        background-size: 28px 28px;
+        pointer-events: none;
+        mask-image: linear-gradient(to bottom, rgba(0,0,0,.5), transparent 80%);
+    }
+    .term-hero-ico {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 56px;
+        height: 56px;
+        border-radius: 14px;
+        background: rgba(255,255,255,.15);
+        font-size: 1.5rem;
+        margin-bottom: 14px;
+        backdrop-filter: blur(8px);
+    }
+    .term-hero h2 {
+        font-size: 1.35rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        margin: 0 0 6px;
+    }
+    .term-hero p {
+        font-size: 0.85rem;
+        color: rgba(255,255,255,.85);
+        margin: 0;
+        line-height: 1.5;
+    }
+
+    /* ─── Card ─── */
+    .term-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        overflow: hidden;
+    }
+    .term-card-bd {
+        padding: 24px 28px;
+    }
+
+    /* ─── Employee identity block ─── */
+    .term-emp {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 16px 18px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        margin-bottom: 22px;
+    }
+    .term-emp-avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        color: #fff;
+        font-weight: 700;
+        font-size: 1.1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .term-emp-name {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin: 0 0 2px;
+        line-height: 1.3;
+    }
+    .term-emp-meta {
+        font-size: 0.78rem;
+        color: #64748b;
+        margin: 0;
+    }
+    .term-emp-meta strong {
+        color: #475569;
+        font-weight: 600;
+    }
+
+    /* ─── Info / warning box ─── */
+    .term-info {
+        display: flex;
+        gap: 12px;
+        padding: 14px 16px;
+        border-radius: 10px;
+        margin-bottom: 22px;
+        font-size: 0.85rem;
+        line-height: 1.5;
+    }
+    .term-info.warn {
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        color: #92400e;
+    }
+    .term-info i {
+        font-size: 1.1rem;
+        flex-shrink: 0;
+        margin-top: 1px;
+    }
+    .term-info strong {
+        font-weight: 700;
+    }
+
+    /* ─── Field ─── */
+    .term-field {
+        margin-bottom: 20px;
+    }
+    .term-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        color: #475569;
+        margin-bottom: 8px;
+    }
+    .term-label i {
+        font-size: 0.9rem;
+        color: #64748b;
+    }
+    .term-label .req {
+        color: #dc2626;
+    }
+    .term-input {
+        width: 100%;
+        padding: 12px 14px;
+        border: 1.5px solid #cbd5e1;
+        border-radius: 10px;
+        font-size: 0.95rem;
+        color: #0f172a;
+        background: #fff;
+        transition: all .15s ease;
+        font-family: inherit;
+    }
+    .term-input:focus {
+        outline: none;
+        border-color: #dc2626;
+        box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+    }
+    .term-hint {
+        display: flex;
+        align-items: flex-start;
+        gap: 6px;
+        font-size: 0.75rem;
+        color: #64748b;
+        margin-top: 8px;
+        line-height: 1.5;
+    }
+    .term-hint i {
+        font-size: 0.85rem;
+        margin-top: 1px;
+        color: #94a3b8;
+        flex-shrink: 0;
+    }
+    .term-hint strong {
+        color: #475569;
+        font-weight: 600;
+    }
+
+    /* ─── Summary strip ─── */
+    .term-summary {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        background: #eef2ff;
+        border: 1px solid #c7d2fe;
+        border-radius: 10px;
+        margin-top: 18px;
+        font-size: 0.82rem;
+        color: #3730a3;
+    }
+    .term-summary i {
+        font-size: 1rem;
+        color: #4f46e5;
+    }
+    .term-summary strong {
+        font-weight: 700;
+    }
+
+    /* ─── Footer actions ─── */
+    .term-foot {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        padding-top: 22px;
+        margin-top: 8px;
+        border-top: 1px solid #f1f5f9;
+    }
+    .term-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 11px 22px;
+        border-radius: 10px;
+        font-size: 0.88rem;
+        font-weight: 600;
+        text-decoration: none;
+        border: none;
+        cursor: pointer;
+        transition: all .15s ease;
+        font-family: inherit;
+    }
+    .term-btn-ghost {
+        background: #f1f5f9;
+        color: #475569;
+        border: 1px solid #e2e8f0;
+    }
+    .term-btn-ghost:hover {
+        background: #e2e8f0;
+        color: #0f172a;
+    }
+    .term-btn-danger {
+        background: #dc2626;
+        color: #fff;
+        box-shadow: 0 1px 3px rgba(220, 38, 38, 0.3);
+    }
+    .term-btn-danger:hover {
+        background: #b91c1c;
+        box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35);
+        transform: translateY(-1px);
+    }
+    .term-btn-danger:active {
+        transform: translateY(0);
+    }
+
+    @media (max-width: 520px) {
+        .term-hero { padding: 22px 20px; }
+        .term-hero h2 { font-size: 1.15rem; }
+        .term-card-bd { padding: 18px 18px; }
+        .term-foot { flex-direction: column-reverse; }
+        .term-foot .term-btn { width: 100%; justify-content: center; }
+    }
+</style>
+
+<div class="term-wrap">
+
+    <!-- ═══ Warning hero ═══ -->
+    <div class="term-hero">
+        <!-- <div class="term-hero-ico">
+            <i class="fas fa-user-slash"></i>
+        </div> -->
+        <h2>Terminate Employee</h2>
+        <p>
+            This will mark the employee as inactive from the selected date.
+            Their ID will be retired and cannot be reused.
         </p>
-        <form method="post">
-            {% csrf_token %}
-            <div class="flex justify-center space-x-4">
-                <a href="{% url 'employee_list' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">Cancel</a>
-                <button type="submit" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"><i class="fas fa-trash-alt mr-2"></i> Yes, Delete</button>
+    </div>
+
+    <!-- ═══ Card ═══ -->
+    <div class="term-card">
+        <div class="term-card-bd">
+
+            <!-- Employee identity -->
+            <div class="term-emp">
+                <div class="term-emp-avatar">
+                    {{ employee.profile.full_name|default:employee.username|slice:":1"|upper }}
+                </div>
+                <div>
+                    <p class="term-emp-name">
+                        {{ employee.profile.full_name|default:employee.username }}
+                    </p>
+                    <p class="term-emp-meta">
+                        {% if employee.profile.employee_id %}
+                            <strong>{{ employee.profile.employee_id }}</strong>
+                        {% endif %}
+                        {% if employee.profile.designation %}
+                            · {{ employee.profile.designation }}
+                        {% endif %}
+                    </p>
+                </div>
             </div>
-        </form>
+
+            <!-- Soft-delete info -->
+            <div class="term-info warn">
+                <i class="las la-info-circle"></i>
+                <div>
+                    This is a <strong>soft delete</strong>. Historical payroll,
+                    attendance, and leave records will remain intact for audit purposes.
+                </div>
+            </div>
+
+            <!-- Form -->
+            <form method="post" id="terminateForm">
+                {% csrf_token %}
+
+                <div class="term-field">
+                    <label for="termination_date" class="term-label">
+                        <i class="las la-calendar-times"></i>
+                        Last Working Day
+                        <span class="req">*</span>
+                    </label>
+                    <input type="date"
+                           name="termination_date"
+                           id="termination_date"
+                           class="term-input"
+                           value="{{ today|date:'Y-m-d' }}"
+                           {% if employee.profile.date_of_joining %}
+                           min="{{ employee.profile.date_of_joining|date:'Y-m-d' }}"
+                           {% endif %}
+                           max="{{ today|date:'Y-m-d' }}"
+                           required>
+                    <div class="term-hint">
+                        <i class="las la-info-circle"></i>
+                        <span>
+                            Payroll for the current month will be prorated up to this date.
+                            {% if employee.profile.date_of_joining %}
+                                Must be on or after
+                                <strong>{{ employee.profile.date_of_joining|date:'d M Y' }}</strong>.
+                            {% endif %}
+                            Cannot be a future date.
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Summary chip -->
+                <div class="term-summary">
+                    <i class="las la-bullseye"></i>
+                    <span>
+                        Employee will be marked inactive on
+                        <strong id="selectedDate">—</strong>.
+                    </span>
+                </div>
+
+                <!-- Actions -->
+                <div class="term-foot">
+                    <a href="{% url 'employee_list' %}" class="term-btn term-btn-ghost">
+                        <i class="las la-times"></i> Cancel
+                    </a>
+                    <button type="submit" class="term-btn term-btn-danger">
+                        <i class="las la-user-slash"></i> Terminate Employee
+                    </button>
+                </div>
+            </form>
+
+        </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var input = document.getElementById('termination_date');
+    var label = document.getElementById('selectedDate');
+    if (!input || !label) return;
+
+    function updateLabel() {
+        if (!input.value) { label.textContent = '—'; return; }
+        var d = new Date(input.value + 'T00:00:00');
+        var opts = { day: '2-digit', month: 'short', year: 'numeric' };
+        label.textContent = d.toLocaleDateString('en-GB', opts);
+    }
+
+    input.addEventListener('change', updateLabel);
+    updateLabel();
+});
+</script>
+
 {% endblock %}

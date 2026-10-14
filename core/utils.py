@@ -346,10 +346,12 @@ def calculate_monthly_payroll(employee, year, month, salary):
     last_day = date(year, month, last_day_num)
 
     # ── Salary components ──
-    basic = Decimal(str(salary.basic_salary or 0))
-    hra = Decimal(str(salary.hra or 0))
-    allowance = Decimal(str(salary.allowance or 0))
-    gross = basic + hra + allowance
+    # ── Salary components ──
+    basic_full = Decimal(str(salary.basic_salary or 0))
+    hra_full   = Decimal(str(salary.hra or 0))
+    allow_full = Decimal(str(salary.allowance or 0))
+    gross_full = basic_full + hra_full + allow_full
+
 
     # ✅ `employee` IS the profile — no `.profile`
     company = employee.company
@@ -399,7 +401,7 @@ def calculate_monthly_payroll(employee, year, month, salary):
 
         _monthly_hours = _working_days * _hours_per_day
         _multiplier = Decimal(str(shift.overtime_multiplier or 1.50))
-        ot_rate = (basic / _monthly_hours * _multiplier).quantize(Decimal('0.01'))
+        ot_rate = (basic_full / _monthly_hours * _multiplier).quantize(Decimal('0.01'))
     else:
         ot_rate = Decimal('0')
     
@@ -407,7 +409,7 @@ def calculate_monthly_payroll(employee, year, month, salary):
     if shift and shift.overtime_allowed:
         _weekend_mult = Decimal(str(getattr(shift, 'weekend_ot_multiplier', 0) or 0))
         if _weekend_mult > 0:
-            weekend_ot_rate = (basic / _monthly_hours * _weekend_mult).quantize(Decimal('0.01'))
+            weekend_ot_rate = (basic_full / _monthly_hours * _weekend_mult).quantize(Decimal('0.01'))
         else:
             weekend_ot_rate = ot_rate
     else:
@@ -421,6 +423,21 @@ def calculate_monthly_payroll(employee, year, month, salary):
             date__lte=last_day
         ).values_list('date', flat=True)
     )
+    # ── Compute FULL month working days (for proration baseline) ──
+    # Counts every working day in the month (per shift flags),
+    # ignoring DOJ/termination, for proration ratio.
+    _full_wd = 0
+    for _i in range((last_day - first_day).days + 1):
+        _dd = first_day + timedelta(days=_i)
+        if _dd in holidays:
+            continue
+        if shift:
+            _day_abbr = _dd.strftime('%a').lower()[:3]
+            if not getattr(shift, _day_abbr, False):
+                continue
+        _full_wd += 1
+    _full_wd_dec = Decimal(str(_full_wd)) if _full_wd > 0 else Decimal('1')
+
 
     # ═══════════════════════════════════════════════════════════════
     # FIX #1 — Working days (stop at today for current month,
@@ -456,7 +473,11 @@ def calculate_monthly_payroll(employee, year, month, salary):
     # FIX #2 — Present days (count all "worked" statuses)
     # ═══════════════════════════════════════════════════════════════
     present_days = Decimal('0')
+    _term_date = getattr(employee, 'terminated_at', None)
     for att in attendances:
+        # Skip attendance recorded AFTER the employee was terminated
+        if _term_date and att.date > _term_date:
+            continue
         if att.status == 'Present':
             present_days += 1
         elif att.status == 'Half-Day':
@@ -484,6 +505,8 @@ def calculate_monthly_payroll(employee, year, month, salary):
     overtime_minutes = 0
     weekend_overtime_minutes = 0
     for att in attendances:
+        if _term_date and att.date > _term_date:
+            continue
         day_shift = att.shift if att.shift else shift
         if not (att.check_in_time and att.check_out_time and day_shift):
             continue
@@ -564,6 +587,8 @@ def calculate_monthly_payroll(employee, year, month, salary):
     # ── Count half-days separately ──
     half_day_count = Decimal('0')
     for att in attendances:
+        if _term_date and att.date > _term_date:
+            continue
         if att.status == 'Half-Day':
             half_day_count += Decimal('1')
 
@@ -579,7 +604,22 @@ def calculate_monthly_payroll(employee, year, month, salary):
     pure_absent_days = max(Decimal('0'), absent_day_units - half_day_units)
 
     # ── Per-day salary ──
-    per_day = (gross / Decimal(str(working_days))) if working_days > 0 else Decimal('0')
+    # ── Prorate salary for mid-month joiner/leaver ──
+    # Ratio = actual working days (after DOJ, before termination) / full month working days
+    _actual_wd = Decimal(str(working_days))
+    if _full_wd_dec > 0 and _actual_wd < _full_wd_dec:
+        _proration_ratio = _actual_wd / _full_wd_dec
+    else:
+        _proration_ratio = Decimal('1')
+
+    basic = (basic_full * _proration_ratio).quantize(Decimal('0.01'))
+    hra   = (hra_full   * _proration_ratio).quantize(Decimal('0.01'))
+    allow = (allow_full * _proration_ratio).quantize(Decimal('0.01'))
+    gross = basic + hra + allow
+
+    # Per-day rate ALWAYS uses full-month divisor so rate stays consistent
+    per_day = (gross_full / _full_wd_dec).quantize(Decimal('0.01')) if _full_wd_dec > 0 else Decimal('0')
+
 
     # ── Deductions ──
     pure_absent_deduction = (per_day * pure_absent_days).quantize(Decimal('0.01'))
@@ -677,7 +717,7 @@ def calculate_monthly_payroll(employee, year, month, salary):
     return {
         'basic_salary': basic,
         'hra': hra,
-        'allowance': allowance,
+        'allowance': allow,
         'gross_salary': gross,
         'working_days': working_days,
         'present_days': present_days,

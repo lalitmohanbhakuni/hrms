@@ -1877,13 +1877,13 @@ def employee_edit(request, user_id):
 
         
 
-
 @login_required
 @hr_admin_required
 @company_required
 def employee_delete(request, user_id):
     from .utils import get_user_company
     from django.utils import timezone
+    from datetime import date as _date_cls
 
     # ─── Security: ownership check ───
     if request.user.is_superuser:
@@ -1895,25 +1895,59 @@ def employee_delete(request, user_id):
     if request.method == 'POST':
         if request.user == employee:
             messages.error(request, 'You cannot delete your own account!')
-        else:
-            # ─── SOFT DELETE (never hard-delete) ───
-            profile = getattr(employee, 'profile', None)
-            if profile:
-                profile.is_active = False
-                profile.terminated_at = timezone.localdate()
-                profile.save(update_fields=['is_active', 'terminated_at'])
+            return redirect('employee_list')
 
-            employee.is_active = False
-            employee.save(update_fields=['is_active'])
+        # ─── Parse termination date from form (fallback: today) ───
+        term_date_str = request.POST.get('termination_date', '').strip()
+        term_date = None
+        if term_date_str:
+            try:
+                term_date = _date_cls.fromisoformat(term_date_str)
+            except ValueError:
+                term_date = None
+        if not term_date:
+            term_date = timezone.localdate()
 
-            emp_id = profile.employee_id if profile else employee.username
-            messages.success(
+        today = timezone.localdate()
+        profile = getattr(employee, 'profile', None)
+
+        # ─── Validate: not before DOJ, not in the future ───
+        if profile and profile.date_of_joining and term_date < profile.date_of_joining:
+            messages.error(
                 request,
-                f'Employee {emp_id} deactivated. Their ID is retired and will not be reused.'
+                f'Termination date ({term_date}) cannot be before '
+                f'the joining date ({profile.date_of_joining}).'
             )
+            return redirect('employee_delete', user_id=employee.id)
+
+        if term_date > today:
+            messages.error(
+                request,
+                f'Termination date ({term_date}) cannot be in the future.'
+            )
+            return redirect('employee_delete', user_id=employee.id)
+
+        # ─── SOFT DELETE (never hard-delete) ───
+        if profile:
+            profile.is_active = False
+            profile.terminated_at = term_date
+            profile.save(update_fields=['is_active', 'terminated_at'])
+
+        employee.is_active = False
+        employee.save(update_fields=['is_active'])
+
+        emp_id = profile.employee_id if profile else employee.username
+        messages.success(
+            request,
+            f'Employee {emp_id} terminated on {term_date}. '
+            f'Their ID is retired and will not be reused.'
+        )
         return redirect('employee_list')
 
-    return render(request, 'employee_confirm_delete.html', {'employee': employee})
+    return render(request, 'employee_confirm_delete.html', {
+        'employee': employee,
+        'today': timezone.localdate(),
+    })
 
 
 # ---------- Employee Detail ----------
@@ -5774,9 +5808,25 @@ def payroll_processing(request):
     month = int(request.GET.get('month', dt.now().month))
     year = int(request.GET.get('year', dt.now().year))
 
-    active_salaries = EmployeeSalary.objects.filter(
-    company=company, status='active'
-).select_related('employee', 'employee__user')
+    # ── Resolve ONE salary per employee (latest effective_from ≤ month end) ──
+    from datetime import date as _date_cls
+    from calendar import monthrange as _mr
+    _, _last_num = _mr(year, month)
+    _month_end = _date_cls(year, month, _last_num)
+
+    _all = EmployeeSalary.objects.filter(
+        company=company,
+        status='active',
+        effective_from__lte=_month_end,
+    ).select_related('employee', 'employee__user').order_by('employee_id', '-effective_from')
+
+    _seen = set()
+    active_salaries = []
+    for _s in _all:
+        if _s.employee_id in _seen:
+            continue
+        _seen.add(_s.employee_id)
+        active_salaries.append(_s)
 
     payroll_data = []
     for salary in active_salaries:
@@ -5823,7 +5873,25 @@ def payroll_generate(request):
     month = int(request.POST.get('month'))
     year = int(request.POST.get('year'))
 
-    salaries = EmployeeSalary.objects.filter(company=company, status='active')
+    # ── Resolve ONE salary per employee (latest effective_from ≤ month end) ──
+    from datetime import date as _date_cls
+    from calendar import monthrange as _mr
+    _, _last_num = _mr(year, month)
+    _month_end = _date_cls(year, month, _last_num)
+
+    _all_salaries = EmployeeSalary.objects.filter(
+        company=company,
+        status='active',
+        effective_from__lte=_month_end,
+    ).order_by('employee_id', '-effective_from')
+
+    _seen = set()
+    salaries = []
+    for _s in _all_salaries:
+        if _s.employee_id in _seen:
+            continue
+        _seen.add(_s.employee_id)
+        salaries.append(_s)
 
     created = 0
     for salary in salaries:
@@ -6096,7 +6164,7 @@ def payroll_list(request):
         'is_current_month': is_current_month,
         'total_payslips': payrolls.count(),
     })
-    
+
 
 @login_required
 @hr_admin_required
