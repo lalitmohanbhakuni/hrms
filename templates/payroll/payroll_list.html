@@ -303,8 +303,54 @@
         </div>
     </div>
 
+    <!-- ═══════════ Month Navigator ═══════════ -->
+    <div class="psll-card" style="      border-bottom-left-radius: 0px;
+    border-bottom-right-radius: 0px;">
+        <div style="display:flex; align-items:center; justify-content:center; gap:20px;
+                padding:16px 20px; background:#ffffff;">
+
+        <!-- Previous -->
+        <a href="?month={{ prev_month }}&year={{ prev_year }}"
+           style="display:inline-flex; align-items:center; justify-content:center;
+                  width:40px; height:40px; border-radius:50%; background:#f1f5f9;
+                  color:#475569; text-decoration:none; font-size:1rem;
+                  transition:all .15s;"
+           onmouseover="this.style.background='#e2e8f0'; this.style.color='#0f172a';"
+           onmouseout="this.style.background='#f1f5f9'; this.style.color='#475569';"
+           title="Previous month: {{ prev_label }}">
+            <i class="fas fa-chevron-left"></i>
+        </a>
+
+        <!-- Month label -->
+        <div style="text-align:center; min-width:200px;">
+            <div style="font-size:1rem; font-weight:600; color:#0f172a;
+                        letter-spacing:-.02em; line-height:1.15;">
+                {{ current_label }}
+            </div>
+            <div style="font-size:.78rem; color:#64748b; margin-top:2px;">
+                {{ total_payslips }} payslip{{ total_payslips|pluralize }}
+            </div>
+        </div>
+
+        <!-- Next -->
+        <a href="?month={{ next_month }}&year={{ next_year }}"
+           style="display:inline-flex; align-items:center; justify-content:center;
+                  width:40px; height:40px; border-radius:50%; background:#f1f5f9;
+                  color:#475569; text-decoration:none; font-size:1rem;
+                  transition:all .15s;"
+           onmouseover="this.style.background='#e2e8f0'; this.style.color='#0f172a';"
+           onmouseout="this.style.background='#f1f5f9'; this.style.color='#475569';"
+           title="Next month: {{ next_label }}">
+            <i class="fas fa-chevron-right"></i>
+        </a>
+
+    </div>
+
+    </div>
+
     <!-- ═══════════ Payslips table ═══════════ -->
-    <div class="psll-card">
+    <div class="psll-card" style="    border-top-left-radius: 0px;
+    border-top-right-radius: 0px;">
         <div class="table-responsive">
             <table class="psll-table">
                 <thead>
@@ -403,5 +449,6 @@
     </div>
 
 </div>
+
 
 {% endblock %}

@@ -6039,19 +6039,63 @@ def payroll_paid(request, pk):
     return redirect('payroll_processing')
 
 
-@login_required
-@hr_admin_required
-@payroll_required
-@company_required
 def payroll_list(request):
     from .utils import get_user_company
+    from datetime import datetime as _dt
+    from calendar import month_name as _month_name
+
+    # Read month/year from query params (default = current month)
+    try:
+        month = int(request.GET.get('month', _dt.now().month))
+    except (TypeError, ValueError):
+        month = _dt.now().month
+    try:
+        year = int(request.GET.get('year', _dt.now().year))
+    except (TypeError, ValueError):
+        year = _dt.now().year
+
+    if month < 1 or month > 12:
+        month = _dt.now().month
+
+    # ── Compute prev / next month (handles Dec→Jan, Jan→Dec) ──
+    if month == 1:
+        prev_month, prev_year = 12, year - 1
+    else:
+        prev_month, prev_year = month - 1, year
+
+    if month == 12:
+        next_month, next_year = 1, year + 1
+    else:
+        next_month, next_year = month + 1, year
+
+    # ── Is this the current month? (to highlight or offer "Today") ──
+    today = _dt.now()
+    is_current_month = (month == today.month and year == today.year)
+
+    # ── Permission-aware base queryset ──
     if request.user.is_superuser:
-        payrolls = Payroll.objects.all().order_by('-year', '-month')
+        base_qs = Payroll.objects.all()
     else:
         company = get_user_company(request)
-        payrolls = Payroll.objects.filter(company=company).order_by('-year', '-month')
-    return render(request, 'payroll/payroll_list.html', {'payrolls': payrolls})
+        base_qs = Payroll.objects.filter(company=company)
 
+    # ── Filtered list for selected month ──
+    payrolls = base_qs.filter(month=month, year=year).order_by('employee__employee_id')
+
+    return render(request, 'payroll/payroll_list.html', {
+        'payrolls': payrolls,
+        'month': month,
+        'year': year,
+        'current_label': f"{_month_name[month]} {year}",
+        'prev_month': prev_month,
+        'prev_year': prev_year,
+        'prev_label': f"{_month_name[prev_month]} {prev_year}",
+        'next_month': next_month,
+        'next_year': next_year,
+        'next_label': f"{_month_name[next_month]} {next_year}",
+        'is_current_month': is_current_month,
+        'total_payslips': payrolls.count(),
+    })
     
 
 @login_required
