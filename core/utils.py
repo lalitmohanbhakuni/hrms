@@ -617,8 +617,10 @@ def calculate_monthly_payroll(employee, year, month, salary):
     allow = (allow_full * _proration_ratio).quantize(Decimal('0.01'))
     gross = basic + hra + allow
 
-    # Per-day rate ALWAYS uses full-month divisor so rate stays consistent
-    per_day = (gross_full / _full_wd_dec).quantize(Decimal('0.01')) if _full_wd_dec > 0 else Decimal('0')
+    
+    # Per-day rate computed from PRORATED gross so absent deduction is
+    # self-consistent (avoids −0.01 rounding mismatch for short months)
+    per_day = (gross / _actual_wd).quantize(Decimal('0.01')) if _actual_wd > 0 else Decimal('0')
 
 
     # ── Deductions ──
@@ -712,7 +714,9 @@ def calculate_monthly_payroll(employee, year, month, salary):
         + esi_deduction
         + tds_deduction
     )
-    net_payable = (gross + overtime_amount - total_deduction).quantize(Decimal('0.01'))
+    # Net cannot be negative — clamp at 0 (deductions shouldn't exceed earnings)
+    _raw_net = gross + overtime_amount - total_deduction
+    net_payable = max(Decimal('0.00'), _raw_net.quantize(Decimal('0.01')))
 
     return {
         'basic_salary': basic,
