@@ -5835,7 +5835,7 @@ def payroll_generate(request):
         # Skip only if payroll is already PAID (protect finalized records)
         if Payroll.objects.filter(
             company=company, employee=emp, month=month, year=year,
-            status='paid',
+            status__in=['paid', 'processed'],
         ).exists():
             continue
 
