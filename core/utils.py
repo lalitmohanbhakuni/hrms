@@ -715,8 +715,15 @@ def calculate_monthly_payroll(employee, year, month, salary):
         + tds_deduction
     )
     # Net cannot be negative — clamp at 0 (deductions shouldn't exceed earnings)
-    _raw_net = gross + overtime_amount - total_deduction
-    net_payable = max(Decimal('0.00'), _raw_net.quantize(Decimal('0.01')))
+    # ── Net payable: clamp, quantize to paise, then round to nearest rupee ──
+    from decimal import ROUND_HALF_UP as _RND_HALF_UP
+    _net_raw = (gross + overtime_amount - total_deduction).quantize(Decimal('0.01'))
+    if _net_raw < 0:
+        _net_raw = Decimal('0.00')
+
+    # Round off to nearest rupee (Indian payroll standard)
+    net_payable = _net_raw.quantize(Decimal('1'), rounding=_RND_HALF_UP)
+    round_off_amount = (net_payable - _net_raw).quantize(Decimal('0.01'))
 
     return {
         'basic_salary': basic,
@@ -746,6 +753,8 @@ def calculate_monthly_payroll(employee, year, month, salary):
         'late_deduction': late_deduction,
         'late_halfday_deduction': late_halfday_deduction,
         'total_deduction': total_deduction,
+        'net_before_round': _net_raw,
+        'round_off_amount': round_off_amount,
         'net_payable': net_payable,
         'late_penalty_days': late_penalty_days,
         'late_leave_days': late_leave_days,
