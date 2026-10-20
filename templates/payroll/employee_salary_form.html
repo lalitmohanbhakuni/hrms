@@ -407,6 +407,7 @@
                                     <div class="esf-field col-md-6">
                                         <label class="esf-label" for="gross_salary_input">
                                             <i class="las la-rupee-sign"></i> Gross Salary <span class="esf-req">*</span>
+                                            <span id="gross-unit-label" style="color:#4f46e5; font-weight:600; font-size:.72rem; margin-left:6px;"></span>
                                             <span style="color:#4f46e5; font-size:.7rem; margin-left:6px;">
                                                 <i class="las la-magic"></i> Auto-splits below
                                             </span>
@@ -417,9 +418,9 @@
                                                    value="{{ salary.gross_salary|default:0 }}"
                                                    placeholder="e.g. 30000">
                                         </div>
-                                        <div class="esf-hint">
+                                        <div class="esf-hint" id="gross-hint">
                                             <i class="las la-info-circle"></i>
-                                            <span>Enter total monthly gross. Basic, HRA, and Allowance auto-calculate based on City Type.</span>
+                                            <span id="gross-hint-text">Enter total monthly gross. Basic, HRA, and Allowance auto-calculate based on City Type.</span>
                                         </div>
                                     </div>
                                 </div>
@@ -429,6 +430,7 @@
                                         <label class="esf-label" for="basic_salary">
                                             <i class="las la-rupee-sign"></i> Basic Salary <span class="esf-req">*</span>
                                             <small id="basic-pct-hint" style="color:#64748b; font-weight:500; font-size:.72rem; margin-left:4px;">(40% of gross)</small>
+                                            <span id="basic-unit-label" style="color:#4f46e5; font-weight:600; font-size:.72rem; margin-left:4px;"></span>
                                         </label>
                                         <div class="esf-money">
                                             <input type="number" name="basic_salary" id="basic_salary"
@@ -443,6 +445,7 @@
                                         <label class="esf-label" for="hra">
                                             <i class="las la-home"></i> HRA <span class="esf-req">*</span>
                                             <small id="hra-pct-hint" style="color:#64748b; font-weight:500; font-size:.72rem; margin-left:4px;">(40% of basic)</small>
+                                            <span id="hra-unit-label" style="color:#4f46e5; font-weight:600; font-size:.72rem; margin-left:4px;"></span>
                                         </label>
                                         <div class="esf-money">
                                             <input type="number" name="hra" id="hra"
@@ -461,6 +464,7 @@
                                         <label class="esf-label" for="allowance">
                                             <i class="las la-plus-circle"></i> Allowance <span class="esf-req">*</span>
                                             <small style="color:#64748b; font-weight:500; font-size:.72rem; margin-left:4px;">(balance)</small>
+                                            <span id="allowance-unit-label" style="color:#4f46e5; font-weight:600; font-size:.72rem; margin-left:4px;"></span>
                                         </label>
                                         <div class="esf-money">
                                             <input type="number" name="allowance" id="allowance"
@@ -474,6 +478,7 @@
                                     </div>
                                 </div>
                             </div>
+
                         </div>
 
 
@@ -500,7 +505,7 @@
                                 }
 
                                 function autoSplit() {
-                                    var gross = parseFloat(grossInput.value) || 0;
+                                    const gross = parseFloat(grossInput.value) || 0;
                                     if (gross <= 0) return;
 
                                     var isMetro = citySelect.value === 'metro';
@@ -536,6 +541,56 @@
                                 });
                             });
                             </script>
+
+                            <script>
+                                document.addEventListener('DOMContentLoaded', function () {
+                                    var typeSelect = document.getElementById('salary_type');
+                                    if (!typeSelect) return;
+
+                                    function updateUnitLabels() {
+                                        var t = typeSelect.value;
+                                        var suffix = '';
+                                        var grossSuffix = '';
+                                        var hintText = '';
+
+                                        if (t === 'daily') {
+                                            suffix = ' / day';
+                                            grossSuffix = ' · per day';
+                                            hintText = 'Enter per-day rates. Payroll will multiply by days present. The Gross field is optional — leave as-is or let it auto-fill.';
+                                        } else if (t === 'hourly') {
+                                            suffix = ' / hour';
+                                            grossSuffix = ' · per hour';
+                                            hintText = 'Enter per-hour rates. Payroll will multiply by total hours worked. The Gross field is optional.';
+                                        } else {
+                                            hintText = 'Enter total monthly gross. Basic, HRA, and Allowance auto-calculate based on City Type.';
+                                        }
+
+                                        var basic = document.getElementById('basic-unit-label');
+                                        var hra   = document.getElementById('hra-unit-label');
+                                        var allow = document.getElementById('allowance-unit-label');
+                                        var gross = document.getElementById('gross-unit-label');
+                                        var hint  = document.getElementById('gross-hint-text');
+
+                                        if (basic) basic.textContent = suffix;
+                                        if (hra)   hra.textContent   = suffix;
+                                        if (allow) allow.textContent = suffix;
+                                        if (gross) gross.textContent = grossSuffix;
+                                        if (hint)  hint.textContent  = hintText;
+
+                                        // Hide the "(40% of gross)" and "(balance)" hints for daily/hourly
+                                        // since those ratios don't apply to per-unit rates
+                                        // % hints apply to all types — keep them visible
+                                        var basicPct = document.getElementById('basic-pct-hint');
+                                        var hraPct   = document.getElementById('hra-pct-hint');
+                                        if (basicPct) basicPct.style.display = '';
+                                        if (hraPct)   hraPct.style.display   = '';
+                                    }
+
+                                    typeSelect.addEventListener('change', updateUnitLabels);
+                                    updateUnitLabels();
+                                });
+                                </script>
+
 
 
                         <!-- ═══ SECTION 3: Statutory Deductions ═══ -->

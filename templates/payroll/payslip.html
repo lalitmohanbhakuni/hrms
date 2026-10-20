@@ -244,19 +244,20 @@
                                     <div class="psl-item is-notable-warning">
                                         <span class="psl-item-label">
                                             Late Penalty
-                                            <small>{{ payroll.late_days }} late mark{{ payroll.late_days|pluralize }} · {{ payroll.late_penalty_days|floatformat:"-2" }} day</small>
-                                            {% if payroll.late_leave_days > 0 and payroll.late_lop_days > 0 %}
-                                            <small style="display:block;color:#64748b;font-size:.7rem;margin-top:2px;">
-                                                {{ payroll.late_leave_days|floatformat:"-2" }} day absorbed by leave ·
-                                                {{ payroll.late_lop_days|floatformat:"-2" }} day LOP
+                                            <small>{{ payroll.late_days }} late mark{{ payroll.late_days|pluralize }} · Total penalty: <strong>{{ payroll.late_penalty_days|floatformat:"-2" }} day{{ payroll.late_penalty_days|floatformat:"-2"|pluralize }}</strong></small>
+                                            {% if payroll.late_leave_days > 0 %}
+                                            <small style="display:block;color:#64748b;font-size:.7rem;margin-top:4px;">
+                                                ├─ Leave balance reduced: <strong>{{ payroll.late_leave_days|floatformat:"-2" }} day{{ payroll.late_leave_days|floatformat:"-2"|pluralize }}</strong>
                                             </small>
-                                            {% elif payroll.late_leave_days > 0 %}
-                                            <small style="display:block;color:#64748b;font-size:.7rem;margin-top:2px;">
-                                                {{ payroll.late_leave_days|floatformat:"-2" }} day absorbed by leave
+                                            {% endif %}
+                                            {% if payroll.late_lop_days > 0 %}
+                                            <small style="display:block;color:#dc2626;font-size:.7rem;margin-top:2px;">
+                                                ├─ Salary cut (LOP): <strong>{{ payroll.late_lop_days|floatformat:"-2" }} day{{ payroll.late_lop_days|floatformat:"-2"|pluralize }}</strong>
                                             </small>
-                                            {% elif payroll.late_lop_days > 0 %}
+                                            {% endif %}
+                                            {% if payroll.late_leave_days == 0 and payroll.late_lop_days == 0 %}
                                             <small style="display:block;color:#64748b;font-size:.7rem;margin-top:2px;">
-                                                {{ payroll.late_lop_days|floatformat:"-2" }} day salary cut
+                                                (absorbed — no cash deduction)
                                             </small>
                                             {% endif %}
                                         </span>

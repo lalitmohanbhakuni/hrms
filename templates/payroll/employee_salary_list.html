@@ -406,15 +406,15 @@
                                 <td>
                                     <span class="esal-type">{{ item.salary.get_salary_type_display }}</span>
                                 </td>
-                                <td class="text-end num">₹{{ item.salary.basic_salary|floatformat:2 }}</td>
-                                <td class="text-end num">₹{{ item.salary.hra|floatformat:2 }}</td>
-                                <td class="text-end num">₹{{ item.salary.allowance|floatformat:2 }}</td>
+                                <td class="text-end num">₹{{ item.salary.basic_salary|floatformat:2 }}{% if item.salary.salary_type == 'daily' %}<small style="color:#64748b; font-weight:500; font-size:.72rem;">/day</small>{% elif item.salary.salary_type == 'hourly' %}<small style="color:#64748b; font-weight:500; font-size:.72rem;">/hr</small>{% endif %}</td>
+                                <td class="text-end num">₹{{ item.salary.hra|floatformat:2 }}{% if item.salary.salary_type == 'daily' %}<small style="color:#64748b; font-weight:500; font-size:.72rem;">/day</small>{% elif item.salary.salary_type == 'hourly' %}<small style="color:#64748b; font-weight:500; font-size:.72rem;">/hr</small>{% endif %}</td>
+                                <td class="text-end num">₹{{ item.salary.allowance|floatformat:2 }}{% if item.salary.salary_type == 'daily' %}<small style="color:#64748b; font-weight:500; font-size:.72rem;">/day</small>{% elif item.salary.salary_type == 'hourly' %}<small style="color:#64748b; font-weight:500; font-size:.72rem;">/hr</small>{% endif %}</td>
                                 <td class="text-end num">
                                     ₹{{ item.salary.overtime_rate|floatformat:2 }}
                                     <small class="muted">/hr</small>
                                 </td>
                                 <td class="text-end num fw-semibold" style="color: var(--esal-primary);">
-                                    ₹{{ item.salary.gross_salary|floatformat:2 }}
+                                ₹{{ item.salary.gross_salary|floatformat:2 }}{% if item.salary.salary_type == 'daily' %}<small style="color:#64748b; font-weight:500; font-size:.72rem; margin-left:2px;">/day</small>{% elif item.salary.salary_type == 'hourly' %}<small style="color:#64748b; font-weight:500; font-size:.72rem; margin-left:2px;">/hr</small>{% endif %}
                                 </td>
                                 <td class="text-end num fw-semibold" style="color: var(--esal-success);">
                                     ₹{{ item.salary.net_salary|floatformat:2 }}

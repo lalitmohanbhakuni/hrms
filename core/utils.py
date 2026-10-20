@@ -401,7 +401,16 @@ def calculate_monthly_payroll(employee, year, month, salary):
 
         _monthly_hours = _working_days * _hours_per_day
         _multiplier = Decimal(str(shift.overtime_multiplier or 1.50))
-        ot_rate = (basic_full / _monthly_hours * _multiplier).quantize(Decimal('0.01'))
+
+        # ── OT rate branches by salary_type ──
+        if salary.salary_type == 'daily':
+            # basic_full is per-day → hourly base = basic_full / hours_per_day
+            ot_rate = (basic_full / _hours_per_day * _multiplier).quantize(Decimal('0.01'))
+        elif salary.salary_type == 'hourly':
+            # basic_full is already per-hour
+            ot_rate = (basic_full * _multiplier).quantize(Decimal('0.01'))
+        else:  # monthly
+            ot_rate = (basic_full / _monthly_hours * _multiplier).quantize(Decimal('0.01'))
     else:
         ot_rate = Decimal('0')
     
@@ -409,7 +418,12 @@ def calculate_monthly_payroll(employee, year, month, salary):
     if shift and shift.overtime_allowed:
         _weekend_mult = Decimal(str(getattr(shift, 'weekend_ot_multiplier', 0) or 0))
         if _weekend_mult > 0:
-            weekend_ot_rate = (basic_full / _monthly_hours * _weekend_mult).quantize(Decimal('0.01'))
+            if salary.salary_type == 'daily':
+                weekend_ot_rate = (basic_full / _hours_per_day * _weekend_mult).quantize(Decimal('0.01'))
+            elif salary.salary_type == 'hourly':
+                weekend_ot_rate = (basic_full * _weekend_mult).quantize(Decimal('0.01'))
+            else:  # monthly
+                weekend_ot_rate = (basic_full / _monthly_hours * _weekend_mult).quantize(Decimal('0.01'))
         else:
             weekend_ot_rate = ot_rate
     else:
@@ -603,36 +617,66 @@ def calculate_monthly_payroll(employee, year, month, salary):
     # ── Split into pure absent + half-day portion ──
     pure_absent_days = max(Decimal('0'), absent_day_units - half_day_units)
 
-    # ── Per-day salary ──
-    # ── Prorate salary for mid-month joiner/leaver ──
-    # Ratio = actual working days (after DOJ, before termination) / full month working days
+    # ═══════════════════════════════════════════════════════════════
+    # SALARY COMPUTATION — branches by salary_type
+    #   monthly: prorate by DOJ/termination ratio
+    #   daily:   per-day rate × days present
+    #   hourly:  per-hour rate × total hours worked
+    # ═══════════════════════════════════════════════════════════════
     _actual_wd = Decimal(str(working_days))
-    if _full_wd_dec > 0 and _actual_wd < _full_wd_dec:
-        _proration_ratio = _actual_wd / _full_wd_dec
+    _is_daily  = (salary.salary_type == 'daily')
+    _is_hourly = (salary.salary_type == 'hourly')
+
+    if _is_daily:
+        # Basic/HRA/Allowance are per-day rates
+        _payable_days = present_days   # daily workers only paid for days worked
+        basic = (basic_full * _payable_days).quantize(Decimal('0.01'))
+        hra   = (hra_full   * _payable_days).quantize(Decimal('0.01'))
+        allow = (allow_full * _payable_days).quantize(Decimal('0.01'))
+        per_day = basic_full
+        pure_absent_deduction  = Decimal('0.00')
+        half_day_deduction     = Decimal('0.00')
+        unpaid_leave_deduction = Decimal('0.00')
+
+    elif _is_hourly:
+        # Basic/HRA/Allowance are per-hour rates
+        _payable_hours = Decimal('0')
+        for _a in attendances:
+            if _term_date and _a.date > _term_date:
+                continue
+            if _a.total_working_time:
+                _payable_hours += Decimal(str(_a.total_working_time.total_seconds())) / Decimal('3600')
+        basic = (basic_full * _payable_hours).quantize(Decimal('0.01'))
+        hra   = (hra_full   * _payable_hours).quantize(Decimal('0.01'))
+        allow = (allow_full * _payable_hours).quantize(Decimal('0.01'))
+        per_day = Decimal('0.00')
+        pure_absent_deduction  = Decimal('0.00')
+        half_day_deduction     = Decimal('0.00')
+        unpaid_leave_deduction = Decimal('0.00')
+
     else:
-        _proration_ratio = Decimal('1')
+        # Monthly (existing proration logic)
+        if _full_wd_dec > 0 and _actual_wd < _full_wd_dec:
+            _proration_ratio = _actual_wd / _full_wd_dec
+        else:
+            _proration_ratio = Decimal('1')
 
-    basic = (basic_full * _proration_ratio).quantize(Decimal('0.01'))
-    hra   = (hra_full   * _proration_ratio).quantize(Decimal('0.01'))
-    allow = (allow_full * _proration_ratio).quantize(Decimal('0.01'))
+        basic = (basic_full * _proration_ratio).quantize(Decimal('0.01'))
+        hra   = (hra_full   * _proration_ratio).quantize(Decimal('0.01'))
+        allow = (allow_full * _proration_ratio).quantize(Decimal('0.01'))
+
+        _gross_for_perday = basic + hra + allow
+        per_day = (_gross_for_perday / _actual_wd).quantize(Decimal('0.01')) if _actual_wd > 0 else Decimal('0')
+
+        pure_absent_deduction  = (per_day * pure_absent_days).quantize(Decimal('0.01'))
+        half_day_deduction     = (per_day * half_day_units).quantize(Decimal('0.01'))
+        unpaid_leave_deduction = (per_day * unpaid_leave_days).quantize(Decimal('0.01'))
+
     gross = basic + hra + allow
-
-    
-    # Per-day rate computed from PRORATED gross so absent deduction is
-    # self-consistent (avoids −0.01 rounding mismatch for short months)
-    per_day = (gross / _actual_wd).quantize(Decimal('0.01')) if _actual_wd > 0 else Decimal('0')
-
-
-    # ── Deductions ──
-    pure_absent_deduction = (per_day * pure_absent_days).quantize(Decimal('0.01'))
-    half_day_deduction    = (per_day * half_day_units).quantize(Decimal('0.01'))
-
-    # Keep absent_days / absent_deduction as combined total (backwards compat)
     absent_days = absent_day_units
     absent_deduction = pure_absent_deduction + half_day_deduction
-
-    unpaid_leave_deduction = (per_day * unpaid_leave_days).quantize(Decimal('0.01'))
     other_deduction = Decimal('0')
+
 
     # ═══════════════════════════════════════════════════════════════
     # LATE PENALTY — split between Leave and LOP
@@ -1085,31 +1129,35 @@ def sync_late_deductions(employee, year, month, calc=None):
     if not billable:
         return 0
 
-    # ── Per-day rate for salary mode ──
-    # Prefer calc if provided; otherwise compute from EmployeeSalary + shift weekdays.
+    # ── Per-day rate for salary mode — branches by salary_type ──
+    #   monthly: (basic + hra + allow) / working_days
+    #   daily:   basic + hra + allow  (already per-day)
+    #   hourly:  (basic + hra + allow) × hours_per_day
     per_day = Decimal('0')
     _gross = Decimal('0')
     _wd = 0
+    _salary_type = 'monthly'
+
+    # Always look up active salary to know the salary_type
+    from .models import EmployeeSalary as _ES
+    _sal = _ES.objects.filter(
+        employee=employee,
+        status='active',
+    ).order_by('-effective_from').first()
+
+    if _sal:
+        _salary_type = (_sal.salary_type or 'monthly').lower()
 
     if calc:
         _gross = Decimal(str(calc.get('gross_salary', 0) or 0))
         _wd    = int(calc.get('working_days', 0) or 0)
     else:
-        # Look up active salary for this employee
-        try:
-            from .models import EmployeeSalary
-            _sal = EmployeeSalary.objects.filter(
-                employee=employee,
-                status='active',
-            ).order_by('-effective_from').first()
-            if _sal:
-                _gross = Decimal(str(
-                    (_sal.basic_salary or 0)
-                    + (_sal.hra or 0)
-                    + (_sal.allowance or 0)
-                ))
-        except Exception:
-            _sal = None
+        if _sal:
+            _gross = Decimal(str(
+                (_sal.basic_salary or 0)
+                + (_sal.hra or 0)
+                + (_sal.allowance or 0)
+            ))
 
         # Working days this month (respecting shift weekdays)
         if employee.shift:
@@ -1119,10 +1167,37 @@ def sync_late_deductions(employee, year, month, calc=None):
                 if getattr(employee.shift, _flags[_dd.weekday()], False):
                     _wd += 1
         else:
-            _wd = 26   # fallback
+            _wd = 26
 
-    if _wd > 0 and _gross > 0:
-        per_day = (_gross / Decimal(str(_wd))).quantize(Decimal('0.01'))
+    # ── Compute per_day based on salary_type ──
+    if _salary_type == 'daily':
+        # Raw basic+hra+allow IS the per-day rate
+        if _sal:
+            per_day = Decimal(str(
+                (_sal.basic_salary or 0)
+                + (_sal.hra or 0)
+                + (_sal.allowance or 0)
+            )).quantize(Decimal('0.01'))
+        elif calc:
+            _present = Decimal(str(calc.get('present_days', 0) or 0))
+            if _present > 0:
+                per_day = (_gross / _present).quantize(Decimal('0.01'))
+    elif _salary_type == 'hourly':
+        # Use average 8h day × hourly rate as the "per-day" baseline
+        if _sal:
+            _hourly_rate = Decimal(str(
+                (_sal.basic_salary or 0)
+                + (_sal.hra or 0)
+                + (_sal.allowance or 0)
+            ))
+            _hours_per_day = Decimal('8')
+            if employee.shift and employee.shift.min_working_hours:
+                _hours_per_day = Decimal(str(employee.shift.min_working_hours)) / Decimal('60')
+            per_day = (_hourly_rate * _hours_per_day).quantize(Decimal('0.01'))
+    else:
+        # Monthly: divide by working days
+        if _wd > 0 and _gross > 0:
+            per_day = (_gross / Decimal(str(_wd))).quantize(Decimal('0.01'))
 
     created = 0
     

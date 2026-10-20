@@ -678,32 +678,57 @@
             <div class="ead-kpi-ico success"><i class="las la-check-circle"></i></div>
             <div class="ead-kpi-body">
                 <div class="ead-kpi-label">Present</div>
-                <div class="ead-kpi-value">{{ present_weighted|floatformat:"-1" }} <span class="rate-pill">{{ rate }}%</span></div>
+                <div class="ead-kpi-value">
+                    {% widthratio half_day 2 1 as half_whole %}
+                    {{ present|add:half_whole }}{% if half_day > 0 and not half_day|divisibleby:2 %}.5{% endif %}
+                    <span class="rate-pill">{{ rate }}%</span>
+                </div>
+                {% if half_day > 0 %}
+                <small class="ead-chip" style="color:#4f46e5; font-size: 11px;padding: 2px 8px;">
+                    incl. {{ half_day }} half-day{{ half_day|pluralize }}
+                </small>
+                {% endif %}
             </div>
         </div>
+
+        <!-- {% if half_day > 0 %}
+        <div class="ead-kpi">
+            <div class="ead-kpi-ico warning"><i class="las la-adjust"></i></div>
+            <div class="ead-kpi-body">
+                <div class="ead-kpi-label">Half-Day</div>
+                <div class="ead-kpi-value">{{ half_day }}</div>
+            </div>
+        </div>
+        {% endif %} -->
 
         <div class="ead-kpi">
             <div class="ead-kpi-ico danger"><i class="las la-times-circle"></i></div>
             <div class="ead-kpi-body">
                 <div class="ead-kpi-label">Absent</div>
-                <div class="ead-kpi-value" style="display: inline-flex; align-items: center; gap: 8px;">
-                    <span> {{ absent_weighted|floatformat:"-1" }}  <small class="rate-pill" style="background: #eee;"> {{ missing_checkout }} Missing Checkout  </small></span> <span> {% if half_day > 0 and absent > 0 %}
-                        <small style="display:block;font-size:.75rem;font-weight:400;color:#94a3b8;margin-top:2px;">
-                            {{ absent }} full + {{ half_day }} half
+                <div class="ead-kpi-value">
+                    {% widthratio half_day 2 1 as half_whole %}
+                    {{ absent|add:missing_checkout|add:half_whole }}{% if half_day > 0 and not half_day|divisibleby:2 %}.5{% endif %}
+                    {% if missing_checkout > 0 %}
+                        <small class="ead-late-tag">
+                            incl. {{ missing_checkout }} Missing Checkout
                         </small>
-                    {% endif %} </span>
-                    
+                    {% endif %}
+                    {% if half_day > 0 %}
+                        <small class="ead-late-tag">
+                            incl. {{ half_day }} half day
+                        </small>
+                    {% endif %}
                 </div>
             </div>
         </div>
 
-        <div class="ead-kpi">
+        <!-- <div class="ead-kpi">
             <div class="ead-kpi-ico warning"><i class="las la-sign-out-alt"></i></div>
             <div class="ead-kpi-body">
                 <div class="ead-kpi-label">Missing Checkout</div>
                 <div class="ead-kpi-value">{{ missing_checkout }}</div>
             </div>
-        </div>
+        </div> -->
 
         <div class="ead-kpi">
             <div class="ead-kpi-ico primary"><i class="las la-umbrella-beach"></i></div>
@@ -713,8 +738,6 @@
             </div>
         </div>
 
-        
-
         <div class="ead-kpi">
             <div class="ead-kpi-ico danger"><i class="las la-hourglass-half"></i></div>
             <div class="ead-kpi-body">
@@ -722,7 +745,8 @@
                 <div class="ead-kpi-value">{{ late_days }}</div>
             </div>
         </div>
-        {% if show_overtime and overtime and overtime != '—' %} 
+
+        {% if show_overtime and overtime and overtime != '—' %}
         <div class="ead-kpi">
             <div class="ead-kpi-ico info"><i class="las la-business-time"></i></div>
             <div class="ead-kpi-body">

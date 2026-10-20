@@ -2669,6 +2669,7 @@ def team_attendance(request):
 def attendance_report(request):
     from .utils import get_company_filtered
     from django.contrib.auth.models import User
+    from decimal import Decimal
     
     today = date.today()
 
@@ -2748,13 +2749,25 @@ def attendance_report(request):
     total_overtime_minutes = 0
 
     for emp in employees:
+        _profile_emp = getattr(emp, 'profile', None)
+
         emp_records = attendances.filter(user=emp)
+
+        # Filter out dates before DOJ
+        if _profile_emp and _profile_emp.date_of_joining:
+            emp_records = emp_records.filter(date__gte=_profile_emp.date_of_joining)
+
+        # Filter out dates after termination
+        if _profile_emp and _profile_emp.terminated_at:
+            emp_records = emp_records.filter(date__lte=_profile_emp.terminated_at)
+
         emp_leaves = [l for l in all_leaves if l.user == emp]
 
         present = emp_records.filter(
             status='Present'
         ).count()
-        absent = emp_records.filter(status='Absent').count()
+        _absent_rows = emp_records.filter(status__in=['Absent', 'Missing Checkout', 'Under Review']).count()
+        absent = _absent_rows  # will be recomputed after working_days is known
         half_day = emp_records.filter(status='Half-Day').count()
 
         leave_days = 0
@@ -2873,7 +2886,18 @@ def attendance_report(request):
         else:
             working_days = present + half_day + leave_days
 
-        rate = round((present / working_days) * 100, 1) if working_days > 0 else 0
+        # Add pure-absent days (working days with no attendance row and no leave)
+        _no_row_absent = max(
+            0,
+            working_days - present - half_day - leave_days - _absent_rows
+        )
+        absent = _absent_rows + _no_row_absent
+
+        if working_days > 0:
+            _raw_rate = (present / working_days) * 100
+            rate = round(min(_raw_rate, 100), 1)
+        else:
+            rate = 0
 
         total_working_days += working_days
         total_present += present
@@ -2883,11 +2907,21 @@ def attendance_report(request):
         total_late += late_days
         total_overtime_minutes += overtime_minutes
 
+        # ── Weighted present + absent day-units (matches payslip convention) ──
+        _half_units_display = Decimal(str(half_day)) * Decimal('0.5')
+        _present_weighted_display = Decimal(str(present)) + _half_units_display
+        _absent_day_units_display = max(
+            Decimal('0'),
+            Decimal(str(working_days)) - _present_weighted_display - Decimal(str(leave_days))
+        )
+
         employee_data.append({
             'employee': emp,
             'records': daily_records,
             'present': present,
             'absent': absent,
+            'present_weighted': float(_present_weighted_display),
+            'absent_day_units': float(_absent_day_units_display),
             'half_day': half_day,
             'leave_days': leave_days,
             'working_days': working_days,
@@ -2978,6 +3012,7 @@ def attendance_report(request):
         info_label_style = ParagraphStyle('InfoLabelStyle', parent=normal_style, fontSize=10, fontName='Helvetica-Bold')
         info_value_style = ParagraphStyle('InfoValueStyle', parent=normal_style, fontSize=10)
         summary_label_style = ParagraphStyle('SummaryLabelStyle', parent=normal_style, fontSize=9, fontName='Helvetica-Bold')
+        summary_value_style = ParagraphStyle('SummaryValueStyle', parent=normal_style, fontSize=9)
 
         elements = []
 
@@ -3060,13 +3095,30 @@ def attendance_report(request):
             ot_minutes = int(detailed['overtime_minutes'] % 60)
             overtime_str = f"{ot_hours}h {ot_minutes}m" if ot_minutes > 0 or ot_hours > 0 else "0h"
 
+            _pres_w = emp_data.get('present_weighted', emp_data['present'])
+            _abs_du = emp_data.get('absent_day_units', emp_data['absent'])
+            _hd = emp_data['half_day']
+
+            if _hd > 0:
+                _pres_cell = Paragraph(
+                    f"{_pres_w:g}<br/><font size='6' color='#64748b'>incl. {_hd} half-day</font>",
+                    summary_value_style
+                )
+                _abs_cell = Paragraph(
+                    f"{_abs_du:g}<br/><font size='6' color='#64748b'>incl. {_hd} half-day</font>",
+                    summary_value_style
+                )
+            else:
+                _pres_cell = Paragraph(f"{_pres_w:g}", summary_value_style)
+                _abs_cell = Paragraph(f"{_abs_du:g}", summary_value_style)
+
             summary_data = [
-                [Paragraph("Working Days:", summary_label_style), str(detailed['working_days']),
-                 Paragraph("Present:", summary_label_style), str(detailed['present'])],
-                [Paragraph("Absent:", summary_label_style), str(detailed['absent']),
-                 Paragraph("Leave:", summary_label_style), str(detailed['leave'])],
-                [Paragraph("Half Day:", summary_label_style), str(detailed['half_day']),
-                 Paragraph("Late Arrivals:", summary_label_style), str(detailed['late_arrivals'])],
+                [Paragraph("Working Days:", summary_label_style), str(emp_data['working_days']),
+                 Paragraph("Present:", summary_label_style), _pres_cell],
+                [Paragraph("Absent:", summary_label_style), _abs_cell,
+                 Paragraph("Leave:", summary_label_style), str(emp_data['leave_days'])],
+                [Paragraph("Half Day:", summary_label_style), str(emp_data['half_day']),
+                 Paragraph("Late Arrivals:", summary_label_style), str(emp_data['late_days'])],
                 [Paragraph("Overtime:", summary_label_style), overtime_str,
                  Paragraph("Total Working Hours:", summary_label_style), detailed['total_working_hours']],
                 [Paragraph("Average Working Hours:", summary_label_style), detailed['avg_working_hours'],
@@ -5748,10 +5800,6 @@ def employee_salary_edit(request, pk):
         salary = get_object_or_404(EmployeeSalary, id=pk, company=company)
 
     if request.method == 'POST':
-        print(f"[SALARY EDIT DEBUG] POST keys = {list(request.POST.keys())}")
-        print(f"[SALARY EDIT DEBUG] effective_from = {request.POST.get('effective_from')!r}")
-        print(f"[SALARY EDIT DEBUG] status         = {request.POST.get('status')!r}")
-        print(f"[SALARY EDIT DEBUG] salary_type    = {request.POST.get('salary_type')!r}")
         salary.salary_type = request.POST.get('salary_type')
         salary.basic_salary = Decimal(request.POST.get('basic_salary') or 0)
         salary.hra = Decimal(request.POST.get('hra') or 0)
@@ -5773,10 +5821,6 @@ def employee_salary_edit(request, pk):
         try:
             salary.full_clean()
         except ValidationError as e:
-            print(f"[SALARY EDIT DEBUG] message_dict = {e.message_dict}")
-            print(f"[SALARY EDIT DEBUG] effective_from = {salary.effective_from!r}")
-            print(f"[SALARY EDIT DEBUG] city_type = {salary.city_type!r}")
-            print(f"[SALARY EDIT DEBUG] status = {salary.status!r}")
             first_error = e.messages[0] if e.messages else 'Invalid salary data.'
             messages.error(request, f'Invalid salary: {first_error}')
             return redirect('employee_salary_edit', pk=pk)
@@ -6276,15 +6320,9 @@ def payslip_pdf(request, pk):
     total_absent_days = Decimal(str(payroll.absent_days or 0))
     pure_absent_days  = max(Decimal('0'), total_absent_days - half_day_units)
 
-    # Per-day rate
-    working_days_dec = Decimal(str(payroll.working_days or 0))
-    per_day = (
-        Decimal(str(payroll.gross_salary)) / working_days_dec
-        if working_days_dec > 0 else Decimal('0')
-    )
-
-    pure_absent_deduction = (per_day * pure_absent_days).quantize(Decimal('0.01'))
-    half_day_deduction    = (per_day * half_day_units).quantize(Decimal('0.01'))
+    # ── Use STORED deduction values (no recompute) ──
+    half_day_deduction = d(payroll.half_day_deduction)
+    pure_absent_deduction = (abs_ded - half_day_deduction).quantize(Decimal('0.01'))
 
     # Format helper for display (shows 23.5 instead of 23)
     def fmt_days(v):
@@ -6819,15 +6857,11 @@ def payslip_view(request, pk):
     total_absent_days = Decimal(str(payroll.absent_days or 0))
     pure_absent_days  = max(Decimal('0'), total_absent_days - half_day_units)
 
-    # Per-day rate
-    working_days_dec = Decimal(str(payroll.working_days or 0))
-    per_day = (
-        Decimal(str(payroll.gross_salary)) / working_days_dec
-        if working_days_dec > 0 else Decimal('0')
-    )
-
-    pure_absent_deduction = (per_day * pure_absent_days).quantize(Decimal('0.01'))
-    half_day_deduction    = (per_day * half_day_units).quantize(Decimal('0.01'))
+    # ── Use STORED deduction values (no recompute — fixes 2-paise drift) ──
+    half_day_deduction = Decimal(str(payroll.half_day_deduction or 0))
+    pure_absent_deduction = (
+        Decimal(str(payroll.absent_deduction or 0)) - half_day_deduction
+    ).quantize(Decimal('0.01'))
 
     # Split rupees + paise so "In words" matches the PDF
     _net_dec = Decimal(str(payroll.net_salary or 0))
