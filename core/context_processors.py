@@ -24,12 +24,17 @@ def company_context(request):
     Makes current_company available to every template.
     Useful for showing the company name in the header.
     """
-    if request.user.is_authenticated:
+    user = getattr(request, 'user', None)
+    if user is None or not getattr(user, 'is_authenticated', False):
         return {
-            'current_company': getattr(request, 'user_company', None),
-            'is_platform_admin': request.user.is_superuser,
+            'current_company': None,
+            'is_platform_admin': False,
         }
-    return {}
+    return {
+        'current_company': getattr(request, 'user_company', None),
+        'is_platform_admin': getattr(user, 'is_superuser', False),
+    }
+
 
 
 def late_rule_status(request):
@@ -37,27 +42,32 @@ def late_rule_status(request):
     Provides `late_rule_enabled` to all templates.
     True only if the user's company has an enabled Late Coming Rule.
     """
-    if not request.user.is_authenticated:
+    user = getattr(request, 'user', None)
+    if user is None or not getattr(user, 'is_authenticated', False):
         return {'late_rule_enabled': False}
 
     from .models import LateComingRule, Company
 
     # Determine target company
-    if request.user.is_superuser:
+    if getattr(user, 'is_superuser', False):
         company = Company.objects.first()
     else:
-        profile = getattr(request.user, 'profile', None)
+        profile = getattr(user, 'profile', None)
         company = getattr(profile, 'company', None)
 
     if not company:
         return {'late_rule_enabled': False}
 
-    exists = LateComingRule.objects.filter(
-        company=company,
-        is_enabled=True,
-    ).exists()
+    try:
+        exists = LateComingRule.objects.filter(
+            company=company,
+            is_enabled=True,
+        ).exists()
+    except Exception:
+        exists = False
 
     return {'late_rule_enabled': exists}
+
 
 
 # ⬇️⬇️⬇️ YEH NAYA FUNCTION ADD KAREIN ⬇️⬇️⬇️
@@ -68,12 +78,13 @@ def pending_device_count(request):
     for HR Admin / Superuser users only.
     Used in sidebar badge.
     """
-    if not request.user.is_authenticated:
+    user = getattr(request, 'user', None)
+    if user is None or not getattr(user, 'is_authenticated', False):
         return {'pending_device_count': 0}
 
     # Only for HR Admin / Superuser
-    if not request.user.is_superuser:
-        profile = getattr(request.user, 'profile', None)
+    if not getattr(user, 'is_superuser', False):
+        profile = getattr(user, 'profile', None)
         if not profile:
             return {'pending_device_count': 0}
         role = (getattr(profile, 'role', '') or '').lower()

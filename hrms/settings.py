@@ -163,6 +163,16 @@ LOGGING = {
     'loggers': {
         'django':  {'handlers': _handlers, 'level': 'ERROR', 'propagate': False},
         'core':    {'handlers': _handlers, 'level': 'ERROR', 'propagate': False},
+        # Silence bot probes with fake Host headers.
+        # DisallowedHost is raised for requests outside ALLOWED_HOSTS.
+        # They still return a clean 400 (handled by error_400 in views.py),
+        # but we don't want ERROR-level noise in logs from every scan.
+        # Nginx access logs still capture the bot IP + request for security auditing.
+        'django.security.DisallowedHost': {
+            'handlers': [],
+            'level': 'CRITICAL',
+            'propagate': False,
+        },
     },
 }
 
