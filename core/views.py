@@ -63,7 +63,8 @@ from .decorators import (
 
 from .utils import (
     get_approver, get_hr_admin, can_approve_request,
-    get_company_filtered, get_user_company, is_weekend_for_shift
+    get_company_filtered, get_user_company, is_weekend_for_shift,
+    get_elapsed_working_days,
 )
 
 
@@ -847,6 +848,10 @@ def dashboard(request):
     employee_data = []
 
     if user.is_superuser or user.groups.filter(name='HR Admin').exists():
+        _, _admin_last_num = monthrange(admin_year, admin_month)
+        _admin_first_day = date(admin_year, admin_month, 1)
+        _admin_last_day = date(admin_year, admin_month, _admin_last_num)
+
         employees = get_company_filtered(
             request,
             User.objects.filter(
@@ -865,11 +870,25 @@ def dashboard(request):
         
         for emp in employees:
             emp_records = [att for att in attendances if att.user == emp]
-            total_days = len(emp_records)
+
+            # Correct: elapsed working days (respects DOJ, termination, shift, holidays)
+            total_days = get_elapsed_working_days(
+                emp, admin_year, admin_month, _admin_first_day, _admin_last_day
+            )
+
             present = len([r for r in emp_records if r.status == 'Present'])
-            absent = len([r for r in emp_records if r.status == 'Absent'])
             half_day = len([r for r in emp_records if r.status == 'Half-Day'])
-            percentage = int((present / total_days) * 100) if total_days > 0 else 0
+            explicit_absent = len([r for r in emp_records if r.status == 'Absent'])
+            missing_checkout = len([r for r in emp_records if r.status == 'Missing Checkout'])
+            weekend_work = len([r for r in emp_records if r.status in ('Weekend Work', 'Holiday Work')])
+            under_review = len([r for r in emp_records if r.status == 'Under Review'])
+
+            weighted_present = present + (half_day * 0.5)
+            _non_absent = int(weighted_present) + missing_checkout + weekend_work + under_review + explicit_absent
+            _implicit_absent = max(0, total_days - _non_absent)
+            absent = explicit_absent + _implicit_absent
+
+            percentage = int((weighted_present / total_days) * 100) if total_days > 0 else 0
             
             profile = getattr(emp, 'profile', None)
             shift_name = profile.shift.name if profile and profile.shift else '—'
@@ -898,6 +917,8 @@ def dashboard(request):
                 'percentage': percentage,
                 'shift_name': shift_name,
                 'shift_timing': shift_timing,
+                'missing_checkout': missing_checkout,
+                'weekend_work': weekend_work,
             })
     else:
         employee_data = []
@@ -1971,10 +1992,26 @@ def employee_detail(request, user_id):
         date__year=today.year,
         date__month=today.month
     )
-    total_days = attendances.count()
+
+    # Correct: elapsed working days (respects DOJ, termination, shift, holidays)
+    _emp_last_num = monthrange(today.year, today.month)[1]
+    _emp_first_day = date(today.year, today.month, 1)
+    _emp_last_day = date(today.year, today.month, _emp_last_num)
+    total_days = get_elapsed_working_days(
+        employee_user, today.year, today.month, _emp_first_day, _emp_last_day
+    )
+
     present = attendances.filter(status='Present').count()
-    absent = attendances.filter(status='Absent').count()
     half_day = attendances.filter(status='Half-Day').count()
+    explicit_absent = attendances.filter(status='Absent').count()
+    missing_checkout = attendances.filter(status='Missing Checkout').count()
+    weekend_work = attendances.filter(status__in=['Weekend Work', 'Holiday Work']).count()
+    under_review = attendances.filter(status='Under Review').count()
+
+    weighted_present = present + (half_day * 0.5)
+    _non_absent = int(weighted_present) + missing_checkout + weekend_work + under_review + explicit_absent
+    _implicit_absent = max(0, total_days - _non_absent)
+    absent = explicit_absent + _implicit_absent
     
     leave_types = LeaveType.objects.filter(is_active=True, company=profile.company)
     leave_balance = []
@@ -1995,9 +2032,11 @@ def employee_detail(request, user_id):
         'employee_user': employee_user,
         'profile': profile,
         'total_days': total_days,
-            'present': present,
-            'absent': absent,
+        'present': present,
+        'absent': absent,
         'half_day': half_day,
+        'missing_checkout': missing_checkout,
+        'weekend_work': weekend_work,
         'leave_balance': leave_balance,
         'month_name': today.strftime('%B %Y'),
     }
@@ -2601,14 +2640,32 @@ def team_attendance(request):
     for att in attendances:
         att_by_user[att.user_id].append(att)
 
+    _, _team_last_num = monthrange(year, month)
+    _team_first_day = date(year, month, 1)
+    _team_last_day = date(year, month, _team_last_num)
+
     employee_data = []
     for emp in employees:
         emp_records = att_by_user.get(emp.id, [])
-        total_days = len(emp_records)
+
+        # Correct: elapsed working days
+        total_days = get_elapsed_working_days(
+            emp, year, month, _team_first_day, _team_last_day
+        )
+
         present = len([r for r in emp_records if r.status == 'Present'])
-        absent = len([r for r in emp_records if r.status == 'Absent'])
         half_day = len([r for r in emp_records if r.status == 'Half-Day'])
-        percentage = int((present / total_days) * 100) if total_days > 0 else 0
+        explicit_absent = len([r for r in emp_records if r.status == 'Absent'])
+        missing_checkout = len([r for r in emp_records if r.status == 'Missing Checkout'])
+        weekend_work = len([r for r in emp_records if r.status in ('Weekend Work', 'Holiday Work')])
+        under_review = len([r for r in emp_records if r.status == 'Under Review'])
+
+        weighted_present = present + (half_day * 0.5)
+        _non_absent = int(weighted_present) + missing_checkout + weekend_work + under_review + explicit_absent
+        _implicit_absent = max(0, total_days - _non_absent)
+        absent = explicit_absent + _implicit_absent
+
+        percentage = int((weighted_present / total_days) * 100) if total_days > 0 else 0
 
         profile = getattr(emp, 'profile', None)
         shift_name = profile.shift.name if profile and profile.shift else '—'

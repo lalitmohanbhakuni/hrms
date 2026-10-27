@@ -1446,3 +1446,62 @@ def get_shift_end_dt(att_date, shift):
     naive = datetime.combine(end_date, shift.end_time)
     return timezone.make_aware(naive)
 
+
+def get_elapsed_working_days(employee, year, month, first_day, last_day, today=None):
+    """
+    Compute elapsed working days in a month for an employee.
+
+    Respects:
+    - date_of_joining
+    - terminated_at
+    - shift weekday flags (mon..sun)
+    - holidays (per company)
+    - today's date (for current month)
+    """
+    from datetime import date as _date, timedelta as _td
+    from .models import Holiday
+
+    profile = getattr(employee, 'profile', None)
+    if not profile or not profile.shift:
+        return 0
+
+    shift = profile.shift
+    company = profile.company
+
+    if today is None:
+        today = _date.today()
+
+    if year == today.year and month == today.month:
+        end_date = min(last_day, today)
+    else:
+        end_date = last_day
+
+    if first_day > end_date:
+        return 0
+
+    holiday_dates = set(
+        Holiday.objects.filter(
+            company=company,
+            date__gte=first_day,
+            date__lte=end_date,
+        ).values_list('date', flat=True)
+    )
+
+    weekday_keys = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+    total = 0
+    d = first_day
+
+    while d <= end_date:
+        if profile.date_of_joining and d < profile.date_of_joining:
+            d += _td(days=1); continue
+        if profile.terminated_at and d > profile.terminated_at:
+            d += _td(days=1); continue
+        if not getattr(shift, weekday_keys[d.weekday()], False):
+            d += _td(days=1); continue
+        if d in holiday_dates:
+            d += _td(days=1); continue
+        total += 1
+        d += _td(days=1)
+
+    return total
+    
