@@ -3091,7 +3091,7 @@ def attendance_report(request):
 
             info_data = [
                 [
-                    Paragraph(f"<b>Employee:</b> {emp.username}", normal_style),
+                    Paragraph(f"<b>Employee:</b> {profile.full_name if profile and profile.full_name else emp.username}", normal_style),
                     Paragraph(f"<b>Employee ID:</b> {profile.employee_id if profile else '—'}", normal_style),
                     Paragraph(f"<b>Department:</b> {profile.department if profile else '—'}", normal_style),
                 ],
@@ -3320,7 +3320,7 @@ def attendance_report(request):
 
             row = [
                 profile.employee_id if profile else '',
-                emp.username,
+                profile.full_name if profile and profile.full_name else emp.username,
                 profile.department if profile else '',
                 profile.designation if profile else '',
                 shift.name if shift else '',
