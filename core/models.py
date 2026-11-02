@@ -172,8 +172,13 @@ class LeaveType(models.Model):
 # ---------- Holiday Model ----------
 class Holiday(models.Model):
     name = models.CharField(max_length=100)
-    date = models.DateField(unique=True)
+    date = models.DateField()
     company = models.ForeignKey(Company, on_delete=models.CASCADE, null=True, blank=True)
+    
+    class Meta:
+        # This ensures a company can only have one holiday per date
+        unique_together = ('company', 'date')
+        ordering = ['date']
     
     def __str__(self):
         return f"{self.name} - {self.date}"
@@ -181,6 +186,7 @@ class Holiday(models.Model):
     @property
     def day(self):
         return self.date.strftime('%A')
+        
 
 
 # ---------- Shift Model ----------
