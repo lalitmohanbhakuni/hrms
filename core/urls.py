@@ -152,9 +152,13 @@ urlpatterns = [
     ),
 
     # ─── Kiosk (face-recognition attendance) ───
+
      path('kiosk/',                          views.kiosk_page,           name='kiosk_page'),
+     path('kiosk/manifest.webmanifest',      views.kiosk_manifest,       name='kiosk_manifest'),
+     path('kiosk/sw.js',                     views.kiosk_sw,             name='kiosk_sw'),
      path('api/kiosk/vectors/',              views.kiosk_get_vectors,    name='kiosk_get_vectors'),
      path('api/kiosk/clock/',                views.kiosk_clock_api,      name='kiosk_clock_api'),
+
     
     
      # ─── Face Management & Registration ───

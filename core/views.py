@@ -13,6 +13,7 @@ from datetime import date, timedelta, datetime
 from decimal import Decimal
 from calendar import monthrange
 from io import BytesIO
+from django.conf import settings
 from math import radians, sin, cos, sqrt, atan2
 import csv
 from django.contrib.auth.password_validation import validate_password
@@ -9211,3 +9212,22 @@ def kiosk_clock_api(request):
         'check_in':    timezone.localtime(att.check_in_time).strftime('%I:%M %p') if att.check_in_time else None,
         'check_out':   timezone.localtime(att.check_out_time).strftime('%I:%M %p') if att.check_out_time else None,
     })
+
+
+def kiosk_manifest(request):
+    path = settings.BASE_DIR / 'static' / 'kiosk' / 'manifest.webmanifest'
+    with open(path) as f:
+        content = f.read()
+    resp = HttpResponse(content, content_type='application/manifest+json')
+    resp['Cache-Control'] = 'public, max-age=3600'
+    return resp
+
+
+def kiosk_sw(request):
+    path = settings.BASE_DIR / 'static' / 'kiosk' / 'sw.js'
+    with open(path) as f:
+        content = f.read()
+    resp = HttpResponse(content, content_type='application/javascript')
+    resp['Service-Worker-Allowed'] = '/kiosk/'
+    resp['Cache-Control'] = 'no-cache'
+    return resp

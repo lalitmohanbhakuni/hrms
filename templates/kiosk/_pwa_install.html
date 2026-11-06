@@ -1,0 +1,113 @@
+{% load static %}
+<style>
+.k-pwa-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  padding: 20px;
+}
+.k-pwa-modal.show { display: flex; }
+.k-pwa-card {
+  background: linear-gradient(135deg, #1e293b, #0f172a);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 24px;
+  padding: 36px 28px;
+  max-width: 380px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+}
+.k-pwa-icon { font-size: 3.5rem; margin-bottom: 16px; line-height: 1; }
+.k-pwa-card h3 { font-size: 1.35rem; color: #fff; margin: 0 0 12px; font-weight: 700; }
+.k-pwa-card p { font-size: 0.95rem; color: #94a3b8; margin: 0 0 24px; line-height: 1.5; }
+.k-pwa-actions { display: flex; flex-direction: column; gap: 10px; }
+.k-pwa-btn {
+  padding: 14px 20px;
+  border-radius: 12px;
+  border: none;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+.k-pwa-btn-primary { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; }
+.k-pwa-btn-ghost { background: rgba(255,255,255,0.08); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15); }
+</style>
+
+<div id="pwaInstallModal" class="k-pwa-modal">
+  <div class="k-pwa-card">
+    <div class="k-pwa-icon">📱</div>
+    <h3>Install NitoHR Kiosk</h3>
+    <p>Install the kiosk app for faster access — opens without the browser bar and works offline.</p>
+    <div class="k-pwa-actions">
+      <button id="pwaInstallYes" class="k-pwa-btn k-pwa-btn-primary">Install</button>
+      <button id="pwaInstallNo" class="k-pwa-btn k-pwa-btn-ghost">Not now</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  if (isStandalone) return;
+  if (sessionStorage.getItem('kiosk_install_dismissed') === '1') return;
+
+  var modal = document.getElementById('pwaInstallModal');
+  var yesBtn = document.getElementById('pwaInstallYes');
+  var noBtn = document.getElementById('pwaInstallNo');
+  if (!modal || !yesBtn || !noBtn) return;
+
+  var deferredPrompt = null;
+  var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    deferredPrompt = e;
+    console.log('✅ beforeinstallprompt fired');
+    setTimeout(function () { modal.classList.add('show'); }, 1200);
+  });
+
+  if (isIOS && /Safari/.test(navigator.userAgent)) {
+    setTimeout(function () { modal.classList.add('show'); }, 1500);
+  }
+
+  yesBtn.addEventListener('click', async function () {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      var r = await deferredPrompt.userChoice;
+      console.log('Install choice:', r.outcome);
+      deferredPrompt = null;
+      modal.classList.remove('show');
+      return;
+    }
+    if (isIOS) {
+      modal.querySelector('.k-pwa-card').innerHTML =
+        '<div class="k-pwa-icon">📲</div><h3>Add to Home Screen</h3>' +
+        '<p style="text-align:left;">1. Tap Share<br>2. Add to Home Screen<br>3. Tap Add</p>' +
+        '<div class="k-pwa-actions"><button id="pwaGotIt" class="k-pwa-btn k-pwa-btn-primary">Got it</button></div>';
+      var g = modal.querySelector('#pwaGotIt');
+      if (g) g.addEventListener('click', function () {
+        sessionStorage.setItem('kiosk_install_dismissed', '1');
+        modal.classList.remove('show');
+      });
+      return;
+    }
+    modal.classList.remove('show');
+  });
+
+  noBtn.addEventListener('click', function () {
+    sessionStorage.setItem('kiosk_install_dismissed', '1');
+    modal.classList.remove('show');
+  });
+
+  window.addEventListener('appinstalled', function () {
+    modal.classList.remove('show');
+  });
+})();
+</script>

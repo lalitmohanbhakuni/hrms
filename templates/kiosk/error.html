@@ -1,9 +1,21 @@
 {% extends 'base.html' %}
 {% block title %}Kiosk Error{% endblock %}
 {% block content %}
+<script>
+(function () {
+  var stored = localStorage.getItem('kiosk_token');
+  var inUrl = new URLSearchParams(location.search).get('token');
+  // Only redirect when: stored token exists AND URL has no token.
+  // The !inUrl guard prevents infinite loops if the stored token is stale.
+  if (stored && !inUrl) {
+    location.replace('/kiosk/?token=' + encodeURIComponent(stored));
+  }
+})();
+</script>
 <div style="max-width:600px;margin:80px auto;text-align:center;">
     <div style="font-size:3rem;color:#ef4444;"><i class="las la-exclamation-triangle"></i></div>
     <h2 style="color:#0f172a;margin:16px 0 8px;">{{ error_title }}</h2>
     <p style="color:#64748b;font-size:1.05rem;">{{ error_msg }}</p>
 </div>
+{% include "kiosk/_pwa_install.html" %}
 {% endblock %}

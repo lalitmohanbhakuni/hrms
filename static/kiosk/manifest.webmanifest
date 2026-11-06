@@ -1,0 +1,14 @@
+{
+  "name": "NitoHR Kiosk",
+  "short_name": "Kiosk",
+  "description": "Attendance kiosk for NitoHR",
+  "start_url": "/kiosk/",
+  "scope": "/kiosk/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#667eea",
+  "theme_color": "#667eea",
+  "icons": [
+    { "src": "/static/icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

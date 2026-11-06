@@ -59,6 +59,13 @@
         .error.show { display: block; }
         .hint { margin-top: 20px; font-size: 0.8rem; color: #94a3b8; }
     </style>
+
+    <link rel="icon" type="image/svg+xml" href="{% static 'icons/icon.svg' %}">
+    <link rel="apple-touch-icon" href="{% static 'icons/icon.svg' %}">
+    <link rel="manifest" href="{% url 'kiosk_manifest' %}">
+    <meta name="theme-color" content="#667eea">
+    <meta name="mobile-web-app-capable" content="yes">
+
 </head>
 <body>
 
@@ -171,5 +178,17 @@
 })();
 </script>
 
+<script>
+(function () {
+  var t = new URLSearchParams(location.search).get('token');
+  if (t) localStorage.setItem('kiosk_token', t);
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/kiosk/sw.js', { scope: '/kiosk/' })
+      .catch(function (err) { console.warn('SW registration failed:', err); });
+  }
+})();
+</script>
+{% include "kiosk/_pwa_install.html" %}
 </body>
 </html>
