@@ -7,10 +7,87 @@
     <title>Kiosk — {{ kiosk_name }}</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/line-awesome/1.3.0/line-awesome/css/line-awesome.min.css">
     <style>
-        .k-company,.k-header,.k-main,.k-wrap{display:flex}.k-big-btn,.k-big-btn .lbl,.k-clock,.k-company{font-weight:700}*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f172a;color:#fff;min-height:100vh;overflow:hidden}#kOkBtn:hover{background:rgba(255,255,255,.4);transform:translateY(-2px)}.k-wrap{flex-direction:column;height:100vh;padding:20px}.k-header{align-items:center;justify-content:space-between;padding:12px 20px;background:rgba(255,255,255,.05);border-radius:12px;margin-bottom:16px}.k-company{font-size:1.1rem;align-items:center;gap:10px}.k-company i{color:#10b981}.k-clock{font-family:monospace;font-size:1.3rem;color:#94a3b8}.k-main{flex:1;align-items:center;justify-content:center;position:relative}.k-screen{width:100%;max-width:900px;display:none}.k-panel.active,.k-screen.active{display:block}.k-btn-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;padding:20px}.k-big-btn{border:none;border-radius:24px;padding:60px 30px;font-size:1.8rem;cursor:pointer;transition:transform .15s,box-shadow .15s;display:flex;flex-direction:column;align-items:center;gap:16px;color:#fff;box-shadow:0 12px 40px rgba(0,0,0,.4)}.k-big-btn:hover{transform:translateY(-4px)}.k-big-btn:active{transform:translateY(0)}.k-big-btn .ico{font-size:4rem;line-height:1}.k-big-btn .lbl{font-size:1.8rem}.k-big-btn .hint{font-size:.85rem;opacity:.85;font-weight:500}.k-btn-in,.k-panel.state-success{background:linear-gradient(135deg,#10b981,#059669)}.k-btn-in:hover{box-shadow:0 16px 50px rgba(16,185,129,.5)}.k-btn-out,.k-panel.state-info{background:linear-gradient(135deg,#3b82f6,#2563eb)}.k-btn-out:hover{box-shadow:0 16px 50px rgba(59,130,246,.5)}.k-idle-info{text-align:center;margin-top:24px;color:#94a3b8;font-size:.95rem}.k-video-wrap{position:relative;width:100%;aspect-ratio:4/3;background:#000;border-radius:20px;overflow:hidden;margin-bottom:16px}.k-liveness,.k-overlay,.k-status{position:absolute}.k-video-wrap video{width:100%;height:100%;object-fit:cover;display:block;transform:scaleX(-1)}.k-overlay{inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}.k-target{width:40%;aspect-ratio:1/1.25;border:3px dashed #10b981;border-radius:50%/40%;transition:.15s}.k-target.detected{border-color:#10b981;border-style:solid;box-shadow:0 0 40px rgba(16,185,129,.5)}.k-target.matched{border-color:#3b82f6;border-style:solid;box-shadow:0 0 60px rgba(59,130,246,.8)}.k-liveness{inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(15,23,42,.18);z-index:5;transition:opacity .3s,visibility .3s}.k-liveness.hidden{opacity:0;visibility:hidden}.k-liveness-icon{font-size:5rem;color:#fbbf24;margin-bottom:20px;animation:1.5s ease-in-out infinite blinkAnim}@keyframes blinkAnim{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(.95);opacity:.5}}.k-liveness-text{font-size:2rem;font-weight:700;margin-bottom:10px}.k-liveness-sub{font-size:1rem;color:#94a3b8}.k-liveness-progress{width:200px;height:6px;background:rgba(255,255,255,.15);border-radius:3px;margin-top:24px;overflow:hidden}.k-liveness-progress-bar{height:100%;background:linear-gradient(90deg,#fbbf24,#10b981);width:0%;transition:width .1s linear}.k-status{bottom:16px;left:50%;transform:translateX(-50%);background:rgba(15,23,42,.95);backdrop-filter:blur(10px);padding:12px 24px;border-radius:999px;font-size:1rem;font-weight:600;white-space:nowrap;box-shadow:0 10px 40px rgba(0,0,0,.5)}.k-cancel-btn{display:block;width:100%;padding:14px;border-radius:12px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:.95rem;font-weight:600;cursor:pointer;transition:.15s}.k-cancel-btn:hover,.k-panel-time{background:rgba(255,255,255,.2)}.k-panel{width:100%;max-width:700px;border-radius:24px;padding:60px 40px;text-align:center;display:none;animation:.4s ease-out panelIn}@keyframes panelIn{from{transform:scale(.9);opacity:0}to{transform:scale(1);opacity:1}}.k-panel.state-warning{background:linear-gradient(135deg,#f59e0b,#d97706)}.k-panel.state-danger{background:linear-gradient(135deg,#ef4444,#dc2626)}.k-panel-icon{font-size:6rem;margin-bottom:16px;line-height:1}.k-panel-name{font-size:2.5rem;font-weight:700;margin-bottom:12px}.k-panel-msg{font-size:1.4rem;opacity:.95;margin-bottom:20px}.k-panel-time{font-size:1.1rem;font-weight:600;padding:8px 22px;border-radius:999px;display:inline-block}.k-footer{display:flex;justify-content:space-between;align-items:center;padding:12px 20px;color:#64748b;font-size:.8rem}
-        .k-video-wrap{position:relative;width:100%;aspect-ratio:4/3;background:#000;border-radius:20px;overflow:hidden;margin-bottom:16px}
+  .k-company,.k-header,.k-main,.k-wrap{display:flex}
+  .k-big-btn,.k-big-btn .lbl,.k-clock,.k-company{font-weight:700}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f172a;color:#fff;min-height:100vh;overflow:hidden}
+  #kOkBtn:hover{background:rgba(255,255,255,.4);transform:translateY(-2px)}
 
-    </style>
+  /* ── Layout ── */
+  .k-wrap{flex-direction:column;height:100vh;padding:20px}
+  .k-header{align-items:center;justify-content:space-between;padding:14px 24px;background:rgba(255,255,255,.05);border-radius:12px;margin-bottom:16px}
+  .k-company{font-size:1.3rem;align-items:center;gap:10px}
+  .k-company i{color:#10b981}
+  .k-clock{font-family:monospace;font-size:1.6rem;color:#94a3b8}
+  .k-main{flex:1;align-items:center;justify-content:center;position:relative}
+
+  /* ── Check-in screen (IN / OUT buttons) ── */
+  .k-screen{width:100%;max-width:1100px;display:none}
+  .k-panel.active,.k-screen.active{display:block}
+  .k-btn-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;padding:30px}
+  .k-big-btn{border:none;border-radius:28px;padding:90px 50px;font-size:2.4rem;cursor:pointer;transition:transform .15s,box-shadow .15s;display:flex;flex-direction:column;align-items:center;gap:24px;color:#fff;box-shadow:0 12px 40px rgba(0,0,0,.4)}
+  .k-big-btn:hover{transform:translateY(-4px)}
+  .k-big-btn:active{transform:translateY(0)}
+  .k-big-btn .ico{font-size:6rem;line-height:1}
+  .k-big-btn .lbl{font-size:2.4rem}
+  .k-big-btn .hint{font-size:1.1rem;opacity:.85;font-weight:500}
+  .k-btn-in,.k-panel.state-success{background:linear-gradient(135deg,#10b981,#059669)}
+  .k-btn-in:hover{box-shadow:0 16px 50px rgba(16,185,129,.5)}
+  .k-btn-out,.k-panel.state-info{background:linear-gradient(135deg,#3b82f6,#2563eb)}
+  .k-btn-out:hover{box-shadow:0 16px 50px rgba(59,130,246,.5)}
+  .k-idle-info{text-align:center;margin-top:24px;color:#94a3b8;font-size:1.05rem}
+
+  /* ── Camera / face check ── */
+  .k-video-wrap{position:relative;width:100%;height:55vh;min-height:320px;max-height:620px;background:#000;border-radius:20px;overflow:hidden;margin-bottom:16px}
+  .k-liveness,.k-overlay,.k-status{position:absolute}
+  .k-video-wrap video{width:100%;height:100%;object-fit:cover;display:block;transform:scaleX(-1)}
+  .k-overlay{inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+  .k-target{width:40%;aspect-ratio:1/1.25;border:3px dashed #10b981;border-radius:50%/40%;transition:.15s}
+  .k-target.detected{border-color:#10b981;border-style:solid;box-shadow:0 0 40px rgba(16,185,129,.5)}
+  .k-target.matched{border-color:#3b82f6;border-style:solid;box-shadow:0 0 60px rgba(59,130,246,.8)}
+  .k-liveness{inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(15,23,42,.18);z-index:5;transition:opacity .3s,visibility .3s}
+  .k-liveness.hidden{opacity:0;visibility:hidden}
+  .k-liveness-icon{font-size:5rem;color:#fbbf24;margin-bottom:20px;animation:1.5s ease-in-out infinite blinkAnim}
+  @keyframes blinkAnim{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(.95);opacity:.5}}
+  .k-liveness-text{font-size:2rem;font-weight:700;margin-bottom:10px}
+  .k-liveness-sub{font-size:1rem;color:#94a3b8}
+  .k-liveness-progress{width:200px;height:6px;background:rgba(255,255,255,.15);border-radius:3px;margin-top:24px;overflow:hidden}
+  .k-liveness-progress-bar{height:100%;background:linear-gradient(90deg,#fbbf24,#10b981);width:0%;transition:width .1s linear}
+  .k-status{bottom:16px;left:50%;transform:translateX(-50%);background:rgba(15,23,42,.95);backdrop-filter:blur(10px);padding:12px 24px;border-radius:999px;font-size:1rem;font-weight:600;white-space:nowrap;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+  .k-cancel-btn{display:block;width:100%;padding:14px;border-radius:12px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:.95rem;font-weight:600;cursor:pointer;transition:.15s}
+  .k-cancel-btn:hover,.k-panel-time{background:rgba(255,255,255,.2)}
+
+  /* ── Result panel (success / warning / danger) ── */
+  .k-panel{width:100%;max-width:900px;border-radius:24px;padding:80px 50px;text-align:center;display:none;animation:.4s ease-out panelIn}
+  @keyframes panelIn{from{transform:scale(.9);opacity:0}to{transform:scale(1);opacity:1}}
+  .k-panel.state-warning{background:linear-gradient(135deg,#f59e0b,#d97706)}
+  .k-panel.state-danger{background:linear-gradient(135deg,#ef4444,#dc2626)}
+  .k-panel-icon{font-size:8rem;margin-bottom:20px;line-height:1}
+  .k-panel-name{font-size:3.2rem;font-weight:700;margin-bottom:16px}
+  .k-panel-msg{font-size:1.8rem;opacity:.95;margin-bottom:24px}
+  .k-panel-time{font-size:1.4rem;font-weight:600;padding:10px 28px;border-radius:999px;display:inline-block}
+
+  /* ── Footer ── */
+  .k-footer{display:flex;justify-content:space-between;align-items:center;padding:12px 20px;color:#64748b;font-size:.9rem}
+
+  /* ── Phone fallback (screen < 600px) ── */
+  @media (max-width: 600px) {
+    .k-company{font-size:1rem}
+    .k-clock{font-size:1.2rem}
+    .k-btn-grid{gap:20px;padding:16px}
+    .k-big-btn{padding:50px 20px;font-size:1.8rem;border-radius:20px}
+    .k-big-btn .ico{font-size:4rem}
+    .k-big-btn .lbl{font-size:1.6rem}
+    .k-big-btn .hint{font-size:.9rem}
+    .k-video-wrap{height:45vh;min-height:260px}
+    .k-panel{max-width:100%;padding:50px 24px}
+    .k-panel-icon{font-size:5rem;margin-bottom:12px}
+    .k-panel-name{font-size:2rem}
+    .k-panel-msg{font-size:1.2rem}
+    .k-panel-time{font-size:1rem;padding:8px 20px}
+  }
+</style>
+
 
     <link rel="icon" type="image/svg+xml" href="{% static 'icons/icon.svg' %}">
     <link rel="apple-touch-icon" href="{% static 'icons/icon.svg' %}">
