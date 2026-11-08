@@ -9,6 +9,7 @@
   "background_color": "#667eea",
   "theme_color": "#667eea",
   "icons": [
-    { "src": "/static/icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+    { "src": "/static/icons/icon2.svg", "sizes": "any", "type": "image/svg+xml" }
+    { "src": "/static/icons/k-icon-180.png", "sizes": "any", "type": "image/png"}
   ]
 }
