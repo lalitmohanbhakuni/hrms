@@ -9222,12 +9222,40 @@ def kiosk_clock_api(request):
 
 
 def kiosk_manifest(request):
-    path = settings.BASE_DIR / 'static' / 'kiosk' / 'manifest.webmanifest'
-    with open(path) as f:
-        content = f.read()
-    resp = HttpResponse(content, content_type='application/manifest+json')
-    resp['Cache-Control'] = 'public, max-age=3600'
-    return resp
+    data = {
+        "id": "/kiosk/",
+        "name": "NitoHR Kiosk",
+        "short_name": "Kiosk",
+        "description": "Attendance kiosk for NitoHR",
+        "start_url": "/kiosk/",
+        "scope": "/kiosk/",
+        "display": "standalone",
+        "orientation": "portrait",
+        "background_color": "#0f172a",
+        "theme_color": "#0f172a",
+        "icons": [
+            {
+                "src": "/static/icons/k-icon-192.png",
+                "sizes": "192x192",
+                "type": "image/png",
+                "purpose": "any"
+            },
+            {
+                "src": "/static/icons/k-icon-512.png",
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "any"
+            },
+            {
+                "src": "/static/icons/icon2.svg",
+                "sizes": "any",
+                "type": "image/svg+xml",
+                "purpose": "any"
+            }
+        ]
+    }
+    return JsonResponse(data, content_type="application/manifest+json")
+    
 
 
 def kiosk_sw(request):
