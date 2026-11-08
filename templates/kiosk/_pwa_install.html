@@ -1,41 +1,13 @@
 {% load static %}
 <style>
-.k-pwa-modal {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.88);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  align-items: center;
-  justify-content: center;
-  z-index: 99999;
-  padding: 20px;
-}
+.k-pwa-modal { display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.88); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); align-items: center; justify-content: center; z-index: 99999; padding: 20px; }
 .k-pwa-modal.show { display: flex; }
-.k-pwa-card {
-  background: linear-gradient(135deg, #1e293b, #0f172a);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 24px;
-  padding: 36px 28px;
-  max-width: 380px;
-  width: 100%;
-  text-align: center;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
-}
-.k-pwa-icon { font-size: 3.5rem; margin-bottom: 16px; line-height: 1; }
-.k-pwa-card h3 { font-size: 1.35rem; color: #fff; margin: 0 0 12px; font-weight: 700; }
-.k-pwa-card p { font-size: 0.95rem; color: #94a3b8; margin: 0 0 24px; line-height: 1.5; }
+.k-pwa-card { background: linear-gradient(135deg, #1e293b, #0f172a); border: 1px solid rgba(255,255,255,0.12); border-radius: 24px; padding: 32px 24px; max-width: 380px; width: 100%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.7); }
+.k-pwa-icon { font-size: 3rem; margin-bottom: 14px; line-height: 1; }
+.k-pwa-card h3 { font-size: 1.25rem; color: #fff; margin: 0 0 10px; font-weight: 700; }
+.k-pwa-card p { font-size: 0.9rem; color: #94a3b8; margin: 0 0 22px; line-height: 1.5; }
 .k-pwa-actions { display: flex; flex-direction: column; gap: 10px; }
-.k-pwa-btn {
-  padding: 14px 20px;
-  border-radius: 12px;
-  border: none;
-  font-size: 1rem;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: inherit;
-}
+.k-pwa-btn { padding: 14px 20px; border-radius: 12px; border: none; font-size: 1rem; font-weight: 700; cursor: pointer; font-family: inherit; }
 .k-pwa-btn-primary { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; }
 .k-pwa-btn-ghost { background: rgba(255,255,255,0.08); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15); }
 </style>
@@ -54,8 +26,12 @@
 
 <script>
 (function () {
-  var isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-  if (isStandalone) return;
+  if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) return;
+
+  var isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  var isNarrowTouch = window.innerWidth <= 768 && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+  if (!isMobileUA && !isNarrowTouch) return;
+
   if (sessionStorage.getItem('kiosk_install_dismissed') === '1') return;
 
   var modal = document.getElementById('pwaInstallModal');
@@ -69,13 +45,14 @@
   window.addEventListener('beforeinstallprompt', function (e) {
     e.preventDefault();
     deferredPrompt = e;
-    console.log('✅ beforeinstallprompt fired');
-    setTimeout(function () { modal.classList.add('show'); }, 1200);
+    console.log('✅ Kiosk BIP captured');
   });
 
-  if (isIOS && /Safari/.test(navigator.userAgent)) {
-    setTimeout(function () { modal.classList.add('show'); }, 1500);
-  }
+  // SHOW POPUP after 1.5 sec — no BIP dependency
+  setTimeout(function () {
+    modal.classList.add('show');
+    console.log('📱 Kiosk popup shown');
+  }, 1500);
 
   yesBtn.addEventListener('click', async function () {
     if (deferredPrompt) {
@@ -86,19 +63,19 @@
       modal.classList.remove('show');
       return;
     }
+
+    var html;
     if (isIOS) {
-      modal.querySelector('.k-pwa-card').innerHTML =
-        '<div class="k-pwa-icon">📲</div><h3>Add to Home Screen</h3>' +
-        '<p style="text-align:left;">1. Tap Share<br>2. Add to Home Screen<br>3. Tap Add</p>' +
-        '<div class="k-pwa-actions"><button id="pwaGotIt" class="k-pwa-btn k-pwa-btn-primary">Got it</button></div>';
-      var g = modal.querySelector('#pwaGotIt');
-      if (g) g.addEventListener('click', function () {
-        sessionStorage.setItem('kiosk_install_dismissed', '1');
-        modal.classList.remove('show');
-      });
-      return;
+      html = '<div class="k-pwa-icon">📲</div><h3>Add to Home Screen</h3><p style="text-align:left;">1. Tap the <b>Share</b> button<br><br>2. Scroll → <b>Add to Home Screen</b><br><br>3. Tap <b>Add</b></p><div class="k-pwa-actions"><button id="pwaGotIt" class="k-pwa-btn k-pwa-btn-primary">Got it</button></div>';
+    } else {
+      html = '<div class="k-pwa-icon">📲</div><h3>Install Kiosk</h3><p style="text-align:left;">1. Tap the <b>⋮ menu</b> in Chrome<br><br>2. Tap <b>"Install app"</b><br><br>3. Confirm → done!</p><div class="k-pwa-actions"><button id="pwaGotIt" class="k-pwa-btn k-pwa-btn-primary">Got it</button></div>';
     }
-    modal.classList.remove('show');
+    modal.querySelector('.k-pwa-card').innerHTML = html;
+    var g = modal.querySelector('#pwaGotIt');
+    if (g) g.addEventListener('click', function () {
+      sessionStorage.setItem('kiosk_install_dismissed', '1');
+      modal.classList.remove('show');
+    });
   });
 
   noBtn.addEventListener('click', function () {
