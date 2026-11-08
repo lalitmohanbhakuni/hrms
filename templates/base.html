@@ -6,6 +6,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{% block title %}HRMS{% endblock %}</title>
 
     <!-- Bootstrap -->
@@ -14,6 +15,7 @@
     <link rel="icon" type="image/svg+xml" href="{% static 'favicon.svg' %}">
     <link rel="alternate icon" type="image/png" href="{% static 'favicon.png' %}">
     <link rel="apple-touch-icon" href="{% static 'apple-touch-icon.png' %}">
+    <link rel="apple-touch-icon" href="{% static 'icons/nitohr-icon-192.png' %}">
 
     <!-- Icons & Fonts -->
     <link rel="stylesheet" href="{% static 'vendor/fontawesome/css/all.min.css' %}">
@@ -41,10 +43,23 @@
             max-height: 340px;
             overflow: auto;
         }
+        /* .sidebar.open { z-index: 1070 !important;} */
 
     </style>
+    <style>.mobile-bottom-nav{display:none}@media (max-width:768px){.mbn-item i,.mbn-item span{line-height:1}.mobile-bottom-nav{display:flex;position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e2e8f0;padding:4px 0 calc(4px + env(safe-area-inset-bottom,0px));z-index:900;box-shadow:0 -2px 12px rgba(0,0,0,.06)}.mbn-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px 4px;text-decoration:none;color:#64748b;font-size:.7rem;font-weight:500;position:relative;min-height:56px}.mbn-item i{font-size:1.5rem}.mbn-item.active{color:#0d6efd}.mbn-badge{position:absolute;top:4px;right:calc(50% - 22px);background:#ef4444;color:#fff;font-size:.65rem;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px}body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))}}</style>
 
     
+<!-- PWA — main app -->
+<link rel="manifest" href="{% url 'app_manifest' %}">
+<meta name="theme-color" content="#667eea">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="{% static 'icons/nitohr-icon.svg' %}">
+
+<!-- Ensure safe-area support for standalone mode -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
 </head>
 <body>
     <!-- Sidebar Overlay -->
@@ -90,13 +105,13 @@
 
             <a href="{% url 'attendance_view' %}"
                 class="nav-item {% if request.resolver_match.url_name in 'attendance_view,regularize_request,regularize_request_list,regularize_approve,regularize_reject' %}active{% endif %}">
-                    <i class="las la-clock"></i><span>Attendance</span>
+                    <i class="las la-fingerprint"></i><span>Attendance</span>
                 </a>
 
 
             {% if user.is_authenticated %}
                 <a href="{% url 'employee_leaves' %}" class="nav-item {% if 'employee-leaves' in request.path %}active{% endif %}">
-                    <i class="las la-calendar-check"></i><span>My Leaves</span>
+                    <i class="las la-calendar-alt"></i><span>My Leaves</span>
                 </a>
                 <a href="{% url 'notification_list' %}" class="nav-item {% if 'notifications' in request.path %}active{% endif %}">
                     <i class="las la-bell"></i><span>Notifications</span>
@@ -421,6 +436,8 @@
         </div>
     </div>
 
+    
+
     <script src="{% static 'vendor/bootstrap/bootstrap.bundle.min.js' %}"></script>
     
     <script>
@@ -484,7 +501,58 @@
     });
     </script>
 
+    {% if user.is_authenticated and not user.is_staff %}
+        <nav class="mobile-bottom-nav" aria-label="Main navigation">
+        <a href="{% url 'dashboard' %}" class="mbn-item" data-tab="dashboard">
+            <i class="las la-home"></i>
+            <span>Dashboard</span>
+        </a>
+        <a href="{% url 'attendance_view' %}" class="mbn-item" data-tab="attendance">
+            <i class="las la-fingerprint"></i>
+            <span>Attendance</span>
+        </a>
+        <a href="{% url 'employee_leaves' %}" class="mbn-item" data-tab="leaves">
+            <i class="las la-calendar-alt"></i>
+            <span>My Leaves</span>
+        </a>
+        <a href="{% url 'notification_list' %}" class="mbn-item" data-tab="notifications">
+            <i class="las la-bell"></i>
+            <span>Notifications</span>
+        </a>
+        </nav>
+
+        <script>
+        (function () {
+        var path = location.pathname;
+        var active = null;
+        if (path === '/dashboard/' || path.indexOf('/dashboard') === 0) active = 'dashboard';
+        else if (path.indexOf('/attendance') === 0) active = 'attendance';
+        else if (path.indexOf('/employee-leaves') === 0) active = 'leaves';
+        else if (path.indexOf('/notification') === 0) active = 'notifications';
+
+        if (active) {
+            var el = document.querySelector('.mbn-item[data-tab="' + active + '"]');
+            if (el) el.classList.add('active');
+        }
+        })();
+        </script>
+    {% endif %}
 
     {% block extra_js %}{% endblock %}
+
+
+    {% if "/kiosk/" not in request.path %}
+    {% include "partials/_pwa_install_app.html" %}
+
+        <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function () {
+            navigator.serviceWorker.register('/sw-app.js', { scope: '/' })
+                .catch(function (err) { console.warn('App SW registration failed:', err); });
+            });
+        }
+        </script>
+    {% endif %}
+
 </body>
 </html>

@@ -144,6 +144,13 @@ def login_view(request):
                 messages.error(request, 'Your account is inactive. Contact your HR admin.')
                 return render(request, 'login.html')
             login(request, user)
+            
+            # Remember me — 30 days vs 8 hours
+            if request.POST.get('remember_me'):
+                request.session.set_expiry(60 * 60 * 24 * 30)  # 30 days
+            else:
+                request.session.set_expiry(60 * 60 * 8)  # 8 hours
+                
             return redirect('dashboard')
         else:
             messages.error(request, 'Invalid credentials. Please try again.')
@@ -9229,5 +9236,24 @@ def kiosk_sw(request):
         content = f.read()
     resp = HttpResponse(content, content_type='application/javascript')
     resp['Service-Worker-Allowed'] = '/kiosk/'
+    resp['Cache-Control'] = 'no-cache'
+    return resp
+
+
+def app_manifest(request):
+    path = settings.BASE_DIR / 'static' / 'manifest-app.webmanifest'
+    with open(path) as f:
+        content = f.read()
+    resp = HttpResponse(content, content_type='application/manifest+json')
+    resp['Cache-Control'] = 'public, max-age=3600'
+    return resp
+
+
+def app_sw(request):
+    path = settings.BASE_DIR / 'static' / 'sw-app.js'
+    with open(path) as f:
+        content = f.read()
+    resp = HttpResponse(content, content_type='application/javascript')
+    resp['Service-Worker-Allowed'] = '/'
     resp['Cache-Control'] = 'no-cache'
     return resp

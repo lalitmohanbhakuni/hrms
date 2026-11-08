@@ -12,6 +12,10 @@ urlpatterns = [
     path('logout/', views.logout_view, name='logout'),
     path('dashboard/', views.dashboard, name='dashboard'),
     path('', views.dashboard, name='home'),
+
+    path('manifest-app.webmanifest', views.app_manifest, name='app_manifest'),
+    path('sw-app.js',                 views.app_sw,       name='app_sw'),
+
     
     # Attendance
     path('clock-in/', views.clock_in, name='clock_in'),
