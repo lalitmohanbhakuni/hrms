@@ -46,7 +46,10 @@
         /* .sidebar.open { z-index: 1070 !important;} */
 
     </style>
-    <style>.mobile-bottom-nav{display:none}@media (max-width:768px){.mbn-item i,.mbn-item span{line-height:1}.mobile-bottom-nav{display:flex;position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e2e8f0;padding:4px 0 calc(4px + env(safe-area-inset-bottom,0px));z-index:900;box-shadow:0 -2px 12px rgba(0,0,0,.06)}.mbn-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px 4px;text-decoration:none;color:#64748b;font-size:.7rem;font-weight:500;position:relative;min-height:56px}.mbn-item i{font-size:1.5rem}.mbn-item.active{color:#0d6efd}.mbn-badge{position:absolute;top:4px;right:calc(50% - 22px);background:#ef4444;color:#fff;font-size:.65rem;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px}body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))}}</style>
+    <style>.mobile-bottom-nav{display:none}@media (max-width:768px){.mbn-item i,.mbn-item span{line-height:1}.mobile-bottom-nav{display:flex;position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e2e8f0;padding:4px 0 calc(4px + env(safe-area-inset-bottom,0px));z-index:900;box-shadow:0 -2px 12px rgba(0,0,0,.06)}.mbn-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px 4px;text-decoration:none;color:#64748b;font-size:.7rem;font-weight:500;position:relative;min-height:56px}.mbn-item i{font-size:1.5rem}.mbn-item.active{color:#0d6efd}.mbn-badge{position:absolute;top:4px;right:calc(50% - 22px);background:#ef4444;color:#fff;font-size:.65rem;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px}body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))} body{
+    padding-bottom:calc(64px + env(safe-area-inset-bottom,0px));
+    background:#fff;   /* ← ADD THIS */
+  } }</style>
 
     
 <!-- PWA — main app -->
@@ -55,7 +58,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="apple-touch-icon" href="{% static 'icons/nitohr-icon.svg' %}">
+<link rel="apple-touch-icon" href="{% static 'icons/n-icon.svg' %}">
 
 <!-- Ensure safe-area support for standalone mode -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">

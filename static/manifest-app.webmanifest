@@ -11,7 +11,7 @@
   "theme_color": "#667eea",
   "icons": [
     {
-      "src": "/static/icons/nitohr-icon.svg",
+      "src": "/static/icons/n-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
