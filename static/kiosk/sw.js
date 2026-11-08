@@ -1,4 +1,4 @@
-const CACHE = 'kiosk-v5';
+const CACHE = 'kiosk-v6';
 
 const FACE_MODELS = [
   '/static/vendor/face-api/models/tiny_face_detector_model-weights_manifest.json',

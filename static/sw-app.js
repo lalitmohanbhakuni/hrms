@@ -1,4 +1,4 @@
-const CACHE = 'nitohr-app-v3';
+const CACHE = 'nitohr-app-v4';
 
 self.addEventListener('install', () => self.skipWaiting());
 
