@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "NitoHR",
+  "short_name": "NitoHR",
+  "description": "Employee HR portal",
+  "start_url": "/login/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#667eea",
+  "theme_color": "#667eea",
+  "icons": [
+    {
+      "src": "/static/icons/nitohr-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
