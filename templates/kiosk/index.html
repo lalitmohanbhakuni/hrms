@@ -86,6 +86,29 @@
     .k-panel-msg{font-size:1.2rem}
     .k-panel-time{font-size:1rem;padding:8px 20px}
   }
+  .k-reload-btn {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    cursor: pointer;
+    z-index: 100;
+    backdrop-filter: blur(4px);
+    transition: all 0.2s;
+}
+.k-reload-btn:hover {
+    background: rgba(15, 23, 42, 0.9);
+    transform: scale(1.05) rotate(180deg);
+}
 </style>
 
 
@@ -97,7 +120,9 @@
 
 </head>
 <body>
-
+<button id="kReloadBtn" class="k-reload-btn" title="Reload Kiosk">
+    <i class="las la-sync-alt"></i>
+</button>
 <div class="k-wrap">
 
     <div class="k-header">
@@ -204,6 +229,26 @@
 
 <script src="{% static 'vendor/face-api/face-api.min.js' %}"></script>
 <script src="{% static 'js/kiosk.js' %}"></script>
+
+<script>
+    // Reload Button (Hard Reload)
+    const reloadBtn = document.getElementById('kReloadBtn');
+    if (reloadBtn) {
+        reloadBtn.addEventListener('click', () => {
+            console.log('[kiosk] Hard reload triggered by user');
+            
+            // 1. Agar camera stream chal raha hai toh use band karo
+            if (currentStream) {
+                currentStream.getTracks().forEach(t => t.stop());
+            }
+
+            // 2. Hard Reload with Cache Buster (Timestamp add karo)
+            const url = new URL(window.location.href);
+            url.searchParams.set('reload', Date.now()); // Naya timestamp URL me jayega
+            window.location.href = url.toString(); 
+        });
+    }
+</script>
 
 
 <script>

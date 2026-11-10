@@ -251,23 +251,24 @@
     }
     function checkBlink(landmarks) {
         const ear = avgEAR(landmarks);
-        // More lenient thresholds
-        const CLOSED = 0.24;   // was 0.21
-        const OPEN   = 0.26;   // was 0.28
+        
+        // 0.28 threshold: Halki si jhapki (squint) bhi pakad lega
+        const CLOSED = 0.28;   
 
         if (ear < CLOSED) {
             if (!eyesWereClosed) {
                 eyesWereClosed = true;
                 eyesClosedSince = Date.now();
-            }
-        } else if (ear > OPEN) {
-            if (eyesWereClosed) {
-                const closedMs = Date.now() - eyesClosedSince;
-                eyesWereClosed = false;
-                if (closedMs >= BLINK_MIN_MS && closedMs <= BLINK_MAX_MS) {
+            } else {
+                // Aankh band hai. Agar 50ms (0.05s) se zyada band hai, toh turant TRUE return karo.
+                // Aankh khulne ka wait mat karo!
+                if (Date.now() - eyesClosedSince > 50) {
                     return true;
                 }
             }
+        } else {
+            // Aankh khuli hai, reset karo
+            eyesWereClosed = false;
         }
         return false;
     }
@@ -406,14 +407,14 @@
             }
 
             showResult(state, icon, json.full_name, json.message, json.time);
-            scheduleReset(10000);   // 10 seconds
+            scheduleReset(15000);   // 10 seconds
 
         } catch (e) {
             console.error('[kiosk] API error:', e);
             beepError();
             showResult('danger', 'la-exclamation-triangle',
                        info.name, 'Server error', '');
-            scheduleReset(8000);
+            scheduleReset(10000);
         }
     }
 
