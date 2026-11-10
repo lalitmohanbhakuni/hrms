@@ -61,10 +61,14 @@
     </style>
 
     <link rel="apple-touch-icon" href="{% static 'icons/k-icon-180.png' %}">
-    <link rel="icon" type="image/svg+xml" href="{% static 'icons/icon2.svg' %}">
+    <link rel="icon" type="image/svg+xml" href="{% static 'icons/icon2.svg  ' %}">
 
     <meta name="theme-color" content="#667eea">
     <meta name="mobile-web-app-capable" content="yes">
+        <!-- PWA Install Tags -->
+    <link rel="manifest" href="{% url 'kiosk_manifest' %}">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="apple-touch-icon" href="{% static 'icons/k-icon-180.png' %}">
 
 </head>
 <body>
