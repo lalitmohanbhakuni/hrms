@@ -54,6 +54,7 @@
     // ── State ──
     let employees = [];
     let labeledDescriptors = [];
+    let faceMatcher = null;
     let modelsLoaded = false;
     let currentStream = null;
     let detectionInterval = null;
@@ -143,12 +144,29 @@
     async function loadModels() {
         const base = data.static_base + '/models';
         try {
+            await faceapi.tf.setBackend('webgl');
+            await faceapi.tf.ready();
+            console.log('[kiosk] Backend:', faceapi.tf.getBackend());
+
             await faceapi.nets.tinyFaceDetector.loadFromUri(base);
             await faceapi.nets.faceLandmark68Net.loadFromUri(base);
+            
+            // YE NAYI LINE ADD KARO (Tiny model ke liye):
+            await faceapi.nets.faceLandmark68TinyNet.loadFromUri(base);
+            
             await faceapi.nets.faceRecognitionNet.loadFromUri(base);
+            
+            // WARMUP: Ye background me model ko compile karega
+            console.log('[kiosk] Warming up models...');
+            const dummyCanvas = document.createElement('canvas');
+            dummyCanvas.width = 320; dummyCanvas.height = 320;
+            await faceapi.detectSingleFace(dummyCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 320 }))
+                .withFaceLandmarks(true)
+                .withFaceDescriptor();
+            
             modelsLoaded = true;
             clockStatusEl.textContent = 'Ready';
-            console.log('[kiosk] Models loaded');
+            console.log('[kiosk] Models warmed up');
         } catch (e) {
             console.error('[kiosk] Model load failed:', e);
             clockStatusEl.textContent = 'Model load failed';
@@ -175,6 +193,7 @@
                     descriptors
                 );
             });
+            faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.6);
             clockStatusEl.textContent = `${employees.length} employees ready`;
         } catch (e) {
             console.error('[kiosk] Load vectors failed:', e);
@@ -191,7 +210,11 @@
                 currentStream.getTracks().forEach(t => t.stop());
             }
             currentStream = await navigator.mediaDevices.getUserMedia({
-                video: { width: 960, height: 720, facingMode: 'user' }
+                video: { 
+                    width: { ideal: 640 }, 
+                    height: { ideal: 480 }, 
+                    facingMode: 'user' 
+                }
             });
             video.srcObject = currentStream;
             return true;
@@ -267,9 +290,9 @@
             try {
                 const detection = await faceapi
                     .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({
-                        inputSize: 416, scoreThreshold: 0.5,
+                        inputSize: 320, scoreThreshold: 0.5, // 320 kiya
                     }))
-                    .withFaceLandmarks()
+                    .withFaceLandmarks(true) // true add kiya
                     .withFaceDescriptor();
 
                 if (!detection) {
@@ -300,8 +323,8 @@
 
                 // ── Match ──
                 setStatus('👤 Hold still...');
-                const matcher = new faceapi.FaceMatcher(labeledDescriptors, 0.6);
-                const best = matcher.findBestMatch(detection.descriptor);
+                // const matcher = new faceapi.FaceMatcher(labeledDescriptors, 0.6);
+                const best = faceMatcher.findBestMatch(detection.descriptor);
 
                 if (best.label === 'unknown') {
                     setStatus('👤 Face not recognized');
