@@ -8968,7 +8968,7 @@ def kiosk_clock_api(request):
             if dist < best_distance:
                 best_distance = dist
 
-        threshold = float(credential.match_threshold or 0.55)
+        threshold = float(credential.match_threshold or 0.6)
 
         if best_distance > threshold:
             KioskAttendanceLog.objects.create(
