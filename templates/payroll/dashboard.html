@@ -250,6 +250,28 @@
 
 <div class="pay-wrap">
 
+    <!-- ═══════════ PAGE HEADER & FILTER ═══════════ -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+        <div>
+            <h4 class="mb-1 fw-bold">Payroll Dashboard</h4>
+            <p class="text-muted mb-0" style="font-size: 0.9rem;">Showing data for <b>{{ month_name }} {{ current_year }}</b></p>
+        </div>
+        
+        <!-- Month & Year Selector -->
+        <form method="GET" class="d-flex gap-2">
+            <select name="month" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                {% for m_num, m_name in months_list %}
+                    <option value="{{ m_num }}" {% if current_month == m_num %}selected{% endif %}>{{ m_name }}</option>
+                {% endfor %}
+            </select>
+            <select name="year" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                <option value="2026" {% if current_year == 2026 %}selected{% endif %}>2026</option>
+                <option value="2025" {% if current_year == 2025 %}selected{% endif %}>2025</option>
+                <option value="2024" {% if current_year == 2024 %}selected{% endif %}>2024</option>
+            </select>
+        </form>
+    </div>
+
     <!-- ═══════════ KPI CARDS ═══════════ -->
     <div class="row g-3 g-md-4">
         <div class="col-6 col-md-3">
@@ -286,7 +308,8 @@
             <div class="pay-kpi">
                 <div class="pay-kpi-ico info"><i class="fas fa-coins"></i></div>
                 <div class="pay-kpi-body">
-                    <div class="pay-kpi-label">Total Net Payable</div>
+                    <!-- Yahan Month add kiya -->
+                    <div class="pay-kpi-label">Total Net Payable ({{ month_name }})</div>
                     <div class="pay-kpi-value primary">₹{{ total_net|floatformat:0 }}</div>
                 </div>
             </div>
@@ -303,6 +326,7 @@
                     <span class="pay-card-hd-ico primary"><i class="fas fa-money-bill-wave"></i></span>
                     <div class="pay-card-hd-text">
                         <h6 class="pay-card-title">Salary Configuration</h6>
+                        <!-- Subtitle update kiya -->
                         <p class="pay-card-sub">Based on active salaries</p>
                     </div>
                 </div>
@@ -334,7 +358,8 @@
                     <span class="pay-card-hd-ico success"><i class="fas fa-file-invoice-dollar"></i></span>
                     <div class="pay-card-hd-text">
                         <h6 class="pay-card-title">Payroll Totals</h6>
-                        <p class="pay-card-sub">Generated payrolls</p>
+                        <!-- Subtitle update kiya -->
+                        <p class="pay-card-sub">Generated payrolls ({{ month_name }} {{ current_year }})</p>
                     </div>
                 </div>
                 <div class="pay-card-bd">
@@ -367,7 +392,8 @@
                     <span class="pay-card-hd-ico info"><i class="fas fa-tasks"></i></span>
                     <div class="pay-card-hd-text">
                         <h6 class="pay-card-title">Payroll Status</h6>
-                        <p class="pay-card-sub">Current month pipeline</p>
+                        <!-- Subtitle update kiya -->
+                        <p class="pay-card-sub">{{ month_name }} {{ current_year }} pipeline</p>
                     </div>
                 </div>
                 <div class="pay-card-bd">
@@ -404,5 +430,6 @@
     </div>
 
 </div>
+
 
 {% endblock %}

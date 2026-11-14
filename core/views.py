@@ -5687,11 +5687,23 @@ def attendance_report_pdf(request):
 def payroll_dashboard(request):
     from .utils import get_user_company
     from django.db.models import Sum, Count, Q
+    from datetime import date
 
     if request.user.is_superuser:
         company = Company.objects.first()
     else:
         company = get_user_company(request)
+
+    # ── Month & Year Filter Logic ──
+    today = date.today()
+    try:
+        current_month = int(request.GET.get('month', today.month))
+        current_year = int(request.GET.get('year', today.year))
+    except ValueError:
+        current_month = today.month
+        current_year = today.year
+        
+    month_name = date(current_year, current_month, 1).strftime('%B')
 
     # ── Employee counts ──
     total_employees = EmployeeProfile.objects.filter(company=company).count()
@@ -5699,7 +5711,7 @@ def payroll_dashboard(request):
         company=company, status='active'
     ).values('employee').distinct().count()
 
-    # ── Salary config totals ──
+    # ── Salary config totals (Ye active salaries ka hoga) ──
     salary_agg = EmployeeSalary.objects.filter(
         company=company, status='active'
     ).aggregate(
@@ -5709,45 +5721,62 @@ def payroll_dashboard(request):
         total_gross=Sum('gross_salary'),
     )
 
-    # ── Payroll month totals (all months in DB) ──
-    payroll_agg = Payroll.objects.filter(company=company).aggregate(
+    # ── Payroll totals (SIRF SELECTED MONTH KA) ──
+    payroll_agg = Payroll.objects.filter(
+        company=company,
+        month=current_month,   # <-- Month Filter
+        year=current_year      # <-- Year Filter
+    ).aggregate(
         total_ot=Sum('overtime_amount'),
         total_unpaid_deduction=Sum('unpaid_leave_deduction'),
         total_other_deduction=Sum('other_deduction'),
         total_net=Sum('net_salary'),
     )
 
-    # ── Payroll status counts ──
-    payroll_stats = Payroll.objects.filter(company=company).aggregate(
+    # ── Payroll status counts (SIRF SELECTED MONTH KA) ──
+    payroll_stats = Payroll.objects.filter(
+        company=company,
+        month=current_month,   # <-- Month Filter
+        year=current_year      # <-- Year Filter
+    ).aggregate(
         draft=Count('id', filter=Q(status='draft')),
         processed=Count('id', filter=Q(status='processed')),
         paid=Count('id', filter=Q(status='paid')),
     )
 
+    # Dropdown ke liye months list
+    months_list = [
+        (1, 'January'), (2, 'February'), (3, 'March'), (4, 'April'),
+        (5, 'May'), (6, 'June'), (7, 'July'), (8, 'August'),
+        (9, 'September'), (10, 'October'), (11, 'November'), (12, 'December')
+    ]
+
     context = {
+        'current_month': current_month,
+        'current_year': current_year,
+        'month_name': month_name,
+        'months_list': months_list,
+
         'total_employees': total_employees,
         'employees_with_salary': employees_with_salary,
         'employees_without_salary': total_employees - employees_with_salary,
 
-        # Salary config totals
         'total_basic': salary_agg['total_basic'] or 0,
         'total_hra': salary_agg['total_hra'] or 0,
         'total_allowance': salary_agg['total_allowance'] or 0,
         'total_gross': salary_agg['total_gross'] or 0,
 
-        # Payroll month totals
         'total_overtime': payroll_agg['total_ot'] or 0,
         'total_unpaid_leave_deduction': payroll_agg['total_unpaid_deduction'] or 0,
         'total_other_deduction': payroll_agg['total_other_deduction'] or 0,
         'total_net': payroll_agg['total_net'] or 0,
 
-        # Payroll status
         'draft_payroll': payroll_stats['draft'] or 0,
         'processed_payroll': payroll_stats['processed'] or 0,
         'paid_payroll': payroll_stats['paid'] or 0,
     }
     return render(request, 'payroll/dashboard.html', context)
-
+    
 
 
 @login_required

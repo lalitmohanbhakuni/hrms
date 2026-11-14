@@ -395,6 +395,28 @@
                     </button>
                 </div>
             </form>
+
+            <!-- YE SCRIPT ADD KARO -->
+            <script>
+                document.addEventListener("DOMContentLoaded", function() {
+                    var monthSelect = document.getElementById('ppr_month');
+                    if (monthSelect) {
+                        var monthNames = [
+                            "January", "February", "March", "April", "May", "June", 
+                            "July", "August", "September", "October", "November", "December"
+                        ];
+                        
+                        // Har option ko loop karke uske text (1, 2) ko Name se replace karo
+                        for (var i = 0; i < monthSelect.options.length; i++) {
+                            var monthNum = parseInt(monthSelect.options[i].value);
+                            if (monthNum >= 1 && monthNum <= 12) {
+                                monthSelect.options[i].text = monthNames[monthNum - 1];
+                            }
+                        }
+                    }
+                });
+            </script>
+
         </div>
     </div>
 
