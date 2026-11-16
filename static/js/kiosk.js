@@ -149,11 +149,8 @@
             console.log('[kiosk] Backend:', faceapi.tf.getBackend());
 
             await faceapi.nets.tinyFaceDetector.loadFromUri(base);
+            // Sirf Full Model load karo
             await faceapi.nets.faceLandmark68Net.loadFromUri(base);
-            
-            // YE NAYI LINE ADD KARO (Tiny model ke liye):
-            await faceapi.nets.faceLandmark68TinyNet.loadFromUri(base);
-            
             await faceapi.nets.faceRecognitionNet.loadFromUri(base);
             
             // WARMUP: Ye background me model ko compile karega
@@ -161,7 +158,7 @@
             const dummyCanvas = document.createElement('canvas');
             dummyCanvas.width = 320; dummyCanvas.height = 320;
             await faceapi.detectSingleFace(dummyCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 320 }))
-                .withFaceLandmarks(true)
+                .withFaceLandmarks()
                 .withFaceDescriptor();
             
             modelsLoaded = true;
@@ -291,9 +288,9 @@
             try {
                 const detection = await faceapi
                     .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({
-                        inputSize: 320, scoreThreshold: 0.5, // 320 kiya
+                        inputSize: 320, scoreThreshold: 0.5,
                     }))
-                    .withFaceLandmarks(true) // true add kiya
+                    .withFaceLandmarks() // <-- true hata diya
                     .withFaceDescriptor();
 
                 if (!detection) {
