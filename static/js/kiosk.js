@@ -12,7 +12,7 @@
             return btoa(
                 (screen.width + 'x' + screen.height) + '|' +
                 new Date().getTimezoneOffset() + '|' +
-                navigator.userAgent + '|' +
+                // navigator.userAgent HATA DIYA
                 navigator.language + '|' +
                 (navigator.hardwareConcurrency || 0)
             );

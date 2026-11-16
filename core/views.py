@@ -8937,8 +8937,8 @@ def kiosk_clock_api(request):
 
     client_fp = (data.get('fingerprint') or '').strip()
     if kiosk.device_fingerprint and client_fp and client_fp != kiosk.device_fingerprint:
-        logger.warning(f'[kiosk] Fingerprint mismatch for {kiosk.name}')
-        return JsonResponse({'error': 'Device mismatch'}, status=403)
+        # Block mat karo, bas warning log karo. (Kyunki Chrome update hone par fingerprint change hota hai)
+        logger.warning(f'[kiosk] Fingerprint mismatch for {kiosk.name} (Allowed anyway)')
 
     # ── 7. Token expiry ──
     kiosk_expires = getattr(kiosk, 'expires_at', None)
